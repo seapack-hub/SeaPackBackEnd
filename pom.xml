@@ -89,6 +89,21 @@
 			<optional>true</optional>
 		</dependency>
 
+		<!--fastjson依赖-->
+		<dependency>
+			<groupId>com.alibaba</groupId>
+			<artifactId>fastjson</artifactId>
+			<version>1.2.83</version> <!-- 使用最新稳定版 -->
+		</dependency>
+
+		<!--lombok依赖-->
+		<dependency>
+			<groupId>org.projectlombok</groupId>
+			<artifactId>lombok</artifactId>
+			<version>1.18.30</version> <!-- 使用最新版本 -->
+			<scope>provided</scope>
+		</dependency>
+
 	</dependencies>
 
 	<repositories>
