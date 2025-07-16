@@ -18,18 +18,35 @@
 
     <!-- 2. 动态条件查询（用户提供的核心代码） -->
     <select id="selectUserList" resultMap="userResultMap">
-        SELECT id, userName, email,mobile, nickName, gender,status, deptId,deptName,createTime
+        SELECT
+            id,
+            userName,
+            email,
+            mobile,
+            nickName,
+            gender,
+            status,
+            deptId,
+            deptName,
+            DATE_FORMAT(createTime, '%Y-%m-%d %H:%i:%s') AS createTime
         FROM user
         <where>
-            <if test="userName != null">
-                AND userName LIKE CONCAT('%', #{userName}, '%')
+            <if test="keywords != null and keywords != ''">
+                AND (
+                   userName LIKE CONCAT('%', #{keywords}, '%')
+                 OR nickName LIKE CONCAT('%' #{keywords}, '%')
+                 OR mobile = #{keywords}
+                )
             </if>
-            <if test="email != null">
-                AND email = #{email}
+            <if test="status != null and status != ''">
+                AND status = #{status}
+            </if>
+            <if test="deptId != null and deptId != ''">
+                AND deptId = #{deptId}
             </if>
             <!-- 扩展：时间范围查询 -->
-            <if test="startTime != null and endTime != null">
-                AND createTime BETWEEN #{startTime} AND #{endTime}
+            <if test="startTime != null and startTime != '' and endTime != null and endTime != ''">
+                AND DATE(createTime) BETWEEN #{startTime} AND #{endTime}
             </if>
         </where>
         ORDER BY createTime DESC

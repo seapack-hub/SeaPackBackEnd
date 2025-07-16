@@ -11,10 +11,11 @@ import java.util.List;
 public interface UserMapper {
 
     // XML方式（复杂SQL）
-    List<User> selectUserList(@Param("userName") String userName,
-                                 @Param("email") String email,
-                                 @Param("startTime") LocalDateTime startTime,
-                                 @Param("endTime") LocalDateTime endTime);
+    List<User> selectUserList(@Param("keywords") String keywords,
+                                 @Param("status") String status,
+                                 @Param("deptId") Long deptId,
+                                 @Param("startTime") String startTime,
+                                 @Param("endTime") String endTime);
 
     // 插入操作
     int insertUser(User user);

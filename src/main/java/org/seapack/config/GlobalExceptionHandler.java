@@ -25,13 +25,14 @@ public class GlobalExceptionHandler {
      * @param e 异常类型
      * @return
      */
-    @ExceptionHandler(Exception.class)  // 捕获所有未处理的异常
-    @ResponseBody
-    public Result<Void> handleException(Exception e) {
-        //log.error("系统异常:", e);
-        // 返回模糊错误信息
-        return Result.error(500, "服务繁忙，请重试");
-    }
+//    @ExceptionHandler(Exception.class)  // 捕获所有未处理的异常
+//    @ResponseBody
+//    public Result<Void> handleException(Exception e) {
+//        //log.error("系统异常:", e);
+//        System.out.print(e);
+//        // 返回模糊错误信息
+//        return Result.error(500, "服务繁忙，请重试");
+//    }
 
     /**
      * 处理常见异常处理

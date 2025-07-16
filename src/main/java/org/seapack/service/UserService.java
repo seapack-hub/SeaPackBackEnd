@@ -1,10 +1,10 @@
 package org.seapack.service;
 
+import com.github.pagehelper.PageInfo;
 import org.seapack.model.User;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 public interface UserService {
-    List<User> getUserList(String userName, String email, LocalDateTime startTime, LocalDateTime endTime);
+    PageInfo<User> getUserList(int pageNum, int pageSize, String keywords, String status, Long deptId, String startTime, String endTime);
 }
