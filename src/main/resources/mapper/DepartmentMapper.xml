@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seapack.mapper.DepartmentMapper">
+
+    <!-- 1. 结果映射配置（解决字段与属性命名不一致问题） -->
+    <resultMap id="Department" type="org.seapack.model.Department">
+        <id property="deptId" column="dept_id" />
+        <result property="deptName" column="dept_name"/>
+        <result property="parentDeptId" column="parent_dept_id"/>
+        <result property="deptLevel" column="dept_level"/>
+        <result property="deptPath" column="dept_path"/>
+        <result property="seq" column="seq"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <!-- 查询所有部门 -->
+    <select id="selectAllDepartments" resultMap="Department">
+        SELECT dept_id, dept_name, parent_dept_id, dept_level, dept_path, seq, create_time, update_time
+        FROM department
+        ORDER BY dept_path, seq
+    </select>
+
+    <!-- 按路径前缀查询子树 -->
+    <select id="selectSubTreeByPath" resultMap="Department">
+        SELECT dept_id, dept_name, parent_dept_id, dept_level, dept_path, seq
+        FROM department
+        WHERE dept_path LIKE CONCAT(#{deptId}, '%')
+        ORDER BY dept_path, seq
+    </select>
+
+</mapper>
