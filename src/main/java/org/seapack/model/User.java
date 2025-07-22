@@ -32,4 +32,6 @@ public class User {
     private String deptName;
     @Column(name = "create_time")
     private String createTime;
+    @Column(name = "password")
+    private String password;
 }

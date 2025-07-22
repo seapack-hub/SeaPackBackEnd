@@ -21,4 +21,8 @@ public class UserServiceImpl implements UserService {
         List<User> users = userMapper.selectUserList(keywords,status,deptId,startTime,endTime);
         return new PageInfo<>(users); // 封装分页信息
     }
+
+    public User selectUserByName(String userName){
+        return userMapper.selectUserByName(userName);
+    }
 }

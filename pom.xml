@@ -134,6 +134,12 @@
 			<version>3.12.0</version>
 		</dependency>
 
+		<!--security安全模块依赖-->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security</artifactId>
+		</dependency>
+
 	</dependencies>
 
 	<repositories>

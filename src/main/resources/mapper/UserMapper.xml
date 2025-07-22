@@ -5,36 +5,38 @@
     <!-- 1. 结果映射配置（解决字段与属性命名不一致问题） -->
     <resultMap id="userResultMap" type="org.seapack.model.User">
         <id property="id" column="id" />
-        <result property="userName" column="userName"/>
+        <result property="userName" column="user_name"/>
+        <result property="password" column="password"/>
         <result property="email" column="email"/>
         <result property="mobile" column="mobile"/>
-        <result property="nickName" column="nickName"/>
+        <result property="nickName" column="nick_name"/>
         <result property="gender" column="gender"/>
         <result property="status" column="status"/>
-        <result property="deptId" column="deptId"/>
-        <result property="deptName" column="deptName"/>
-        <result property="createTime" column="createTime"/>
+        <result property="deptId" column="dept_id"/>
+        <result property="deptName" column="dept_name"/>
+        <result property="createTime" column="create_time"/>
     </resultMap>
 
     <!-- 2. 动态条件查询（用户提供的核心代码） -->
     <select id="selectUserList" resultMap="userResultMap">
         SELECT
             id,
-            userName,
+            user_name,
+            password,
             email,
             mobile,
-            nickName,
+            nick_name,
             gender,
             status,
-            deptId,
-            deptName,
-            DATE_FORMAT(createTime, '%Y-%m-%d %H:%i:%s') AS createTime
+            dept_id,
+            dept_name,
+            DATE_FORMAT(create_time, '%Y-%m-%d %H:%i:%s') AS create_time
         FROM user
         <where>
             <if test="keywords != null and keywords != ''">
                 AND (
-                   userName LIKE CONCAT('%', #{keywords}, '%')
-                 OR nickName LIKE CONCAT('%' #{keywords}, '%')
+                   user_name LIKE CONCAT('%', #{keywords}, '%')
+                 OR nick_name LIKE CONCAT('%' #{keywords}, '%')
                  OR mobile = #{keywords}
                 )
             </if>
@@ -42,14 +44,27 @@
                 AND status = #{status}
             </if>
             <if test="deptId != null and deptId != ''">
-                AND deptId = #{deptId}
+                AND dept_id = #{deptId}
             </if>
             <!-- 扩展：时间范围查询 -->
             <if test="startTime != null and startTime != '' and endTime != null and endTime != ''">
-                AND DATE(createTime) BETWEEN #{startTime} AND #{endTime}
+                AND DATE(create_time) BETWEEN #{startTime} AND #{endTime}
             </if>
         </where>
-        ORDER BY createTime DESC
+        ORDER BY create_time DESC
+    </select>
+
+    <!--注册登录验证，根据用户查询用户是否存在-->
+    <select id="selectUserByName" resultMap="userResultMap">
+        select id,
+        user_name,
+        password
+        from user
+        <where>
+           <if test="userName != null and userName != ''">
+               and user_name = #{userName}
+           </if>
+        </where>
     </select>
 
     <!-- 3. 插入操作示例 -->

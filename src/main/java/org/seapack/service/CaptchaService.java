@@ -79,7 +79,7 @@ public class CaptchaService {
         if (storedX == null) return false;
 
         // 容差校验（±5像素内通过）
-        boolean isValid = Math.abs(Integer.parseInt(storedX) - userX) <= 10;
+        boolean isValid = Math.abs(Integer.parseInt(storedX) - userX) <= 20;
         redisTemplate.delete(token); // 验证后立即删除
         return isValid;
     }
