@@ -1,0 +1,370 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.lombok.mapper.FundBaseInfoMapper">
+  <resultMap id="BaseResultMap" type="org.seaPack.model.FundBaseInfo">
+    <id column="fund_code" jdbcType="VARCHAR" property="fundCode" />
+    <result column="fund_name" jdbcType="VARCHAR" property="fundName" />
+    <result column="fund_full_name" jdbcType="VARCHAR" property="fundFullName" />
+    <result column="fund_type" jdbcType="VARCHAR" property="fundType" />
+    <result column="management_company" jdbcType="VARCHAR" property="managementCompany" />
+    <result column="custodian" jdbcType="VARCHAR" property="custodian" />
+    <result column="incept_date" jdbcType="DATE" property="inceptDate" />
+    <result column="issue_share" jdbcType="DECIMAL" property="issueShare" />
+    <result column="m_fee" jdbcType="DECIMAL" property="mFee" />
+    <result column="c_fee" jdbcType="DECIMAL" property="cFee" />
+    <result column="s_fee" jdbcType="DECIMAL" property="sFee" />
+    <result column="latest_asset_size" jdbcType="DECIMAL" property="latestAssetSize" />
+    <result column="status" jdbcType="VARCHAR" property="status" />
+    <result column="created_at" jdbcType="TIMESTAMP" property="createdAt" />
+    <result column="updated_at" jdbcType="TIMESTAMP" property="updatedAt" />
+  </resultMap>
+  <sql id="Example_Where_Clause">
+    <where>
+      <foreach collection="oredCriteria" item="criteria" separator="or">
+        <if test="criteria.valid">
+          <trim prefix="(" prefixOverrides="and" suffix=")">
+            <foreach collection="criteria.criteria" item="criterion">
+              <choose>
+                <when test="criterion.noValue">
+                  and ${criterion.condition}
+                </when>
+                <when test="criterion.singleValue">
+                  and ${criterion.condition} #{criterion.value}
+                </when>
+                <when test="criterion.betweenValue">
+                  and ${criterion.condition} #{criterion.value} and #{criterion.secondValue}
+                </when>
+                <when test="criterion.listValue">
+                  and ${criterion.condition}
+                  <foreach close=")" collection="criterion.value" item="listItem" open="(" separator=",">
+                    #{listItem}
+                  </foreach>
+                </when>
+              </choose>
+            </foreach>
+          </trim>
+        </if>
+      </foreach>
+    </where>
+  </sql>
+  <sql id="Update_By_Example_Where_Clause">
+    <where>
+      <foreach collection="example.oredCriteria" item="criteria" separator="or">
+        <if test="criteria.valid">
+          <trim prefix="(" prefixOverrides="and" suffix=")">
+            <foreach collection="criteria.criteria" item="criterion">
+              <choose>
+                <when test="criterion.noValue">
+                  and ${criterion.condition}
+                </when>
+                <when test="criterion.singleValue">
+                  and ${criterion.condition} #{criterion.value}
+                </when>
+                <when test="criterion.betweenValue">
+                  and ${criterion.condition} #{criterion.value} and #{criterion.secondValue}
+                </when>
+                <when test="criterion.listValue">
+                  and ${criterion.condition}
+                  <foreach close=")" collection="criterion.value" item="listItem" open="(" separator=",">
+                    #{listItem}
+                  </foreach>
+                </when>
+              </choose>
+            </foreach>
+          </trim>
+        </if>
+      </foreach>
+    </where>
+  </sql>
+  <sql id="Base_Column_List">
+    fund_code, fund_name, fund_full_name, fund_type, management_company, custodian, incept_date, 
+    issue_share, m_fee, c_fee, s_fee, latest_asset_size, status, created_at, updated_at
+  </sql>
+  <select id="selectByExample" parameterType="org.seaPack.model.FundBaseInfoExample" resultMap="BaseResultMap">
+    select
+    <if test="distinct">
+      distinct
+    </if>
+    <include refid="Base_Column_List" />
+    from fund_base_info
+    <if test="_parameter != null">
+      <include refid="Example_Where_Clause" />
+    </if>
+    <if test="orderByClause != null">
+      order by ${orderByClause}
+    </if>
+  </select>
+  <select id="selectByPrimaryKey" parameterType="java.lang.String" resultMap="BaseResultMap">
+    select 
+    <include refid="Base_Column_List" />
+    from fund_base_info
+    where fund_code = #{fundCode,jdbcType=VARCHAR}
+  </select>
+  <delete id="deleteByPrimaryKey" parameterType="java.lang.String">
+    delete from fund_base_info
+    where fund_code = #{fundCode,jdbcType=VARCHAR}
+  </delete>
+  <delete id="deleteByExample" parameterType="org.seaPack.model.FundBaseInfoExample">
+    delete from fund_base_info
+    <if test="_parameter != null">
+      <include refid="Example_Where_Clause" />
+    </if>
+  </delete>
+  <insert id="insert" parameterType="org.seaPack.model.FundBaseInfo">
+    insert into fund_base_info (fund_code, fund_name, fund_full_name, 
+      fund_type, management_company, custodian, 
+      incept_date, issue_share, m_fee, 
+      c_fee, s_fee, latest_asset_size, 
+      status, created_at, updated_at
+      )
+    values (#{fundCode,jdbcType=VARCHAR}, #{fundName,jdbcType=VARCHAR}, #{fundFullName,jdbcType=VARCHAR}, 
+      #{fundType,jdbcType=VARCHAR}, #{managementCompany,jdbcType=VARCHAR}, #{custodian,jdbcType=VARCHAR}, 
+      #{inceptDate,jdbcType=DATE}, #{issueShare,jdbcType=DECIMAL}, #{mFee,jdbcType=DECIMAL}, 
+      #{cFee,jdbcType=DECIMAL}, #{sFee,jdbcType=DECIMAL}, #{latestAssetSize,jdbcType=DECIMAL}, 
+      #{status,jdbcType=VARCHAR}, #{createdAt,jdbcType=TIMESTAMP}, #{updatedAt,jdbcType=TIMESTAMP}
+      )
+  </insert>
+  <insert id="insertSelective" parameterType="org.seaPack.model.FundBaseInfo">
+    insert into fund_base_info
+    <trim prefix="(" suffix=")" suffixOverrides=",">
+      <if test="fundCode != null">
+        fund_code,
+      </if>
+      <if test="fundName != null">
+        fund_name,
+      </if>
+      <if test="fundFullName != null">
+        fund_full_name,
+      </if>
+      <if test="fundType != null">
+        fund_type,
+      </if>
+      <if test="managementCompany != null">
+        management_company,
+      </if>
+      <if test="custodian != null">
+        custodian,
+      </if>
+      <if test="inceptDate != null">
+        incept_date,
+      </if>
+      <if test="issueShare != null">
+        issue_share,
+      </if>
+      <if test="mFee != null">
+        m_fee,
+      </if>
+      <if test="cFee != null">
+        c_fee,
+      </if>
+      <if test="sFee != null">
+        s_fee,
+      </if>
+      <if test="latestAssetSize != null">
+        latest_asset_size,
+      </if>
+      <if test="status != null">
+        status,
+      </if>
+      <if test="createdAt != null">
+        created_at,
+      </if>
+      <if test="updatedAt != null">
+        updated_at,
+      </if>
+    </trim>
+    <trim prefix="values (" suffix=")" suffixOverrides=",">
+      <if test="fundCode != null">
+        #{fundCode,jdbcType=VARCHAR},
+      </if>
+      <if test="fundName != null">
+        #{fundName,jdbcType=VARCHAR},
+      </if>
+      <if test="fundFullName != null">
+        #{fundFullName,jdbcType=VARCHAR},
+      </if>
+      <if test="fundType != null">
+        #{fundType,jdbcType=VARCHAR},
+      </if>
+      <if test="managementCompany != null">
+        #{managementCompany,jdbcType=VARCHAR},
+      </if>
+      <if test="custodian != null">
+        #{custodian,jdbcType=VARCHAR},
+      </if>
+      <if test="inceptDate != null">
+        #{inceptDate,jdbcType=DATE},
+      </if>
+      <if test="issueShare != null">
+        #{issueShare,jdbcType=DECIMAL},
+      </if>
+      <if test="mFee != null">
+        #{mFee,jdbcType=DECIMAL},
+      </if>
+      <if test="cFee != null">
+        #{cFee,jdbcType=DECIMAL},
+      </if>
+      <if test="sFee != null">
+        #{sFee,jdbcType=DECIMAL},
+      </if>
+      <if test="latestAssetSize != null">
+        #{latestAssetSize,jdbcType=DECIMAL},
+      </if>
+      <if test="status != null">
+        #{status,jdbcType=VARCHAR},
+      </if>
+      <if test="createdAt != null">
+        #{createdAt,jdbcType=TIMESTAMP},
+      </if>
+      <if test="updatedAt != null">
+        #{updatedAt,jdbcType=TIMESTAMP},
+      </if>
+    </trim>
+  </insert>
+  <select id="countByExample" parameterType="org.seaPack.model.FundBaseInfoExample" resultType="java.lang.Long">
+    select count(*) from fund_base_info
+    <if test="_parameter != null">
+      <include refid="Example_Where_Clause" />
+    </if>
+  </select>
+  <update id="updateByExampleSelective" parameterType="map">
+    update fund_base_info
+    <set>
+      <if test="row.fundCode != null">
+        fund_code = #{row.fundCode,jdbcType=VARCHAR},
+      </if>
+      <if test="row.fundName != null">
+        fund_name = #{row.fundName,jdbcType=VARCHAR},
+      </if>
+      <if test="row.fundFullName != null">
+        fund_full_name = #{row.fundFullName,jdbcType=VARCHAR},
+      </if>
+      <if test="row.fundType != null">
+        fund_type = #{row.fundType,jdbcType=VARCHAR},
+      </if>
+      <if test="row.managementCompany != null">
+        management_company = #{row.managementCompany,jdbcType=VARCHAR},
+      </if>
+      <if test="row.custodian != null">
+        custodian = #{row.custodian,jdbcType=VARCHAR},
+      </if>
+      <if test="row.inceptDate != null">
+        incept_date = #{row.inceptDate,jdbcType=DATE},
+      </if>
+      <if test="row.issueShare != null">
+        issue_share = #{row.issueShare,jdbcType=DECIMAL},
+      </if>
+      <if test="row.mFee != null">
+        m_fee = #{row.mFee,jdbcType=DECIMAL},
+      </if>
+      <if test="row.cFee != null">
+        c_fee = #{row.cFee,jdbcType=DECIMAL},
+      </if>
+      <if test="row.sFee != null">
+        s_fee = #{row.sFee,jdbcType=DECIMAL},
+      </if>
+      <if test="row.latestAssetSize != null">
+        latest_asset_size = #{row.latestAssetSize,jdbcType=DECIMAL},
+      </if>
+      <if test="row.status != null">
+        status = #{row.status,jdbcType=VARCHAR},
+      </if>
+      <if test="row.createdAt != null">
+        created_at = #{row.createdAt,jdbcType=TIMESTAMP},
+      </if>
+      <if test="row.updatedAt != null">
+        updated_at = #{row.updatedAt,jdbcType=TIMESTAMP},
+      </if>
+    </set>
+    <if test="example != null">
+      <include refid="Update_By_Example_Where_Clause" />
+    </if>
+  </update>
+  <update id="updateByExample" parameterType="map">
+    update fund_base_info
+    set fund_code = #{row.fundCode,jdbcType=VARCHAR},
+      fund_name = #{row.fundName,jdbcType=VARCHAR},
+      fund_full_name = #{row.fundFullName,jdbcType=VARCHAR},
+      fund_type = #{row.fundType,jdbcType=VARCHAR},
+      management_company = #{row.managementCompany,jdbcType=VARCHAR},
+      custodian = #{row.custodian,jdbcType=VARCHAR},
+      incept_date = #{row.inceptDate,jdbcType=DATE},
+      issue_share = #{row.issueShare,jdbcType=DECIMAL},
+      m_fee = #{row.mFee,jdbcType=DECIMAL},
+      c_fee = #{row.cFee,jdbcType=DECIMAL},
+      s_fee = #{row.sFee,jdbcType=DECIMAL},
+      latest_asset_size = #{row.latestAssetSize,jdbcType=DECIMAL},
+      status = #{row.status,jdbcType=VARCHAR},
+      created_at = #{row.createdAt,jdbcType=TIMESTAMP},
+      updated_at = #{row.updatedAt,jdbcType=TIMESTAMP}
+    <if test="example != null">
+      <include refid="Update_By_Example_Where_Clause" />
+    </if>
+  </update>
+  <update id="updateByPrimaryKeySelective" parameterType="org.seaPack.model.FundBaseInfo">
+    update fund_base_info
+    <set>
+      <if test="fundName != null">
+        fund_name = #{fundName,jdbcType=VARCHAR},
+      </if>
+      <if test="fundFullName != null">
+        fund_full_name = #{fundFullName,jdbcType=VARCHAR},
+      </if>
+      <if test="fundType != null">
+        fund_type = #{fundType,jdbcType=VARCHAR},
+      </if>
+      <if test="managementCompany != null">
+        management_company = #{managementCompany,jdbcType=VARCHAR},
+      </if>
+      <if test="custodian != null">
+        custodian = #{custodian,jdbcType=VARCHAR},
+      </if>
+      <if test="inceptDate != null">
+        incept_date = #{inceptDate,jdbcType=DATE},
+      </if>
+      <if test="issueShare != null">
+        issue_share = #{issueShare,jdbcType=DECIMAL},
+      </if>
+      <if test="mFee != null">
+        m_fee = #{mFee,jdbcType=DECIMAL},
+      </if>
+      <if test="cFee != null">
+        c_fee = #{cFee,jdbcType=DECIMAL},
+      </if>
+      <if test="sFee != null">
+        s_fee = #{sFee,jdbcType=DECIMAL},
+      </if>
+      <if test="latestAssetSize != null">
+        latest_asset_size = #{latestAssetSize,jdbcType=DECIMAL},
+      </if>
+      <if test="status != null">
+        status = #{status,jdbcType=VARCHAR},
+      </if>
+      <if test="createdAt != null">
+        created_at = #{createdAt,jdbcType=TIMESTAMP},
+      </if>
+      <if test="updatedAt != null">
+        updated_at = #{updatedAt,jdbcType=TIMESTAMP},
+      </if>
+    </set>
+    where fund_code = #{fundCode,jdbcType=VARCHAR}
+  </update>
+  <update id="updateByPrimaryKey" parameterType="org.seaPack.model.FundBaseInfo">
+    update fund_base_info
+    set fund_name = #{fundName,jdbcType=VARCHAR},
+      fund_full_name = #{fundFullName,jdbcType=VARCHAR},
+      fund_type = #{fundType,jdbcType=VARCHAR},
+      management_company = #{managementCompany,jdbcType=VARCHAR},
+      custodian = #{custodian,jdbcType=VARCHAR},
+      incept_date = #{inceptDate,jdbcType=DATE},
+      issue_share = #{issueShare,jdbcType=DECIMAL},
+      m_fee = #{mFee,jdbcType=DECIMAL},
+      c_fee = #{cFee,jdbcType=DECIMAL},
+      s_fee = #{sFee,jdbcType=DECIMAL},
+      latest_asset_size = #{latestAssetSize,jdbcType=DECIMAL},
+      status = #{status,jdbcType=VARCHAR},
+      created_at = #{createdAt,jdbcType=TIMESTAMP},
+      updated_at = #{updatedAt,jdbcType=TIMESTAMP}
+    where fund_code = #{fundCode,jdbcType=VARCHAR}
+  </update>
+</mapper>

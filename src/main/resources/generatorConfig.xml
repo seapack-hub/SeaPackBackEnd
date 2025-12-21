@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE generatorConfiguration PUBLIC
+        "-//mybatis.org//DTD MyBatis Generator Configuration 1.0//EN"
+        "http://mybatis.org/dtd/mybatis-generator-config_1_0.dtd">
+<generatorConfiguration>
+    <!-- 引入数据库连接驱动，这里从classpath下找 -->
+    <context id="MysqlTables" targetRuntime="MyBatis3">
+
+        <!-- 例如，定义文件编码的property应在此处 -->
+        <property name="javaFileEncoding" value="UTF-8"/>
+
+        <!-- 配置插件：使用自定义插件 -->
+        <plugin type="org.lombok.plugin.LombokPlugin"/>
+
+        <!-- 防止生成的代码中有很多注释，配置抑制注释生成 -->
+        <commentGenerator>
+            <property name="suppressAllComments" value="true"/>
+            <property name="suppressDate" value="true"/>
+        </commentGenerator>
+
+        <!-- 数据库连接配置 -->
+        <jdbcConnection driverClass="com.mysql.cj.jdbc.Driver"
+                        connectionURL="jdbc:mysql://113.44.41.182:3306/sea_pack?serverTimezone=UTC"
+                        userId="root"
+                        password="SeaPack!0709">
+        </jdbcConnection>
+
+        <!-- 指定Java实体类的生成位置和包名 -->
+        <javaModelGenerator targetPackage="org.seaPack.model" targetProject="src/main/java">
+            <!-- 启用子包 -->
+            <property name="enableSubPackages" value="true"/>
+            <!-- 去除字符串前后空格 -->
+            <property name="trimStrings" value="true"/>
+        </javaModelGenerator>
+
+        <!-- 指定SQL映射文件(Mapper.xml)的生成位置 -->
+        <sqlMapGenerator targetPackage="mapper" targetProject="src/main/resources">
+            <property name="enableSubPackages" value="true"/>
+        </sqlMapGenerator>
+
+        <!-- 指定Mapper接口的生成位置和包名 -->
+        <javaClientGenerator type="XMLMAPPER" targetPackage="org.seaPack.mapper" targetProject="src/main/java">
+            <property name="enableSubPackages" value="true"/>
+        </javaClientGenerator>
+
+        <!-- 指定要生成代码的数据库表，tableName为表名，domainObjectName为对应的实体类名 -->
+        <!-- 允许使用通配符，例如：% 表示所有表 -->
+        <table tableName="fund_base_info" domainObjectName="FundBaseInfo"/>
+        <table tableName="holdings" domainObjectName="Holding">
+            <!-- 如果主键是自增的，配置generatedKey -->
+            <generatedKey column="id" sqlStatement="MySql" identity="true"/>
+        </table>
+        <table tableName="transactions" domainObjectName="Transaction">
+            <!-- 如果主键是自增的，配置generatedKey -->
+            <generatedKey column="id" sqlStatement="MySql" identity="true"/>
+        </table>
+        <table tableName="nav_data" domainObjectName="NavData">
+            <!-- 如果主键是自增的，配置generatedKey -->
+            <generatedKey column="id" sqlStatement="MySql" identity="true"/>
+        </table>
+        <!-- 添加你的其他表，如 nav_data, users 等 -->
+    </context>
+</generatorConfiguration>

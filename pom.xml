@@ -28,6 +28,8 @@
 	</scm>
 	<properties>
 		<java.version>17</java.version>
+		<maven.compiler.source>17</maven.compiler.source>
+		<maven.compiler.target>17</maven.compiler.target>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -55,17 +57,24 @@
 			<version>1.2</version>
 		</dependency>
 
-		<!--mybatis依赖-->
-<!--		<dependency>-->
-<!--			<groupId>org.mybatis.spring.boot</groupId>-->
-<!--			<artifactId>mybatis-spring-boot-starter</artifactId>-->
-<!--			<version>3.0.3</version> &lt;!&ndash; 适配Spring Boot 3.x[5,9](@ref) &ndash;&gt;-->
-<!--		</dependency>-->
-		<!-- 添加新依赖 -->
+		<!-- MyBatis-Plus 启动器 -->
 		<dependency>
 			<groupId>com.baomidou</groupId>
 			<artifactId>mybatis-plus-spring-boot3-starter</artifactId>
 			<version>3.5.5</version> <!-- 适配 Spring Boot 3 -->
+		</dependency>
+		<!-- 代码生成器 -->
+		<dependency>
+			<groupId>com.baomidou</groupId>
+			<artifactId>mybatis-plus-generator</artifactId>
+			<version>3.5.3.1</version>
+		</dependency>
+
+		<!-- 模板引擎（Freemarker） -->
+		<dependency>
+			<groupId>org.freemarker</groupId>
+			<artifactId>freemarker</artifactId>
+			<version>2.3.31</version>
 		</dependency>
 
 		<!--mySql依赖包-->
@@ -97,11 +106,17 @@
 		</dependency>
 
 		<!--lombok依赖-->
+<!--		<dependency>-->
+<!--			<groupId>org.projectlombok</groupId>-->
+<!--			<artifactId>lombok</artifactId>-->
+<!--			<version>1.18.30</version> &lt;!&ndash; 使用最新版本 &ndash;&gt;-->
+<!--			<scope>provided</scope>-->
+<!--		</dependency>-->
+
 		<dependency>
-			<groupId>org.projectlombok</groupId>
-			<artifactId>lombok</artifactId>
-			<version>1.18.30</version> <!-- 使用最新版本 -->
-			<scope>provided</scope>
+			<groupId>org.mybatis.generator</groupId>
+			<artifactId>mybatis-generator-core</artifactId>
+			<version>1.4.2</version> <!-- 请使用您需要的版本 -->
 		</dependency>
 
 		<!--分页插件-->
@@ -155,6 +170,47 @@
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<version>3.8.1</version> <!-- 建议使用较新版本 -->
+				<configuration>
+					<source>17</source>
+					<target>17</target>
+					<encoding>UTF-8</encoding>
+				</configuration>
+			</plugin>
+			<plugin>
+				<groupId>org.mybatis.generator</groupId>
+				<artifactId>mybatis-generator-maven-plugin</artifactId>
+				<version>1.4.2</version> <!-- 请使用最新版本 -->
+				<configuration>
+					<!-- 指定配置文件位置 -->
+					<configurationFile>src/main/resources/generatorConfig.xml</configurationFile>
+					<overwrite>true</overwrite> <!-- 覆盖已存在的文件 -->
+					<verbose>true</verbose>
+				</configuration>
+				<dependencies>
+					<!-- 可能需要添加数据库驱动依赖，以确保插件能正确连接数据库 -->
+					<dependency>
+						<groupId>mysql</groupId>
+						<artifactId>mysql-connector-java</artifactId>
+						<version>8.0.33</version> <!-- 版本与你的数据库匹配 -->
+					</dependency>
+					<!-- 引入Lombok，以便生成器能识别@Data注解 -->
+					<dependency>
+						<groupId>org.projectlombok</groupId>
+						<artifactId>lombok</artifactId>
+						<version>1.18.30</version>
+					</dependency>
+					<!-- 关键：为插件运行环境提供核心依赖 -->
+					<dependency>
+						<groupId>org.mybatis.generator</groupId>
+						<artifactId>mybatis-generator-core</artifactId>
+						<version>1.4.2</version>
+					</dependency>
+				</dependencies>
 			</plugin>
 		</plugins>
 	</build>
