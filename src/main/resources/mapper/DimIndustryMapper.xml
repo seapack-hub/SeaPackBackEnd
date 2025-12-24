@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.DimIndustryMapper">
+
+    <resultMap id="BaseResultMap" type="org.seaPack.model.DimIndustry">
+        <id column="industry_id" property="industryId" />
+        <result column="industry_code" property="industryCode" />
+        <result column="industry_name" property="industryName" />
+        <result column="parent_code" property="parentCode" />
+        <result column="industry_state" property="industryState" />
+        <result column="description" property="description" />
+        <result column="create_time" property="createTime" />
+        <result column="update_time" property="updateTime" />
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        industry_id, industry_code, industry_name, parent_code,
+        industry_state, description, create_time, update_time
+    </sql>
+
+    <!-- 高性能查询：一次性获取所有启用数据，利用索引排序 -->
+    <select id="selectAllEnabledIndustries" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List" />
+        FROM dim_industry
+        WHERE industry_state = 1
+        ORDER BY industry_code
+    </select>
+
+    <select id="selectByParentCode" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List" />
+        FROM dim_industry
+        WHERE parent_code = #{parentCode}
+        AND industry_state = 1
+        ORDER BY industry_code
+    </select>
+
+    <select id="selectByIndustryCode" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List" />
+        FROM dim_industry
+        WHERE industry_code = #{industryCode}
+        AND industry_state = 1
+        LIMIT 1
+    </select>
+
+    <select id="countEnabledIndustries" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM dim_industry
+        WHERE industry_state = 1
+    </select>
+
+    <select id="searchByIndustryName" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List" />
+        FROM dim_industry
+        WHERE industry_state = 1
+        AND (industry_name LIKE CONCAT('%', #{keyword}, '%')
+        OR industry_code LIKE CONCAT('%', #{keyword}, '%'))
+        ORDER BY industry_code
+        LIMIT 100
+    </select>
+
+</mapper>

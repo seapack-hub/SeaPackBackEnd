@@ -11,6 +11,7 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -18,6 +19,7 @@ import java.util.Base64;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import org.springframework.core.io.ClassPathResource;
 
 @Service
 public class CaptchaService {
@@ -30,9 +32,10 @@ public class CaptchaService {
         // 1. 随机选择背景图
         String[] images = {"bg1.jpg", "bg2.jpg", "bg3.jpg", "bg4.jpg", "bg5.jpg", };
         String imageName = images[new Random().nextInt(images.length)];
-        Path path = Paths.get("src/main/resources/static/images/" + imageName);
-        byte[] imageBytes = Files.readAllBytes(path);
-        BufferedImage bgImage = ImageIO.read(new ByteArrayInputStream(imageBytes));
+
+        ClassPathResource resource = new ClassPathResource("static/images/" + imageName);
+        InputStream inputStream = resource.getInputStream();
+        BufferedImage bgImage = ImageIO.read(inputStream);
 
         // 2. 创建带缺口的背景图副本
         BufferedImage bgWithGap = new BufferedImage(310,155,BufferedImage.TYPE_INT_RGB);
