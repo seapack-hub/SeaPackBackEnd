@@ -1,28 +1,51 @@
 package org.seaPack.mapper;
 
 import java.util.List;
+
+import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.seaPack.model.FundBaseInfo;
-import org.seaPack.model.FundBaseInfoExample;
 
+@Mapper
 public interface FundBaseInfoMapper {
-    long countByExample(FundBaseInfoExample example);
+    /**
+     * 查询总数
+     * @param example
+     * @return
+     */
+    long countByExample(FundBaseInfo example);
 
-    int deleteByExample(FundBaseInfoExample example);
+    /**
+     *
+     * @param example
+     * @return
+     */
+    int deleteByExample(FundBaseInfo example);
 
-    int deleteByPrimaryKey(String fundCode);
+    /**
+     * 根据基金编号删除
+     * @param fundCode
+     * @return
+     */
+    int deleteByPrimaryKey(@Param("fundCode") String fundCode);
 
+    /**
+     * 插入
+     */
     int insert(FundBaseInfo row);
 
     int insertSelective(FundBaseInfo row);
 
-    List<FundBaseInfo> selectByExample(FundBaseInfoExample example);
+    /**
+     * 查询基金信息列表
+     */
+    List<FundBaseInfo> selectFundsList(FundBaseInfo example);
 
     FundBaseInfo selectByPrimaryKey(String fundCode);
 
-    int updateByExampleSelective(@Param("row") FundBaseInfo row, @Param("example") FundBaseInfoExample example);
+    int updateByExampleSelective(@Param("row") FundBaseInfo row, @Param("example") FundBaseInfo example);
 
-    int updateByExample(@Param("row") FundBaseInfo row, @Param("example") FundBaseInfoExample example);
+    int updateByExample(@Param("row") FundBaseInfo row, @Param("example") FundBaseInfo example);
 
     int updateByPrimaryKeySelective(FundBaseInfo row);
 

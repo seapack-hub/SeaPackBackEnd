@@ -1,14 +1,16 @@
 package org.seaPack.mapper;
 
 import java.util.List;
+
+import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.seaPack.model.Holding;
-import org.seaPack.model.HoldingExample;
 
+@Mapper
 public interface HoldingMapper {
-    long countByExample(HoldingExample example);
+    long countByExample(Holding holding);
 
-    int deleteByExample(HoldingExample example);
+    int deleteByExample(Holding holding);
 
     int deleteByPrimaryKey(Integer id);
 
@@ -16,13 +18,18 @@ public interface HoldingMapper {
 
     int insertSelective(Holding row);
 
-    List<Holding> selectByExample(HoldingExample example);
+    /**
+     * 查询持仓列表
+     * @param holding
+     * @return
+     */
+    List<Holding> selectHoldingList(@Param("holding") Holding holding);
 
     Holding selectByPrimaryKey(Integer id);
 
-    int updateByExampleSelective(@Param("row") Holding row, @Param("example") HoldingExample example);
+    int updateByExampleSelective(@Param("row") Holding row, @Param("holding") Holding holding);
 
-    int updateByExample(@Param("row") Holding row, @Param("example") HoldingExample example);
+    int updateByExample(@Param("row") Holding row, @Param("holding") Holding holding);
 
     int updateByPrimaryKeySelective(Holding row);
 

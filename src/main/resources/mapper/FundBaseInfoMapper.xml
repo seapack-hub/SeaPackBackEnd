@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="org.lombok.mapper.FundBaseInfoMapper">
+<mapper namespace="org.seaPack.mapper.FundBaseInfoMapper">
   <resultMap id="BaseResultMap" type="org.seaPack.model.FundBaseInfo">
     <id column="fund_code" jdbcType="VARCHAR" property="fundCode" />
     <result column="fund_name" jdbcType="VARCHAR" property="fundName" />
     <result column="fund_full_name" jdbcType="VARCHAR" property="fundFullName" />
     <result column="fund_type" jdbcType="VARCHAR" property="fundType" />
+    <result column="fund_type_name" jdbcType="VARCHAR" property="fundTypeName" />
     <result column="management_company" jdbcType="VARCHAR" property="managementCompany" />
     <result column="custodian" jdbcType="VARCHAR" property="custodian" />
     <result column="incept_date" jdbcType="DATE" property="inceptDate" />
@@ -77,23 +78,35 @@
     </where>
   </sql>
   <sql id="Base_Column_List">
-    fund_code, fund_name, fund_full_name, fund_type, management_company, custodian, incept_date, 
+    fund_code, fund_name, fund_full_name, fund_type, management_company, custodian, incept_date,
     issue_share, m_fee, c_fee, s_fee, latest_asset_size, status, created_at, updated_at
   </sql>
-  <select id="selectByExample" parameterType="org.seaPack.model.FundBaseInfoExample" resultMap="BaseResultMap">
+
+  <!--查询基金信息列表-->
+  <select id="selectFundsList" resultMap="BaseResultMap">
     select
-    <if test="distinct">
-      distinct
-    </if>
-    <include refid="Base_Column_List" />
-    from fund_base_info
-    <if test="_parameter != null">
-      <include refid="Example_Where_Clause" />
-    </if>
-    <if test="orderByClause != null">
-      order by ${orderByClause}
-    </if>
+    f.fund_code,
+    f.fund_name,
+    f.fund_full_name,
+    f.fund_type,
+    d.dict_name as fund_type_name,
+    f.management_company,
+    f.custodian,
+    f.incept_date,
+    f.issue_share,
+    f.m_fee,
+    f.c_fee,
+    f.s_fee,
+    f.latest_asset_size,
+    f.status,
+    f.created_at,
+    f.updated_at
+    from fund_base_info f
+    left join sys_dict d on f.fund_type = d.dict_code and d.dict_type = "fund_type"
+    order by f.fund_code
   </select>
+
+
   <select id="selectByPrimaryKey" parameterType="java.lang.String" resultMap="BaseResultMap">
     select 
     <include refid="Base_Column_List" />
@@ -104,7 +117,7 @@
     delete from fund_base_info
     where fund_code = #{fundCode,jdbcType=VARCHAR}
   </delete>
-  <delete id="deleteByExample" parameterType="org.seaPack.model.FundBaseInfoExample">
+  <delete id="deleteByExample" parameterType="org.seaPack.model.FundBaseInfo">
     delete from fund_base_info
     <if test="_parameter != null">
       <include refid="Example_Where_Clause" />
@@ -221,7 +234,7 @@
       </if>
     </trim>
   </insert>
-  <select id="countByExample" parameterType="org.seaPack.model.FundBaseInfoExample" resultType="java.lang.Long">
+  <select id="countByExample" parameterType="org.seaPack.model.FundBaseInfo" resultType="java.lang.Long">
     select count(*) from fund_base_info
     <if test="_parameter != null">
       <include refid="Example_Where_Clause" />

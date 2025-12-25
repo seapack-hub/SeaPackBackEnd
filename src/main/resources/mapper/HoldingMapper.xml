@@ -4,7 +4,9 @@
   <resultMap id="BaseResultMap" type="org.seaPack.model.Holding">
     <id column="id" jdbcType="INTEGER" property="id" />
     <result column="user_id" jdbcType="INTEGER" property="userId" />
+    <result column="user_name" jdbcType="VARCHAR" property="userName" />
     <result column="fund_code" jdbcType="VARCHAR" property="fundCode" />
+    <result column="fund_name" jdbcType="VARCHAR" property="fundName" />
     <result column="total_shares" jdbcType="DECIMAL" property="totalShares" />
     <result column="available_shares" jdbcType="DECIMAL" property="availableShares" />
     <result column="frozen_shares" jdbcType="DECIMAL" property="frozenShares" />
@@ -75,19 +77,25 @@
     id, user_id, fund_code, total_shares, available_shares, frozen_shares, avg_cost_price, 
     total_cost, cost_principal, last_updated
   </sql>
-  <select id="selectByExample" parameterType="org.seaPack.model.HoldingExample" resultMap="BaseResultMap">
+
+  <!--查询持仓列表-->
+  <select id="selectHoldingList" resultMap="BaseResultMap">
     select
-    <if test="distinct">
-      distinct
-    </if>
-    <include refid="Base_Column_List" />
-    from holdings
-    <if test="_parameter != null">
-      <include refid="Example_Where_Clause" />
-    </if>
-    <if test="orderByClause != null">
-      order by ${orderByClause}
-    </if>
+        s.id,
+        s.user_id,
+        u.user_name as user_name,
+        s.fund_code,
+        f.fund_name as fund_name,
+        s.total_shares,
+        s.available_shares,
+        s.frozen_shares,
+        s.avg_cost_price,
+        s.total_cost,
+        s.cost_principal,
+        s.last_updated
+    from holdings s
+    inner join fund_base_info f on f.fund_code = s.fund_code
+    inner join user u on u.id = s.user_id
   </select>
   <select id="selectByPrimaryKey" parameterType="java.lang.Integer" resultMap="BaseResultMap">
     select 
@@ -96,10 +104,11 @@
     where id = #{id,jdbcType=INTEGER}
   </select>
   <delete id="deleteByPrimaryKey" parameterType="java.lang.Integer">
-    delete from holdings
+    delete
+    from holdings
     where id = #{id,jdbcType=INTEGER}
   </delete>
-  <delete id="deleteByExample" parameterType="org.seaPack.model.HoldingExample">
+  <delete id="deleteByExample" parameterType="org.seaPack.model.Holding">
     delete from holdings
     <if test="_parameter != null">
       <include refid="Example_Where_Clause" />
@@ -182,7 +191,7 @@
       </if>
     </trim>
   </insert>
-  <select id="countByExample" parameterType="org.seaPack.model.HoldingExample" resultType="java.lang.Long">
+  <select id="countByExample" parameterType="org.seaPack.model.Holding" resultType="java.lang.Long">
     select count(*) from holdings
     <if test="_parameter != null">
       <include refid="Example_Where_Clause" />
