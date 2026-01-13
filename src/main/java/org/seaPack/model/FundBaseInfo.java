@@ -78,4 +78,7 @@ public class FundBaseInfo {
     @Column(name = "updated_at")
     @Comment("记录更新时间")
     private Date updatedAt;
+
+    @Comment("关键字，查询时使用")
+    private String keywords;
 }

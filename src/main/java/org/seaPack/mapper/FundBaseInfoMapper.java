@@ -39,7 +39,7 @@ public interface FundBaseInfoMapper {
     /**
      * 查询基金信息列表
      */
-    List<FundBaseInfo> selectFundsList(FundBaseInfo example);
+    List<FundBaseInfo> selectFundsList(FundBaseInfo fundBaseInfo);
 
     FundBaseInfo selectByPrimaryKey(String fundCode);
 

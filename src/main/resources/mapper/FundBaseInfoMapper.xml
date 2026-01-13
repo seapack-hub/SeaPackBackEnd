@@ -83,7 +83,7 @@
   </sql>
 
   <!--查询基金信息列表-->
-  <select id="selectFundsList" resultMap="BaseResultMap">
+  <select id="selectFundsList" parameterType="org.seaPack.model.FundBaseInfo" resultMap="BaseResultMap">
     select
     f.fund_code,
     f.fund_name,
@@ -103,6 +103,11 @@
     f.updated_at
     from fund_base_info f
     left join sys_dict d on f.fund_type = d.dict_code and d.dict_type = "fund_type"
+    <where>
+      <if test="keywords != null and keywords != ''">
+        AND (fund_name LIKE CONCAT('%', #{keywords}, '%') OR fund_code LIKE CONCAT('%', #{keywords}, '%'))
+      </if>
+    </where>
     order by f.fund_code
   </select>
 
