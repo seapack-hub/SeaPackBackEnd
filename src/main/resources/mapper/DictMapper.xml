@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.DictMapper">
+
+    <resultMap id="BaseResultMap" type="org.seaPack.model.Dict">
+        <id column="id" jdbcType="BIGINT" property="id" />
+        <result column="dict_type" jdbcType="VARCHAR" property="dictType" />
+        <result column="dict_code" jdbcType="VARCHAR" property="dictCode" />
+        <result column="dict_name" jdbcType="VARCHAR" property="dictName" />
+        <result column="order_num" jdbcType="VARCHAR" property="orderNum" />
+        <result column="status" jdbcType="VARCHAR" property="status" />
+        <result column="remark" jdbcType="VARCHAR" property="remark" />
+        <result column="gmt_create" jdbcType="TIMESTAMP" property="gmtCreate" />
+        <result column="gmt_modified" jdbcType="TIMESTAMP" property="gmtModified" />
+    </resultMap>
+
+    <select id="selectDictListByType" parameterType="java.lang.String" resultMap="BaseResultMap">
+        select
+            id,
+            dict_type,
+            dict_code,
+            dict_name,
+            order_num,
+            status,
+            remark,
+            gmt_create,
+            gmt_modified
+        from sys_dict d
+        <where>
+            <if test="dictType != null and dictType != ''">
+                AND d.dict_type = #{dictType}
+            </if>
+        </where>
+    </select>
+
+</mapper>
