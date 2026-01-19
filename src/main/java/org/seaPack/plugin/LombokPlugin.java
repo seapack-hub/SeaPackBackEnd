@@ -1,4 +1,4 @@
-package org.lombok.plugin;
+package org.seaPack.plugin;
 
 import org.mybatis.generator.api.IntrospectedColumn;
 import org.mybatis.generator.api.IntrospectedTable;

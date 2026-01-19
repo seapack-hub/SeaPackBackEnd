@@ -1,5 +1,6 @@
 package org.seaPack.model;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.Comment;
@@ -43,6 +44,7 @@ public class FundBaseInfo {
     @Comment("基金托管人")
     private String custodian;
 
+    @JsonFormat(pattern = "yyyy-MM-dd", timezone = "GMT+8")
     @Column(name = "incept_date")
     @Comment("成立日期")
     private Date inceptDate;
@@ -81,4 +83,7 @@ public class FundBaseInfo {
 
     @Comment("关键字，查询时使用")
     private String keywords;
+
+    @Comment("成立时长")
+    private String distanceTime;
 }

@@ -8,46 +8,44 @@ import org.seaPack.model.FundBaseInfo;
 
 @Mapper
 public interface FundBaseInfoMapper {
-    /**
-     * 查询总数
-     * @param example
-     * @return
-     */
-    long countByExample(FundBaseInfo example);
-
-    /**
-     *
-     * @param example
-     * @return
-     */
-    int deleteByExample(FundBaseInfo example);
-
-    /**
-     * 根据基金编号删除
-     * @param fundCode
-     * @return
-     */
-    int deleteByPrimaryKey(@Param("fundCode") String fundCode);
-
-    /**
-     * 插入
-     */
-    int insert(FundBaseInfo row);
-
-    int insertSelective(FundBaseInfo row);
 
     /**
      * 查询基金信息列表
      */
     List<FundBaseInfo> selectFundsList(FundBaseInfo fundBaseInfo);
 
-    FundBaseInfo selectByPrimaryKey(String fundCode);
+    /**
+     * 插入基金持仓表
+     * @param fundBaseInfo
+     * @return
+     */
+    int insertFundBaseInfo(FundBaseInfo fundBaseInfo);
 
-    int updateByExampleSelective(@Param("row") FundBaseInfo row, @Param("example") FundBaseInfo example);
+    /**
+     * 更新基金信息
+     * @param fundBaseInfo
+     * @return
+     */
+    int updateFundBaseInfo(FundBaseInfo fundBaseInfo);
 
-    int updateByExample(@Param("row") FundBaseInfo row, @Param("example") FundBaseInfo example);
+    /**
+     * 根据Code查询基金表
+     * @param fundCode
+     * @return
+     */
+    int selectFundBaseInfoByCode(@Param("fundCode") String fundCode);
 
-    int updateByPrimaryKeySelective(FundBaseInfo row);
+    /**
+     * 根据Code查询基金详情
+     * @param fundCode
+     * @return
+     */
+    FundBaseInfo selectFundDetailByCode(@Param("fundCode") String fundCode);
 
-    int updateByPrimaryKey(FundBaseInfo row);
+    /**
+     * 根据Code删除基金持仓表
+     * @param fundCode
+     * @return
+     */
+    int deleteFundBaseInfoByCode(@Param("fundCode") String fundCode);
 }
