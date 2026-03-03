@@ -25,15 +25,15 @@ public class IndustryController {
      * GET /industries/tree
      */
     @GetMapping("/tree")
-    public ResponseEntity<Result<List<DimIndustry>>> getIndustryTree(){
+    public ResponseEntity<List<DimIndustry>> getIndustryTree(){
         try {
             List<DimIndustry> industryTree = industryTreeService.getIndustryTree();
             log.info("成功获取行业树，包含 {} 个根节点", industryTree.size());
-            return ResponseEntity.ok(Result.success(industryTree));
+            return ResponseEntity.ok(industryTree);
         }catch (Exception e){
             log.error("获取行业树失败", e);
             return ResponseEntity.internalServerError()
-                    .body(Result.error("获取行业树失败: " + e.getMessage()));
+                    .body(null);
         }
     }
 
@@ -42,18 +42,18 @@ public class IndustryController {
      * GET /industries/tree/{industryCode}
      */
     @GetMapping("/tree/{industryCode}")
-    public ResponseEntity<Result<Optional<DimIndustry>>> getSubTree(@PathVariable String industryCode){
+    public ResponseEntity<Optional<DimIndustry>> getSubTree(@PathVariable String industryCode){
         try{
             Optional<DimIndustry> subTree = industryTreeService.getSubTree(industryCode);
             if(subTree.isPresent()){
-                return ResponseEntity.ok(Result.success(subTree));
+                return ResponseEntity.ok(subTree);
             }else {
                 return ResponseEntity.notFound().build();
             }
         }catch (Exception e){
             log.error("获取子树失败: {}", industryCode, e);
             return ResponseEntity.internalServerError()
-                    .body(Result.error("获取子树失败: " + e.getMessage()));
+                    .body(Optional.empty());
         }
     }
 
@@ -78,14 +78,14 @@ public class IndustryController {
      * GET /industries/stats
      */
     @GetMapping("/stats")
-    public ResponseEntity<Result<IndustryStats>> getIndustryStats() {
+    public ResponseEntity<IndustryStats> getIndustryStats() {
         try {
             IndustryStats stats = industryTreeService.getIndustryStats();
-            return ResponseEntity.ok(Result.success(stats));
+            return ResponseEntity.ok(stats);
         } catch (Exception e) {
             log.error("获取行业统计失败", e);
             return ResponseEntity.internalServerError()
-                    .body(Result.error("获取统计失败: " + e.getMessage()));
+                    .body(null);
         }
     }
 }
