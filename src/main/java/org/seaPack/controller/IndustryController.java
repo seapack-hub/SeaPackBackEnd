@@ -62,14 +62,14 @@ public class IndustryController {
      * GET /industries/search?keyword=?
      */
     @GetMapping("/search")
-    public ResponseEntity<Result<List<DimIndustry>>> searchIndustry(@RequestParam String keyword){
+    public ResponseEntity<List<DimIndustry>> searchIndustry(@RequestParam(required = false) String keyword){
         try{
             List<DimIndustry> results = industryTreeService.searchIndustries(keyword);
-            return ResponseEntity.ok(Result.success(results));
+            return ResponseEntity.ok(results);
         }catch (Exception e){
             log.error("搜索行业失败: keyword={}", keyword, e);
             return ResponseEntity.internalServerError()
-                    .body(Result.error("搜索失败: " + e.getMessage()));
+                    .body(null);
         }
     }
 

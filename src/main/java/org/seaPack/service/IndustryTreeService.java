@@ -176,7 +176,7 @@ public class IndustryTreeService {
      */
     public List<DimIndustry> searchIndustries(String keyword) {
         if (keyword == null || keyword.trim().isEmpty()) {
-            return List.of();
+            return getIndustryTree();
         }
         return dimIndustryMapper.searchByIndustryName(keyword.trim());
     }
