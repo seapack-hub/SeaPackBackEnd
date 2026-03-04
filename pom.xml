@@ -105,14 +105,6 @@
 			<version>1.2.83</version> <!-- 使用最新稳定版 -->
 		</dependency>
 
-		<!--lombok依赖-->
-<!--		<dependency>-->
-<!--			<groupId>org.projectlombok</groupId>-->
-<!--			<artifactId>lombok</artifactId>-->
-<!--			<version>1.18.30</version> &lt;!&ndash; 使用最新版本 &ndash;&gt;-->
-<!--			<scope>provided</scope>-->
-<!--		</dependency>-->
-
 		<dependency>
 			<groupId>org.mybatis.generator</groupId>
 			<artifactId>mybatis-generator-core</artifactId>
@@ -155,12 +147,33 @@
 			<artifactId>spring-boot-starter-security</artifactId>
 		</dependency>
 
+		<!-- Excel 处理 -->
+		<dependency>
+			<groupId>org.apache.poi</groupId>
+			<artifactId>poi-ooxml</artifactId>
+			<version>5.2.5</version> <!-- 推荐 5.2.3+ -->
+		</dependency>
+
+		<!-- 工具类（可选） -->
+		<dependency>
+			<groupId>cn.hutool</groupId>
+			<artifactId>hutool-all</artifactId>
+			<version>5.8.25</version>
+		</dependency>
+
 	</dependencies>
 
 	<repositories>
 		<repository>
 			<id>aliyunmaven</id>
-			<url>https://maven.aliyun.com/repository/public</url> <!-- 注意 https -->
+			<name>阿里云中央仓库</name>
+			<url>https://maven.aliyun.com/repository/public</url>
+			<releases>
+				<enabled>true</enabled>
+			</releases>
+			<snapshots>
+				<enabled>false</enabled>
+			</snapshots>
 		</repository>
 	</repositories>
 
