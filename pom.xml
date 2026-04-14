@@ -161,6 +161,27 @@
 			<version>5.8.25</version>
 		</dependency>
 
+		<!-- LangChain4j 核心 -->
+		<dependency>
+			<groupId>dev.langchain4j</groupId>
+			<artifactId>langchain4j</artifactId>
+			<version>0.35.0</version>
+		</dependency>
+
+		<!-- LangChain4j OpenAI 集成 (支持兼容协议) -->
+		<dependency>
+			<groupId>dev.langchain4j</groupId>
+			<artifactId>langchain4j-open-ai</artifactId>
+			<version>0.35.0</version>
+		</dependency>
+
+		<!-- LangChain4j ChromaDB 集成 -->
+		<dependency>
+			<groupId>dev.langchain4j</groupId>
+			<artifactId>langchain4j-chroma</artifactId>
+			<version>0.35.0</version>
+		</dependency>
+
 	</dependencies>
 
 	<repositories>

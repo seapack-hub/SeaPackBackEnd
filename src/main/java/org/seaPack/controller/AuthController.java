@@ -1,11 +1,11 @@
 package org.seaPack.controller;
 
+import org.seaPack.components.RsaUtil;
 import org.seaPack.model.User;
 import org.seaPack.service.CaptchaService;
 import org.seaPack.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -19,17 +19,18 @@ public class AuthController {
     private UserService userService;
 
     @Autowired
-    private PasswordEncoder passwordEncoder;
+    private RsaUtil rsaUtil;
 
     @GetMapping("/login")
     public ResponseEntity<String> login(
-            @RequestParam String token,
-            @RequestParam double sliderX,
+            @RequestParam(defaultValue = "" ) String token,
+            @RequestParam(defaultValue = "0" ) double sliderX,
             @RequestParam String username,
-            @RequestParam String password
-    ) {
+            @RequestParam String password,
+            @RequestParam(defaultValue = "true" ) boolean isVerify
+    ) throws Exception {
         // 1. 先验证滑块
-        if (!captchaService.verifyCaptcha(token, sliderX)) {
+        if (!isVerify && !captchaService.verifyCaptcha(token, sliderX)) {
             return ResponseEntity.status(200).body("滑块验证失败");
         }
 
@@ -38,8 +39,10 @@ public class AuthController {
             //查询账户
             User user = userService.selectUserByName(username);
             if (user == null) return ResponseEntity.status(401).body("用户名错误");
-            //验证密码
-            if(passwordEncoder.matches(password, user.getPassword())){
+
+            // 解密密码
+            String rawPassword = rsaUtil.decrypt(password);
+            if(rawPassword.equals(user.getPassword())){
                 return ResponseEntity.ok("登录成功");
             }
         }
