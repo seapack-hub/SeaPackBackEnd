@@ -147,11 +147,18 @@
 			<artifactId>spring-boot-starter-security</artifactId>
 		</dependency>
 
-		<!-- Excel 处理 -->
+		<!-- word Excel 处理 -->
 		<dependency>
 			<groupId>org.apache.poi</groupId>
 			<artifactId>poi-ooxml</artifactId>
 			<version>5.2.5</version> <!-- 推荐 5.2.3+ -->
+		</dependency>
+
+		<!-- PDFBox for PDF 文件处理 -->
+		<dependency>
+			<groupId>org.apache.pdfbox</groupId>
+			<artifactId>pdfbox</artifactId>
+			<version>2.0.27</version>
 		</dependency>
 
 		<!-- 工具类（可选） -->
