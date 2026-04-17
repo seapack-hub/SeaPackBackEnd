@@ -7,6 +7,7 @@ import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFParagraph;
 import org.springframework.stereotype.Component;
 
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -30,25 +31,36 @@ public class FileParserUtil {
         // 将文件名转为小写，统一判断文件后缀，避免大小写干扰（如.TXT、.Pdf）
         String lowerName = fileName.toLowerCase();
 
-        // 判断是否为TXT文件
-        if (lowerName.endsWith(".txt")) {
-            // 读取输入流所有字节，直接转为字符串（TXT纯文本解析）
-            return new String(inputStream.readAllBytes());
+        try {
+            if (lowerName.endsWith(".txt")) {
+                return parseTxt(inputStream);
+            } else if (lowerName.endsWith(".pdf")) {
+                return parsePdf(inputStream);
+            } else if (lowerName.endsWith(".docx")) {
+                return parseDocx(inputStream);
+            } else {
+                throw new IllegalArgumentException("不支持的文件格式: " + fileName);
+            }
+        } catch (Exception e) {
+            // 统一捕获异常，打印详细日志，方便排查是哪个文件出的问题
+            log.error("文件解析失败: {}", fileName, e);
+            throw new Exception("文件解析失败: " + e.getMessage());
         }
-        // 判断是否为PDF文件
-        else if (lowerName.endsWith(".pdf")) {
-            // 调用私有方法，专门解析PDF文件
-            return parsePdf(inputStream);
+    }
+
+    /**
+    * TXT 解析：显式指定 UTF-8
+    */
+    private static String parseTxt(InputStream inputStream) throws Exception {
+        // 使用 ByteArrayOutputStream 确保完整读取
+        ByteArrayOutputStream result = new ByteArrayOutputStream();
+        byte[] buffer = new byte[1024];
+        int length;
+        while ((length = inputStream.read(buffer)) != -1) {
+            result.write(buffer, 0, length);
         }
-        // 判断是否为DOCX文件（Word 2007及以上版本）
-        else if (lowerName.endsWith(".docx")) {
-            // 调用私有方法，专门解析DOCX文件
-            return parseDocx(inputStream);
-        }
-        // 不支持的文件格式，抛出非法参数异常
-        else {
-            throw new IllegalArgumentException("不支持的文件格式: " + fileName);
-        }
+        // 强制使用 UTF-8 转换，防止默认编码导致的乱码
+        return result.toString("UTF-8");
     }
 
     /**
@@ -61,10 +73,34 @@ public class FileParserUtil {
         // try-with-resources语法：自动关闭PDDocument资源，避免内存泄漏
         // 加载输入流，创建PDF文档对象
         try (PDDocument document = PDDocument.load(inputStream)) {
+            if (document.getNumberOfPages() == 0) {
+                return "";
+            }
             // 创建PDF文本提取器
             PDFTextStripper stripper = new PDFTextStripper();
-            // 从PDF文档中提取所有纯文本并返回
-            return stripper.getText(document);
+
+            // 1. 设置换行符，防止段落粘连
+            stripper.setSortByPosition(true); // 按位置排序，保持阅读顺序
+
+            // 2. 获取原始文本（这里会产生 WARN 日志，但不会崩溃）
+            String text = stripper.getText(document);
+
+            // 3. 【核心修复】清洗文本
+            // PDFBox 2.0 遇到无法映射的字体（如公式）时，通常会输出 '?' 或者乱码符号（如 '????'）
+            // 我们需要把这些无效字符清理掉，或者替换为空格，防止后续 RAG 分块出错
+
+            if (text != null) {
+                // 替换连续的问号（通常是无法识别的数学符号）为空格
+                text = text.replaceAll("\\?{2,}", " ");
+
+                // 替换不可见的控制字符（除了换行和制表符）
+                text = text.replaceAll("[\\p{Cntrl}&&[^\r\n\t]]", "");
+
+                // 去除多余的空行
+                text = text.replaceAll("\n\\s*\n", "\n");
+            }
+
+            return text;
         }
     }
 

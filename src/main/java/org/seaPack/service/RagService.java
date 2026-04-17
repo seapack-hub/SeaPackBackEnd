@@ -4,7 +4,6 @@ import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.data.document.Document;
 import dev.langchain4j.data.document.splitter.DocumentByParagraphSplitter;
 import dev.langchain4j.data.embedding.Embedding;
-import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.chat.request.ChatRequest;
@@ -16,7 +15,7 @@ import dev.langchain4j.store.embedding.EmbeddingMatch;
 import dev.langchain4j.store.embedding.EmbeddingStore;
 import dev.langchain4j.store.embedding.inmemory.InMemoryEmbeddingStore;
 import jakarta.annotation.PostConstruct;
-import org.seaPack.config.DeepSeekConfig;
+import org.seaPack.config.AIProperties;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -28,9 +27,9 @@ import java.util.stream.Collectors;
 public class RagService {
 
     /**
-     * DeepSeek配置类，注入API密钥、BaseURL和模型名称
+     * 注入多模型配置类
      */
-    private final DeepSeekConfig deepSeekConfig;
+    private final AIProperties aiProperties;
     
     /**
      * 向量化模型，用于将文本转换为向量表示
@@ -55,11 +54,10 @@ public class RagService {
     private final Map<String, EmbeddingStore<TextSegment>> namespaceStore = new ConcurrentHashMap<>();
 
     /**
-     * 构造函数注入DeepSeekConfig配置
-     * @param deepSeekConfig DeepSeek配置类
+     * 构造函数注入 AIProperties
      */
-    public RagService(DeepSeekConfig deepSeekConfig) {
-        this.deepSeekConfig = deepSeekConfig;
+    public RagService(AIProperties aiProperties) {
+        this.aiProperties = aiProperties;
     }
 
     /**
@@ -68,25 +66,33 @@ public class RagService {
      */
     @PostConstruct
     public void init() {
-        // 构建向量化模型，用于将文本转换为embedding向量
-        // 使用OpenAiEmbeddingModel，支持兼容OpenAI协议的其他API（如DeepSeek）
-        embeddingModel = OpenAiEmbeddingModel.builder()
-                .apiKey(deepSeekConfig.getApiKey())                    // 设置API密钥
-                .baseUrl(deepSeekConfig.getBaseUrl())                   // 设置API base URL（如DeepSeek的API地址）
-                .modelName(deepSeekConfig.getEmbeddingModel())          // 设置embedding模型名称（如text-embedding-3-small）
+        // 1. 获取当前激活的提供商配置
+        String providerName = aiProperties.getActiveProvider();
+        AIProperties.ProviderConfig config = aiProperties.getProviders().get(providerName);
+
+        if (config == null) {
+            throw new RuntimeException("未找到 AI 提供商配置: " + providerName);
+        }
+
+        System.out.println("正在初始化 RAG 服务，使用提供商: " + providerName);
+
+        // 2. 构建向量化模型
+        // 利用 OpenAiEmbeddingModel 的兼容性，指向 DeepSeek 或 阿里云 的接口
+        this.embeddingModel = OpenAiEmbeddingModel.builder()
+                .apiKey(config.getApiKey())
+                .baseUrl(config.getBaseUrl())
+                .modelName(config.getEmbeddingModel())
                 .build();
 
-        // 构建对话模型，用于生成回答
-        // 使用OpenAiChatModel，支持兼容OpenAI协议的其他API（如DeepSeek）
-        chatModel = OpenAiChatModel.builder()
-                .apiKey(deepSeekConfig.getApiKey())                     // 设置API密钥
-                .baseUrl(deepSeekConfig.getBaseUrl())                   // 设置API base URL
-                .modelName(deepSeekConfig.getModel())                   // 设置对话模型名称（如deepseek-chat）
-                .temperature(0.7)                                       // 设置温度参数，控制生成随机性（0-2之间，值越大越随机）
+        // 3. 构建对话模型
+        this.chatModel = OpenAiChatModel.builder()
+                .apiKey(config.getApiKey())
+                .baseUrl(config.getBaseUrl())
+                .modelName(config.getChatModel())
+                .temperature(0.7)
                 .build();
 
-        // 初始化默认的内存向量存储库（当前未使用，因为每个namespace有独立的存储）
-        embeddingStore = new InMemoryEmbeddingStore<>();
+        System.out.println("RAG 服务初始化完成。");
     }
 
     /**
@@ -188,5 +194,28 @@ public class RagService {
      */
     public List<String> getNamespaces() {
         return List.copyOf(namespaceStore.keySet());
+    }
+
+    /**
+     * 新增：仅检索上下文，不生成回答
+     * 供 ChatController 在流式对话前调用
+     */
+    public String getRelevantContext(String namespace, String question) {
+        EmbeddingStore<TextSegment> store = namespaceStore.get(namespace);
+        if (store == null) {
+            return null;
+        }
+
+        Embedding queryEmbedding = embeddingModel.embed(question).content();
+        List<EmbeddingMatch<TextSegment>> matches = store.findRelevant(queryEmbedding, 3, 0.5);
+
+        if (matches.isEmpty()) {
+            return null;
+        }
+
+        // 拼接文档片段
+        return matches.stream()
+                .map(match -> match.embedded().text())
+                .collect(Collectors.joining("\n\n"));
     }
 }
