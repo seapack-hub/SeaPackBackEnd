@@ -103,7 +103,7 @@ public class RagService {
     public void ingestText(String namespace, String text) {
         // 获取或创建该命名空间对应的向量存储库
         EmbeddingStore<TextSegment> store = namespaceStore.computeIfAbsent(namespace, k -> new InMemoryEmbeddingStore<>());
-        
+       
         // 将文本转换为Document对象（使用构造方法）
         Document document = new Document(text);
         
@@ -111,6 +111,9 @@ public class RagService {
         DocumentByParagraphSplitter splitter = new DocumentByParagraphSplitter(500, 100);
         // 分割文档为多个文本片段
         List<TextSegment> segments = splitter.split(document);
+
+        // 简单日志，便于排查
+        System.out.println("[RagService] ingestText namespace=" + namespace + ", segments=" + segments.size());
 
         // 遍历每个文本片段，进行向量化并存储
         for (TextSegment segment : segments) {
@@ -139,8 +142,13 @@ public class RagService {
         Embedding queryEmbedding = embeddingModel.embed(question).content();
         
         // 在向量存储库中查找最相似的文档
-        // 参数：查询向量、返回结果数量3、最小相似度阈值0.5
-        List<EmbeddingMatch<TextSegment>> matches = store.findRelevant(queryEmbedding, 3, 0.5);
+        // 参数：查询向量、返回结果数量3、最小相似度阈值
+        final double THRESHOLD_DEFAULT = 0.3; // 默认阈值，降低以提升检索鲁棒性
+        List<EmbeddingMatch<TextSegment>> matches = store.findRelevant(queryEmbedding, 3, THRESHOLD_DEFAULT);
+        // 回退策略：若未命中，尝试用一个更低的阈值进行二次检索，提升鲁棒性
+        if (matches.isEmpty()) {
+            matches = store.findRelevant(queryEmbedding, 3, 0.0);
+        }
 
         // 如果没有找到相关文档，返回提示信息
         if (matches.isEmpty()) {

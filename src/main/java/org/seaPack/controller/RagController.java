@@ -89,6 +89,9 @@ public class RagController {
             @RequestParam("namespace") String namespace,
             @RequestParam("file") MultipartFile file) {
 
+        // 添加调试日志
+        System.out.println(">>> 正在接收文件: " + file.getOriginalFilename() + " 到空间: [" + namespace + "]");
+
         if (file.isEmpty()) {
             return Result.error("文件为空");
         }

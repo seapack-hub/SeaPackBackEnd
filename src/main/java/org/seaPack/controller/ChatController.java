@@ -86,10 +86,18 @@ public class ChatController {
             messagesToSent.addAll(request.getMessages());
         }
 
-        // 3. 构建请求体 (利用 Map.of 简化代码，JDK 9+)
+        // 3. 构建请求体 (利用 Map 的方式，兼容后端聊天模型的请求格式)
         Map<String, Object> body = new HashMap<>();
         body.put("model", config.getChatModel());
-        body.put("messages", request.getMessages()); // 直接使用前端传来的 List<MessageDTO>
+        // 将系统消息和历史消息合并成最终发送到对端的 messages
+        List<ChatRequest.MessageDTO> messagesBody = new ArrayList<>();
+        if (messagesToSent != null && !messagesToSent.isEmpty()) {
+            messagesBody.addAll(messagesToSent);
+        }
+        if (request.getMessages() != null && !request.getMessages().isEmpty()) {
+            messagesBody.addAll(request.getMessages());
+        }
+        body.put("messages", messagesBody); // 发送给外部 AI 的消息序列
         body.put("stream", true); // 开启流式，这样前端才能一个字一个字蹦出来
 
         // 4. 构建请求头
