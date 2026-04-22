@@ -26,10 +26,18 @@ public class ChatRequest {
     // 新增内部类来映射 messages 数组中的对象
     @Data
     public static class MessageDTO {
+        /**
+         * 角色
+         * 区分消息来源（如用户、AI助手、系统）
+         */
         private String role;
+        /**
+         * 内容
+         * 角色发送的实际文本内容，传递用户提问、AI回复或系统提示等具体信息
+         */
         private String content;
     }
 
-    // 修改这里：接收前端传来的 messages 列表
+    // 接收前端传来的 messages 列表
     private List<MessageDTO> messages;
 }

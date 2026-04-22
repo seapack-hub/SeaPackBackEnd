@@ -40,11 +40,7 @@ public class RagService {
      * 对话模型，用于生成回答
      */
     private ChatLanguageModel chatModel;
-    
-    /**
-     * 向量存储库，用于存储文档的向量（当前使用内存存储）
-     */
-    private EmbeddingStore<TextSegment> embeddingStore;
+
 
     /**
      * 命名空间到向量存储的映射，支持多知识库隔离
