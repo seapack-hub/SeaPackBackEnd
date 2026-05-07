@@ -45,8 +45,7 @@ public class ChatController {
 
         // --- RAG 核心增强逻辑开始 ---
         // 获取前端传来的命名空间 (需要在 ChatRequest DTO 中添加 namespace 字段)
-        List<ChatRequest.MessageDTO> messagesToSent = new ArrayList<>();;
-        //List<Map<String, String>> messages = request.getMessages();
+        List<ChatRequest.MessageDTO> messagesToSent = new ArrayList<>();
         // 如果前端传了 namespace，执行检索
         if (request.getNamespace() != null && !request.getNamespace().trim().isEmpty()) {
 

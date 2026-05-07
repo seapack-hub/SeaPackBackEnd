@@ -31,31 +31,6 @@ public class RagController {
         this.ragService = ragService;
     }
 
-    /**
-     * 文档入库接口
-     * 将文本转换为向量并存储到指定命名空间
-     * @param request 入库请求，包含namespace和text字段
-     * @return 操作结果
-     */
-    @PostMapping("/ingest")
-    public Result<Void> ingest(@RequestBody IngestRequest request) {
-        // 调用RagService的文档入库方法
-        ragService.ingestText(request.getNamespace(), request.getText());
-        return Result.success();
-    }
-
-    /**
-     * 问答接口
-     * 根据问题检索相关文档并生成回答
-     * @param request 问答请求，包含namespace和question字段
-     * @return 生成的回答
-     */
-    @PostMapping("/chat")
-    public Result<String> chat(@RequestBody ChatRequest request) {
-        // 调用RagService的问答方法，获取回答
-        String answer = ragService.chat(request.getNamespace(), request.getQuestion());
-        return Result.success(answer);
-    }
 
     /**
      * 清除命名空间接口

@@ -35,12 +35,6 @@ public class RagService {
      * 向量化模型，用于将文本转换为向量表示
      */
     private EmbeddingModel embeddingModel;
-    
-    /**
-     * 对话模型，用于生成回答
-     */
-    private ChatLanguageModel chatModel;
-
 
     /**
      * 命名空间到向量存储的映射，支持多知识库隔离
@@ -80,13 +74,6 @@ public class RagService {
                 .modelName(config.getEmbeddingModel())
                 .build();
 
-        // 3. 构建对话模型
-        this.chatModel = OpenAiChatModel.builder()
-                .apiKey(config.getApiKey())
-                .baseUrl(config.getBaseUrl())
-                .modelName(config.getChatModel())
-                .temperature(0.7)
-                .build();
 
         System.out.println("RAG 服务初始化完成。");
     }
@@ -121,70 +108,6 @@ public class RagService {
     }
 
     /**
-     * 问答方法，根据问题检索相关文档并生成回答
-     * @param namespace 命名空间，指定在哪个知识库中搜索
-     * @param question 用户问题
-     * @return 生成的回答文本
-     */
-    public String chat(String namespace, String question) {
-        // 获取该命名空间下的向量存储库
-        EmbeddingStore<TextSegment> store = namespaceStore.get(namespace);
-        // 如果该命名空间不存在，返回提示信息
-        if (store == null) {
-            return "该命名空间下没有文档";
-        }
-
-        // 将用户问题转换为向量
-        Embedding queryEmbedding = embeddingModel.embed(question).content();
-        
-        // 在向量存储库中查找最相似的文档
-        // 参数：查询向量、返回结果数量3、最小相似度阈值
-        final double THRESHOLD_DEFAULT = 0.3; // 默认阈值，降低以提升检索鲁棒性
-        List<EmbeddingMatch<TextSegment>> matches = store.findRelevant(queryEmbedding, 3, THRESHOLD_DEFAULT);
-        // 回退策略：若未命中，尝试用一个更低的阈值进行二次检索，提升鲁棒性
-        if (matches.isEmpty()) {
-            matches = store.findRelevant(queryEmbedding, 3, 0.0);
-        }
-
-        // 如果没有找到相关文档，返回提示信息
-        if (matches.isEmpty()) {
-            return "没有找到相关文档";
-        }
-
-        // 提取所有匹配文档的文本内容，用双换行符连接
-        String context = matches.stream()
-                .map(match -> match.embedded().text())
-                .collect(Collectors.joining("\n\n"));
-
-        // 使用 String 格式化构建提示词内容
-        String promptText = String.format(
-                "你是一个智能助手。请严格根据以下上下文信息回答用户的问题。\n" +
-                        "如果上下文中没有相关信息，请直接说明你不知道，不要编造答案。\n\n" +
-                        "上下文信息：\n" +
-                        "------\n" +
-                        "%s\n" +
-                        "------\n\n" +
-                        "用户问题：%s\n" +
-                        "请给出回答：",
-                context, question
-        );
-        // 将字符串包装为 UserMessage 对象
-        UserMessage userMessage = new UserMessage(promptText);
-
-        // 新版本 LangChain4j 需要显式构建请求对象
-        ChatRequest request = ChatRequest.builder()
-                .messages(userMessage) // 设置消息
-                .build();
-
-        // 4. 调用模型，接收 ChatRequest 并返回 ChatResponse
-        ChatResponse chatResponse = chatModel.chat(request);
-
-        // 5. 从响应中提取文本
-        // aiMessage() 返回 Optional<AiMessage>，我们需要 get() 并取 text()
-        return chatResponse.aiMessage().text();
-    }
-
-    /**
      * 清除指定命名空间的所有文档
      * @param namespace 要清除的命名空间名称
      */
@@ -201,23 +124,31 @@ public class RagService {
     }
 
     /**
-     * 新增：仅检索上下文，不生成回答
+     * 仅检索上下文，不生成回答
      * 供 ChatController 在流式对话前调用
      */
     public String getRelevantContext(String namespace, String question) {
+        //根据命名空间来获取具体的向量存储实例
         EmbeddingStore<TextSegment> store = namespaceStore.get(namespace);
         if (store == null) {
             return null;
         }
 
+        //将用户的自然语言问题（String question）转换成一个高维向量（Embedding）。
         Embedding queryEmbedding = embeddingModel.embed(question).content();
+
+        //在向量数据库中查找与 queryEmbedding 最相似的向量。
+        // findRelevant方法参数：
+        // 参数一 referenceEmbedding：刚才生成的问题向量
+        // 参数二 maxResults：表示只返回相似度最高的 3 个结果。这是为了控制上下文窗口的大小，防止给大模型喂太多无关信息。
+        // 参数三 minScore：Min-Score（最小相似度阈值）。只有相似度得分高于 0.5（通常指余弦相似度）的结果才会被返回。这起到一个“过滤器”的作用，避免把不相关的内容强行塞给模型。
         List<EmbeddingMatch<TextSegment>> matches = store.findRelevant(queryEmbedding, 3, 0.5);
 
         if (matches.isEmpty()) {
             return null;
         }
 
-        // 拼接文档片段
+        // 大模型通常接受一段连续的文本作为 Prompt 的上下文（Context）
         return matches.stream()
                 .map(match -> match.embedded().text())
                 .collect(Collectors.joining("\n\n"));
