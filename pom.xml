@@ -189,6 +189,26 @@
 			<version>0.35.0</version>
 		</dependency>
 
+		<!-- LangChain4j 的 Spring Boot 整合包（@AiService 就在这里面） -->
+		<dependency>
+			<groupId>dev.langchain4j</groupId>
+			<artifactId>langchain4j-spring-boot-starter</artifactId>
+			<version>0.35.0</version>
+		</dependency>
+
+		<dependency>
+			<groupId>dev.langchain4j</groupId>
+			<artifactId>langchain4j-dashscope</artifactId>
+			<version>0.35.0</version> <!-- 确保版本与你项目中其他 langchain4j 依赖一致 -->
+		</dependency>
+
+		<!--抓取网页的工具-->
+		<dependency>
+			<groupId>org.jsoup</groupId>
+			<artifactId>jsoup</artifactId>
+			<version>1.15.4</version>
+		</dependency>
+
 	</dependencies>
 
 	<repositories>
