@@ -1,4 +1,4 @@
-package org.seaPack.components;
+package org.seaPack.tools;
 
 import dev.langchain4j.agent.tool.Tool;
 import org.jsoup.Jsoup;
@@ -10,11 +10,11 @@ import org.springframework.stereotype.Component;
 import java.io.IOException;
 
 @Component
-public class WebScraperUtil {
+public class WebScraperUtilTool {
 
     private final ProgressService progressService;
 
-    public WebScraperUtil(ProgressService progressService) {
+    public WebScraperUtilTool(ProgressService progressService) {
         this.progressService = progressService;
     }
 
@@ -27,6 +27,7 @@ public class WebScraperUtil {
         AgentContext context = progressService.getContext();
 
         if (context != null) {
+            context.sendProgress("search","开始搜索信息... " + url);
             context.sendProgress("content","🔍 正在抓取网页: " + url);
         }
 

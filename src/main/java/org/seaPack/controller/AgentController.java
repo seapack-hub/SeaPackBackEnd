@@ -35,6 +35,12 @@ public class AgentController {
         this.progressService = progressService;
     }
 
+    /**
+     * agent智能体入口
+     * @param task
+     * @param response
+     * @return
+     */
     @GetMapping(value="/run-agent")
     public ResponseBodyEmitter runAgent(@RequestParam String task, HttpServletResponse response) {
 
@@ -76,73 +82,40 @@ public class AgentController {
                 safeSend(emitter, isCompleted, "data: {\"status\": \"start\", \"message\": \"状态: 正在理解需求...\"}\n\n");
 
                 // 简单判断：如果任务包含“生成”、“文件”、“报告”等关键词，使用非流式
-                boolean needTool = task.contains("生成") || task.contains("文件") || task.contains("报告") || task.contains("写");
+                // 1. 增强关键词判断：只要包含这些词，一律走非流式（因为流式不支持工具）
+                boolean needTool = task.contains("生成")
+                        || task.contains("文件")
+                        || task.contains("报告")
+                        || task.contains("写")
+                        || task.contains("表格")
+                        || task.contains("Excel")
+                        || task.contains("PDF")
+                        || task.contains("整理")
+                        || task.contains("文档");
 
                 if (needTool) {
-                    // --- 模式 A：非流式调用（支持工具） ---
-                    log.info("检测到工具调用需求，切换到非流式模式...");
-                    safeSend(emitter, isCompleted, "data: {\"status\": \"processing\", \"message\": \"正在调用工具处理...\"}\n\n");
-
-                    // 直接调用非流式方法，这会阻塞直到工具执行完毕并返回最终结果
-                    String finalResult = assistant.chat(task);
-
-                    // 将最终结果发送给前端
-                    safeSend(emitter, isCompleted, "data: {\"type\": \"content\", \"message\": \"" + escapeJson(finalResult) + "\"}\n\n");
-                    safeSend(emitter, isCompleted, "data: {\"status\": \"complete\", \"message\": \"任务完成\"}\n\n");
-
-                    emitter.complete();
+                    // --- 模式 A：显式的非流式调用 ---
+                    handleNonStreaming(task, emitter, isCompleted);
                 }else{
-                    // 5. 启动流式对话
-                    TokenStream tokenStream = assistant.chatStream(task);
+                    // --- 模式 B：尝试流式调用 ---
+                    try {
+                        handleStreaming(task, emitter, isCompleted);
+                    } catch (IllegalArgumentException e) {
+                        // 2. 捕获不支持流式工具的异常
+                        if (e.getMessage() != null && e.getMessage().contains("Tools are currently not supported")) {
+                            log.warn("⚠️ 检测到不支持流式工具，自动降级为非流式模式...");
+                            safeSend(emitter, isCompleted, "data: {\"type\": \"content\", \"message\": \"当前模型不支持流式生成，已自动切换为普通模式...\"}\n\n");
 
-                    // 6. 处理文本生成
-                    tokenStream.onNext(token -> {
-                        // 过滤掉空 token，防止前端报错
-                        if (token != null && !token.trim().isEmpty()) {
-                            safeSend(emitter, isCompleted, "data: {\"type\": \"content\", \"text\": \"" + escapeJson(token) + "\"}\n\n");
+                            // 3. 关键修改：直接调用非流式处理方法，不要重新进入 if/else 逻辑
+                            handleNonStreaming(task, emitter, isCompleted);
+                        } else {
+                            throw e; // 其他异常继续抛出
                         }
-                    });
-
-                    //7.监听工具执行情况
-                    tokenStream.onRetrieved((contents) -> {
-                        // contents 包含了工具返回的所有信息
-                        // 你可以遍历它，或者直接提示前端“资料搜集完成”
-                        StringBuilder sb = new StringBuilder();
-                        for (Content content : contents) {
-                            sb.append(content.textSegment().text());
-                        }
-                        // 向前端发送进度更新
-                        safeSend(emitter, isCompleted, "data: {\"type\": \"content\", \"text\": \"资料搜索中...\"}\n\n");
-                        safeSend(emitter, isCompleted, "data: {\"type\": \"content\", \"text\": \"" + sb.toString() + "\"}\n\n");
-                    });
-
-                    //8.任务完成
-                    tokenStream.onComplete(responsed -> {
-                        safeSend(emitter, isCompleted, "data: {\"status\": \"complete\", \"message\": \"任务完成\"}\n\n");
-                        safeSend(emitter, isCompleted, "data: {\"status\": \"complete\", \"message\": \"文档已生成，准备下载。\"}\n\n");
-                        // 正常结束连接
-                        if (!isCompleted.get()) {
-                            emitter.complete();
-                        }
-                    });
-
-                    //6.错误异常
-                    tokenStream.onError(throwable -> {
-                        // 3. 核心修改：如果是被我们主动取消的异常，静默处理即可，不需要报错
-                        if (throwable instanceof CancellationException) {
-                            log.info("🛑 任务已被用户主动取消/连接已断开");
-                            return;
-                        }
-                        if (!isCompleted.get()) {
-                            safeSend(emitter, isCompleted, "data: {\"status\": \"error\", \"message\": \"" + throwable.getMessage() + "\"}\n\n");
-                            emitter.completeWithError(throwable);
-                        }
-                    });
-
-                    // 7. 启动流 (这一步最重要，不调用 start() 什么都不会发生)
-                    tokenStream.start();
+                    }
                 }
             } catch (Exception e) {
+                // 捕获所有未处理的异常并发送给前端
+                safeSend(emitter, isCompleted, "data: {\"status\": \"error\", \"message\": \"" + e.getMessage() + "\"}\n\n");
                 emitter.completeWithError(e);
             } finally {
                 // 4. 【关键】任务结束后清理上下文，防止内存泄漏和线程污染
@@ -152,12 +125,14 @@ public class AgentController {
                 }
             };
         }).start();
-
         return emitter;
     }
 
     /**
      * 安全发送方法：在发送前检查自定义的连接状态标记
+     * @param emitter
+     * @param isCompleted
+     * @param data
      */
     private void safeSend(ResponseBodyEmitter emitter, AtomicBoolean isCompleted, String data) {
         // 核心修改：检查我们自己维护的布尔值标记
@@ -177,12 +152,85 @@ public class AgentController {
         }
     }
 
-    // 简单的 JSON 转义，防止文本中的引号破坏 JSON 结构
+    /**
+     * 简单的 JSON 转义，防止文本中的引号破坏 JSON 结构
+     * @param s
+     * @return
+     */
     private String escapeJson(String s) {
         if (s == null) return "";
         return s.replace("\\", "\\\\")
                 .replace("\"", "\\\"")
                 .replace("\n", "\\n")
                 .replace("\r", "\\r");
+    }
+
+
+    /**
+     * 处理非流式逻辑
+     * @param task
+     * @param emitter
+     * @param isCompleted
+     */
+    private void handleNonStreaming(String task, ResponseBodyEmitter emitter, AtomicBoolean isCompleted) {
+        try {
+            safeSend(emitter, isCompleted, "data: {\"type\": \"content\", \"message\": \"正在调用工具处理...\"}\n\n");
+            String finalResult = assistant.chat(task);
+            safeSend(emitter, isCompleted, "data: {\"type\": \"content\", \"message\": \"" + escapeJson(finalResult) + "\"}\n\n");
+            safeSend(emitter, isCompleted, "data: {\"status\": \"complete\", \"message\": \"任务完成\"}\n\n");
+            if (!isCompleted.get()) emitter.complete();
+        } catch (Exception e) {
+            safeSend(emitter, isCompleted, "data: {\"status\": \"error\", \"message\": \"" + e.getMessage() + "\"}\n\n");
+        }
+    }
+
+
+    /**
+     * 处理流式逻辑
+     * @param task
+     * @param emitter
+     * @param isCompleted
+     */
+    private void handleStreaming(String task, ResponseBodyEmitter emitter, AtomicBoolean isCompleted) {
+        TokenStream tokenStream = assistant.chatStream(task);
+
+        tokenStream.onNext(token -> {
+            if (token != null && !token.trim().isEmpty()) {
+                safeSend(emitter, isCompleted, "data: {\"type\": \"content\", \"text\": \"" + escapeJson(token) + "\"}\n\n");
+            }
+        });
+
+        tokenStream.onRetrieved(contents -> {
+            // contents 包含了工具返回的所有信息
+            StringBuilder sb = new StringBuilder();
+            for (Content content : contents) {
+                sb.append(content.textSegment().text());
+            }
+            // 向前端发送进度更新
+            safeSend(emitter, isCompleted, "data: {\"type\": \"content\", \"text\": \"资料搜索中...\"}\n\n");
+            safeSend(emitter, isCompleted, "data: {\"type\": \"content\", \"text\": \"" + sb.toString() + "\"}\n\n");
+        });
+
+        tokenStream.onComplete(response -> {
+            safeSend(emitter, isCompleted, "data: {\"status\": \"complete\", \"message\": \"任务完成\"}\n\n");
+            if (!isCompleted.get()) emitter.complete();
+        });
+
+        tokenStream.onError(throwable -> {
+            //向前端发送错误信息
+            safeSend(emitter, isCompleted, "data: {\"status\": \"error\", \"message\": \"" + throwable.getMessage() + "\"}\n\n");
+            // 3. 核心修改：如果是被我们主动取消的异常，静默处理即可，不需要报错
+            if (throwable instanceof CancellationException) {
+                log.info("🛑 任务已被用户主动取消/连接已断开");
+                emitter.complete();
+                return;
+            }
+            if (!isCompleted.get()) {
+                emitter.completeWithError(throwable);
+            }
+        });
+
+        // 这里可能会抛出 IllegalArgumentException
+        tokenStream.start();
     }
 }

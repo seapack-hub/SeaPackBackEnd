@@ -1,5 +1,6 @@
 package org.seaPack.config;
 
+import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.chat.StreamingChatLanguageModel;
 import dev.langchain4j.model.dashscope.QwenStreamingChatModel;
@@ -60,5 +61,14 @@ public class AiConfig {
                 .apiKey(config.getApiKey())
                 .modelName(config.getChatModel())
                 .build();
+    }
+
+    /**
+     * 将 ChatMemory 注册为 Spring Bean
+     * 注意：Bean 的名字默认是方法名 "chatMemory"
+     */
+    @Bean
+    public MessageWindowChatMemory chatMemory() {
+        return MessageWindowChatMemory.withMaxMessages(10); // 保留最近 10 轮对话
     }
 }

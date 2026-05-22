@@ -161,6 +161,13 @@
 			<version>2.0.27</version>
 		</dependency>
 
+		<!-- 将 HTML 转为 PDF 的依赖 -->
+		<dependency>
+			<groupId>com.openhtmltopdf</groupId>
+			<artifactId>openhtmltopdf-pdfbox</artifactId>
+			<version>1.0.10</version>
+		</dependency>
+
 		<!-- 工具类（可选） -->
 		<dependency>
 			<groupId>cn.hutool</groupId>

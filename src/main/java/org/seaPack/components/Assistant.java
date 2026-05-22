@@ -5,7 +5,10 @@ import dev.langchain4j.service.TokenStream;
 import dev.langchain4j.service.UserMessage;
 import dev.langchain4j.service.spring.AiService;
 
-@AiService(chatModel = "chatLanguageModel") // 自动绑定你配置类里的千问大模型
+@AiService(
+        chatModel = "chatLanguageModel",
+        chatMemory = "chatMemory"
+) // 自动绑定你配置类里的千问大模型
 public interface Assistant {
 
     // 普通对话用这个
