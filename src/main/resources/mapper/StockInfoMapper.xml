@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.StockInfoMapper">
+
+    <resultMap id="BaseResultMap" type="org.seaPack.model.StockInfo">
+        <id column="id" jdbcType="BIGINT" property="id" />
+        <result column="stock_code" jdbcType="VARCHAR" property="stockCode" />
+        <result column="stock_name" jdbcType="VARCHAR" property="stockName" />
+        <result column="exchange" jdbcType="VARCHAR" property="exchange" />
+        <result column="is_del" jdbcType="TINYINT" property="isDel" />
+        <result column="create_time" jdbcType="TIMESTAMP" property="createTime" />
+        <result column="update_time" jdbcType="TIMESTAMP" property="updateTime" />
+    </resultMap>
+
+    <select id="selectStockList" parameterType="org.seaPack.model.StockInfo" resultMap="BaseResultMap">
+        select
+        id,
+        stock_code,
+        stock_name,
+        exchange,
+        is_del,
+        create_time,
+        update_time
+        from stock_info
+        <where>
+            <if test="id != null">
+                AND id = #{id}
+            </if>
+            <if test="stockCode != null and stockCode != ''">
+                AND stock_code = #{stockCode}
+            </if>
+            <if test="stockName != null and stockName != ''">
+                AND stock_name LIKE CONCAT('%', #{stockName}, '%')
+            </if>
+            <if test="exchange != null and exchange != ''">
+                AND exchange = #{exchange}
+            </if>
+            <if test="isDel != null">
+                AND is_del = #{isDel}
+            </if>
+            <if test="keywords != null and keywords != ''">
+                AND (stock_code LIKE CONCAT('%', #{keywords}, '%')
+                OR stock_name LIKE CONCAT('%', #{keywords}, '%'))
+            </if>
+        </where>
+        order by create_time DESC
+    </select>
+
+    <select id="selectStockById" parameterType="java.lang.Long" resultMap="BaseResultMap">
+        select
+        id,
+        stock_code,
+        stock_name,
+        exchange,
+        is_del,
+        create_time,
+        update_time
+        from stock_info
+        where id = #{id}
+    </select>
+
+    <select id="selectStockByCode" parameterType="java.lang.String" resultMap="BaseResultMap">
+        select
+        id,
+        stock_code,
+        stock_name,
+        exchange,
+        is_del,
+        create_time,
+        update_time
+        from stock_info
+        where stock_code = #{stockCode}
+        limit 1
+    </select>
+
+    <select id="checkStockCodeExists" parameterType="java.lang.String" resultType="java.lang.Integer">
+        select count(*) from stock_info
+        where stock_code = #{stockCode} and is_del = 0
+    </select>
+
+    <insert id="insertStock" parameterType="org.seaPack.model.StockInfo" useGeneratedKeys="true" keyProperty="id">
+        insert into stock_info
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="stockCode != null">stock_code,</if>
+            <if test="stockName != null">stock_name,</if>
+            <if test="exchange != null">exchange,</if>
+            is_del,
+            create_time,
+            update_time
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="stockCode != null">#{stockCode},</if>
+            <if test="stockName != null">#{stockName},</if>
+            <if test="exchange != null">#{exchange},</if>
+            0,
+            NOW(),
+            NOW()
+        </trim>
+    </insert>
+
+    <update id="updateStock" parameterType="org.seaPack.model.StockInfo">
+        update stock_info
+        <set>
+            <if test="stockName != null">stock_name = #{stockName},</if>
+            <if test="exchange != null">exchange = #{exchange},</if>
+            update_time = NOW()
+        </set>
+        where id = #{id}
+    </update>
+
+    <update id="softDeleteStock" parameterType="java.lang.Long">
+        update stock_info
+        set is_del = 1,
+        update_time = NOW()
+        where id = #{id} and is_del = 0
+    </update>
+
+    <delete id="hardDeleteStock" parameterType="java.lang.Long">
+        delete from stock_info where id = #{id}
+    </delete>
+
+</mapper>

@@ -15,35 +15,38 @@ public class DepartmentServiceImpl implements DepartmentService {
     @Autowired
     private DepartmentMapper departmentMapper;
 
+    /**
+     * 获取完整的部门树形结构
+     * @return 部门树（根节点列表）
+     */
     public List<Department> getDepartmentTree() {
-        // 1. 查询所有部门
         List<Department> allDept = departmentMapper.selectAllDepartments();
-
-        // 2. 构建根节点（parent_dept_id为null）
         List<Department> rootDept = allDept.stream()
                 .filter(dept -> dept.getParentDeptId() == null)
                 .collect(Collectors.toList());
-
-        // 3. 递归构建子树
         rootDept.forEach(root -> buildTree(root, allDept));
         return rootDept;
     }
 
+    /**
+     * 递归构建部门子树
+     * @param parent 父部门节点
+     * @param allDepts 全部部门列表
+     */
     public void buildTree(Department parent, List<Department> allDepts) {
-        // 查找直接子节点
         List<Department> children = allDepts.stream()
                 .filter(dept -> parent.getDeptId().equals(dept.getParentDeptId()))
                 .collect(Collectors.toList());
-
         parent.setChildren(children);
-
-        // 递归处理子节点
         children.forEach(child -> buildTree(child, allDepts));
     }
 
+    /**
+     * 根据部门ID获取子树
+     * @param deptId 部门ID
+     * @return 部门及其子树
+     */
     public Department getSubTree(Integer deptId){
         return departmentMapper.selectSubTreeByPath(deptId);
     }
-
-
 }

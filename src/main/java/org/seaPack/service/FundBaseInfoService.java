@@ -24,6 +24,13 @@ public class FundBaseInfoService {
     @Autowired
     private FundBaseInfoMapper fundBaseInfoMapper;
 
+    /**
+     * 分页查询基金信息列表
+     * @param pageNum 页码
+     * @param pageSize 每页条数
+     * @param example 查询条件（支持keywords模糊搜索）
+     * @return 分页结果
+     */
     public PageInfo<FundBaseInfo> getFundBaseInfoList(int pageNum, int pageSize, FundBaseInfo example) {
         PageHelper.startPage(pageNum, pageSize);
         List<FundBaseInfo> fundBaseInfoList = fundBaseInfoMapper.selectFundsList(example);
@@ -33,17 +40,24 @@ public class FundBaseInfoService {
         return new PageInfo<>(fundBaseInfoList);
     }
 
+    /**
+     * 新增基金（含唯一性校验）
+     * @param fundBaseInfo 基金信息
+     * @return 影响行数
+     */
     public int insertFundBaseInfo(FundBaseInfo fundBaseInfo) {
-        // 1.插入前校验
         int counts = fundBaseInfoMapper.selectFundBaseInfoByCode(fundBaseInfo.getFundCode());
         if (counts > 0) {
             throw new RuntimeException("基金代码 " + fundBaseInfo.getFundCode() + " 已存在！");
         }
-
-        // 2.执行插入
         return fundBaseInfoMapper.insertFundBaseInfo(fundBaseInfo);
     }
 
+    /**
+     * 更新基金信息
+     * @param fundBaseInfo 待更新数据（必须含fundCode）
+     * @return 影响行数
+     */
     public int updateFundBaseInfo(FundBaseInfo fundBaseInfo) {
         int counts = fundBaseInfoMapper.selectFundBaseInfoByCode(fundBaseInfo.getFundCode());
         if (counts == 0) {
@@ -52,6 +66,11 @@ public class FundBaseInfoService {
         return fundBaseInfoMapper.updateFundBaseInfo(fundBaseInfo);
     }
 
+    /**
+     * 根据基金代码删除基金记录
+     * @param fundCode 基金代码
+     * @return 影响行数
+     */
     public int deleteFundBaseInfo(String fundCode) {
         int counts = fundBaseInfoMapper.selectFundBaseInfoByCode(fundCode);
         if (counts == 0) {
@@ -60,10 +79,20 @@ public class FundBaseInfoService {
         return fundBaseInfoMapper.deleteFundBaseInfoByCode(fundCode);
     }
 
+    /**
+     * 根据基金代码查询基金详情
+     * @param fundCode 基金代码
+     * @return 基金详情
+     */
     public FundBaseInfo getFundBaseInfoByCode(String fundCode) {
         return fundBaseInfoMapper.selectFundDetailByCode(fundCode);
     }
 
+    /**
+     * 计算基金成立至今的时长（如"3年120天"）
+     * @param inceptDate 成立日期
+     * @return 时长字符串
+     */
     private String calcDistance(java.util.Date inceptDate) {
         if (inceptDate == null) return null;
         LocalDate start = Instant.ofEpochMilli(inceptDate.getTime()).atZone(ZoneId.systemDefault()).toLocalDate();

@@ -8,13 +8,9 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Base64;
 import java.util.Random;
 import java.util.UUID;
@@ -27,10 +23,13 @@ public class CaptchaService {
     @Autowired
     private StringRedisTemplate redisTemplate;
 
-    //生成带缺口的验证码
+    /**
+     * 生成滑块验证码（带缺口的背景图 + 滑块图）
+     * @return 验证码DTO（含背景图Base64、滑块图Base64、token、滑块初始X/Y）
+     * @throws IOException 图片读取/写入异常
+     */
     public CaptchaDTO generateCaptcha() throws IOException {
-        // 1. 随机选择背景图
-        String[] images = {"bg1.jpg", "bg2.jpg", "bg3.jpg", "bg4.jpg", "bg5.jpg", };
+        String[] images = {"bg1.jpg", "bg2.jpg", "bg3.jpg", "bg4.jpg", "bg5.jpg"};
         String imageName = images[new Random().nextInt(images.length)];
 
         ClassPathResource resource = new ClassPathResource("static/images/" + imageName);
@@ -46,48 +45,45 @@ public class CaptchaService {
         int gapX = new Random().nextInt(315 - 50);
         int gapY = new Random().nextInt(155 - 50);
 
-        // 4. 在背景图上绘制缺口（核心新增逻辑）
-        g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.3f)); // 30%不透明度
-        g2d.drawImage(bgImage, gapX, gapY, 50, 50, null); // 绘制原始图像片段
-        g2d.setComposite(AlphaComposite.SrcOver); // 恢复默认不透明度;
-        // 创建渐变遮罩（从透明到半透明）
-        GradientPaint paint = new GradientPaint(gapX, gapY, new Color(0, 0, 0, 0),gapX + 50, gapY + 50, new Color(0, 0, 0, 150));
+        g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.3f));
+        g2d.drawImage(bgImage, gapX, gapY, 50, 50, null);
+        g2d.setComposite(AlphaComposite.SrcOver);
+        GradientPaint paint = new GradientPaint(gapX, gapY, new Color(0, 0, 0, 0),
+                gapX + 50, gapY + 50, new Color(0, 0, 0, 150));
         g2d.setPaint(paint);
         g2d.fillRect(gapX, gapY, 50, 50);
-        g2d.setColor(new Color(255, 255, 255, 200)); // 半透明灰色边框
+        g2d.setColor(new Color(255, 255, 255, 200));
         g2d.setStroke(new BasicStroke(1.5f));
         g2d.drawRect(gapX, gapY, 50, 50);
         g2d.dispose();
 
-        // 5. 创建滑块图（从背景图抠出缺口区域）
         BufferedImage sliderImage = bgImage.getSubimage(gapX, gapY, 50, 50);
-
-        // 7. 设置滑块的初始X坐标,Y坐标和缺口坐标保持一致
         int sliderX = new Random().nextInt(315 - 50);
 
-        // 7. 存储缺口位置到Redis（有效期2分钟）
         String token = UUID.randomUUID().toString();
-        redisTemplate.opsForValue().set(
-                "captcha:" + token,
-                gapX+"",
-                2, TimeUnit.MINUTES
-        );
+        redisTemplate.opsForValue().set("captcha:" + token, gapX + "", 2, TimeUnit.MINUTES);
 
-        // 8. 返回Base64编码的图片
-        return new CaptchaDTO(imageToBase64(bgWithGap),imageToBase64(sliderImage),token,sliderX,gapY);
+        return new CaptchaDTO(imageToBase64(bgWithGap), imageToBase64(sliderImage), token, sliderX, gapY);
     }
 
+    /**
+     * 校验滑块验证码
+     * @param token 验证码token
+     * @param userX 用户拖动滑块的X坐标
+     * @return true=验证通过, false=验证失败
+     */
     public boolean verifyCaptcha(String token, double userX) {
-        String storedX = redisTemplate.opsForValue().get("captcha:"+token);
+        String storedX = redisTemplate.opsForValue().get("captcha:" + token);
         if (storedX == null) return false;
-
-        // 容差校验（±5像素内通过）
         boolean isValid = Math.abs(Integer.parseInt(storedX) - userX) <= 20;
-        redisTemplate.delete(token); // 验证后立即删除
+        redisTemplate.delete(token);
         return isValid;
     }
 
-    // 绘制干扰线
+    /**
+     * 在图片上绘制干扰线（防机器识别）
+     * @param image 原图
+     */
     private void drawInterferenceLines(BufferedImage image) {
         Graphics2D g2d = image.createGraphics();
         g2d.setColor(Color.BLUE);
@@ -103,12 +99,15 @@ public class CaptchaService {
         g2d.dispose();
     }
 
-    // 图片转Base64
+    /**
+     * 将BufferedImage转为Base64编码的DataURL
+     * @param image 图片
+     * @return data:image/png;base64,...
+     * @throws IOException 写入异常
+     */
     private String imageToBase64(BufferedImage image) throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         ImageIO.write(image, "png", baos);
-        return "data:image/png;base64," +
-                Base64.getEncoder().encodeToString(baos.toByteArray());
+        return "data:image/png;base64," + Base64.getEncoder().encodeToString(baos.toByteArray());
     }
-
 }

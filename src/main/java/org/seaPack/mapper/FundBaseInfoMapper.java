@@ -11,41 +11,43 @@ public interface FundBaseInfoMapper {
 
     /**
      * 查询基金信息列表
+     * @param fundBaseInfo 查询条件（支持keywords模糊搜索）
+     * @return 基金列表
      */
     List<FundBaseInfo> selectFundsList(FundBaseInfo fundBaseInfo);
 
     /**
-     * 插入基金持仓表
-     * @param fundBaseInfo
-     * @return
+     * 新增基金信息
+     * @param fundBaseInfo 基金信息
+     * @return 影响行数
      */
     int insertFundBaseInfo(FundBaseInfo fundBaseInfo);
 
     /**
      * 更新基金信息
-     * @param fundBaseInfo
-     * @return
+     * @param fundBaseInfo 待更新数据
+     * @return 影响行数
      */
     int updateFundBaseInfo(FundBaseInfo fundBaseInfo);
 
     /**
-     * 根据Code查询基金表
-     * @param fundCode
-     * @return
+     * 根据基金代码查询是否存在（用于唯一性校验）
+     * @param fundCode 基金代码
+     * @return 记录数
      */
     int selectFundBaseInfoByCode(@Param("fundCode") String fundCode);
 
     /**
-     * 根据Code查询基金详情
-     * @param fundCode
-     * @return
+     * 根据基金代码查询基金详情
+     * @param fundCode 基金代码
+     * @return 基金详情
      */
     FundBaseInfo selectFundDetailByCode(@Param("fundCode") String fundCode);
 
     /**
-     * 根据Code删除基金持仓表
-     * @param fundCode
-     * @return
+     * 根据基金代码删除基金记录
+     * @param fundCode 基金代码
+     * @return 影响行数
      */
     int deleteFundBaseInfoByCode(@Param("fundCode") String fundCode);
 }

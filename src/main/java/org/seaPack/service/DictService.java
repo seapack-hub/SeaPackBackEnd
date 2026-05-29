@@ -19,6 +19,11 @@ public class DictService {
     @Autowired
     private DictMapper dictMapper;
 
+    /**
+     * 根据字典类型查询字典列表
+     * @param type 字典类型编码
+     * @return 字典列表
+     */
     public List<Dict> selectDictListByType(String type){
         return dictMapper.selectDictListByType(type);
     }

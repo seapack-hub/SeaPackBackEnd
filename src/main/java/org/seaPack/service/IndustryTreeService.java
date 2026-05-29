@@ -172,7 +172,9 @@ public class IndustryTreeService {
     }
 
     /**
-     * 搜索行业（支持名称和代码模糊搜索）
+     * 搜索行业（支持名称模糊搜索）
+     * @param keyword 搜索关键字
+     * @return 匹配的行业列表
      */
     public List<DimIndustry> searchIndustries(String keyword) {
         if (keyword == null || keyword.trim().isEmpty()) {
@@ -182,7 +184,8 @@ public class IndustryTreeService {
     }
 
     /**
-     * 获取行业统计信息
+     * 获取行业统计信息（总数、生成时间等）
+     * @return 行业统计数据
      */
     public IndustryStats getIndustryStats() {
         Long totalCount = dimIndustryMapper.countEnabledIndustries();
@@ -249,7 +252,10 @@ public class IndustryTreeService {
     }
 
     /**
-     * 构建搜索子树
+     * 根据行业代码构建搜索子树（仅保留匹配节点及其路径）
+     * @param allIndustries 全量行业数据
+     * @param industryCode 目标行业代码
+     * @return 过滤后的子树
      */
     public List<DimIndustry> buildIndustrySubTree(List<DimIndustry> allIndustries, String industryCode) {
         GenericTreeBuilder<DimIndustry, String> treeBuilder = GenericTreeBuilder

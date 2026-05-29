@@ -10,9 +10,9 @@ import java.util.List;
 public interface DictMapper {
 
     /**
-     * 更具类型查询字典
-     * @param dictType
-     * @return
+     * 根据字典类型查询字典列表
+     * @param dictType 字典类型编码
+     * @return 字典列表
      */
     List<Dict> selectDictListByType(@Param("dictType") String dictType);
 }
