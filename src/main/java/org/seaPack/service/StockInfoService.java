@@ -29,7 +29,7 @@ public class StockInfoService {
      * 分页查询股票列表
      * @param pageNum 页码
      * @param pageSize 每页条数
-     * @param param 查询条件（stockCode/stockName/exchange/keywords等）
+     * @param param 查询条件（stockCode/stockName/exchange/industry/keywords等）
      * @return 分页结果
      */
     public PageInfo<StockInfo> getStockList(int pageNum, int pageSize, StockInfo param) {
@@ -49,11 +49,11 @@ public class StockInfoService {
 
     /**
      * 根据ID查询股票详情
-     * @param id 股票ID
+     * @param stockId 股票ID
      * @return 股票信息
      */
-    public StockInfo getStockById(Long id) {
-        return stockInfoMapper.selectStockById(id);
+    public StockInfo getStockById(Long stockId) {
+        return stockInfoMapper.selectStockById(stockId);
     }
 
     /**
@@ -79,38 +79,29 @@ public class StockInfoService {
     }
 
     /**
-     * 更新股票信息（仅允许修改名称和交易所）
-     * @param stockInfo 待更新的股票信息（必须含id）
+     * 更新股票信息
+     * @param stockInfo 待更新的股票信息（必须含stockId）
      * @return 影响行数
      */
     public int updateStock(StockInfo stockInfo) {
-        StockInfo existing = stockInfoMapper.selectStockById(stockInfo.getId());
-        if (existing == null || existing.getIsDel() == 1) {
-            throw new RuntimeException("股票不存在或已被删除");
+        StockInfo existing = stockInfoMapper.selectStockById(stockInfo.getStockId());
+        if (existing == null) {
+            throw new RuntimeException("股票不存在");
         }
         return stockInfoMapper.updateStock(stockInfo);
     }
 
     /**
-     * 软删除股票（标记is_del=1）
-     * @param id 股票ID
+     * 删除股票
+     * @param stockId 股票ID
      * @return 影响行数
      */
-    public int softDeleteStock(Long id) {
-        StockInfo existing = stockInfoMapper.selectStockById(id);
-        if (existing == null || existing.getIsDel() == 1) {
-            throw new RuntimeException("股票不存在或已被删除");
+    public int deleteStock(Long stockId) {
+        StockInfo existing = stockInfoMapper.selectStockById(stockId);
+        if (existing == null) {
+            throw new RuntimeException("股票不存在");
         }
-        return stockInfoMapper.softDeleteStock(id);
-    }
-
-    /**
-     * 物理删除股票（直接从表中移除）
-     * @param id 股票ID
-     * @return 影响行数
-     */
-    public int hardDeleteStock(Long id) {
-        return stockInfoMapper.hardDeleteStock(id);
+        return stockInfoMapper.deleteStock(stockId);
     }
 
     /**

@@ -26,7 +26,7 @@
         s.stock_code,
         s.stock_name
         from stock_market_data m
-        left join stock_info s on m.stock_id = s.id
+        left join stock_basic s on m.stock_id = s.stock_id
         <where>
             <if test="stockId != null">
                 AND m.stock_id = #{stockId}
@@ -50,7 +50,7 @@
         s.stock_code,
         s.stock_name
         from stock_market_data m
-        left join stock_info s on m.stock_id = s.id
+        left join stock_basic s on m.stock_id = s.stock_id
         where m.stock_id = #{stockId}
         order by m.data_time DESC
         limit 1
@@ -68,7 +68,7 @@
         s.stock_code,
         s.stock_name
         from stock_market_data m
-        left join stock_info s on m.stock_id = s.id
+        left join stock_basic s on m.stock_id = s.stock_id
         where m.stock_id = #{stockId}
         order by m.data_time ASC
     </select>
@@ -90,9 +90,8 @@
         COUNT(*) as data_count,
         MAX(m.data_time) as latest_data_time
         from stock_market_data m
-        join stock_info s on m.stock_id = s.id
-        where s.is_del = 0
-        group by s.id, s.stock_code, s.stock_name
+        join stock_basic s on m.stock_id = s.stock_id
+        group by s.stock_id, s.stock_code, s.stock_name
         order by avg_yield DESC
     </select>
 

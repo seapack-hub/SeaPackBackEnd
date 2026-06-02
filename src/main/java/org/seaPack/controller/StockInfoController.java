@@ -59,7 +59,7 @@ public class StockInfoController {
 
     /**
      * 更新股票信息
-     * @param stockInfo 待更新数据（必须含id）
+     * @param stockInfo 待更新数据（必须含stockId）
      * @return 影响行数
      */
     @PostMapping("/update")
@@ -68,33 +68,23 @@ public class StockInfoController {
     }
 
     /**
-     * 软删除股票
-     * @param id 股票ID
+     * 删除股票
+     * @param stockId 股票ID
      * @return 影响行数
      */
-    @DeleteMapping("/delete/{id}")
-    public ResponseEntity<Integer> delete(@PathVariable Long id) {
-        return ResponseEntity.ok(stockInfoService.softDeleteStock(id));
-    }
-
-    /**
-     * 物理删除股票
-     * @param id 股票ID
-     * @return 影响行数
-     */
-    @DeleteMapping("/hardDelete/{id}")
-    public ResponseEntity<Integer> hardDelete(@PathVariable Long id) {
-        return ResponseEntity.ok(stockInfoService.hardDeleteStock(id));
+    @DeleteMapping("/delete/{stockId}")
+    public ResponseEntity<Integer> delete(@PathVariable Long stockId) {
+        return ResponseEntity.ok(stockInfoService.deleteStock(stockId));
     }
 
     /**
      * 根据ID查询股票详情
-     * @param id 股票ID
+     * @param stockId 股票ID
      * @return 股票信息
      */
-    @GetMapping("/detail/{id}")
-    public ResponseEntity<StockInfo> detail(@PathVariable Long id) {
-        return ResponseEntity.ok(stockInfoService.getStockById(id));
+    @GetMapping("/detail/{stockId}")
+    public ResponseEntity<StockInfo> detail(@PathVariable Long stockId) {
+        return ResponseEntity.ok(stockInfoService.getStockById(stockId));
     }
 
     /**

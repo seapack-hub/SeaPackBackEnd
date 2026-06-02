@@ -11,17 +11,17 @@ public interface StockInfoMapper {
 
     /**
      * 多条件查询股票列表
-     * @param stockInfo 查询条件（支持id/stockCode/stockName/exchange/isDel/keywords）
+     * @param stockInfo 查询条件（stockId/stockCode/stockName/exchange/industry/keywords）
      * @return 股票列表
      */
     List<StockInfo> selectStockList(StockInfo stockInfo);
 
     /**
      * 根据ID查询股票
-     * @param id 股票ID
+     * @param stockId 股票ID
      * @return 股票信息
      */
-    StockInfo selectStockById(@Param("id") Long id);
+    StockInfo selectStockById(@Param("stockId") Long stockId);
 
     /**
      * 根据股票代码查询
@@ -52,16 +52,9 @@ public interface StockInfoMapper {
     int updateStock(StockInfo stockInfo);
 
     /**
-     * 软删除股票（标记is_del=1）
-     * @param id 股票ID
+     * 删除股票
+     * @param stockId 股票ID
      * @return 影响行数
      */
-    int softDeleteStock(@Param("id") Long id);
-
-    /**
-     * 物理删除股票
-     * @param id 股票ID
-     * @return 影响行数
-     */
-    int hardDeleteStock(@Param("id") Long id);
+    int deleteStock(@Param("stockId") Long stockId);
 }
