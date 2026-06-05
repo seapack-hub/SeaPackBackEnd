@@ -46,7 +46,7 @@
                 AND s.exchange = #{exchange}
             </if>
             <if test="industry != null and industry != ''">
-                AND s.industry LIKE CONCAT('%', #{industry}, '%')
+                AND s.industry = #{industry}
             </if>
             <if test="keywords != null and keywords != ''">
                 AND (s.stock_code LIKE CONCAT('%', #{keywords}, '%')
