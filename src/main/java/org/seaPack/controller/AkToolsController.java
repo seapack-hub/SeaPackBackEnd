@@ -9,6 +9,13 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
+/**
+ * AKTools 数据接口控制器
+ * <p>
+ * 提供基于 AKShare（通过 AKTools）的股票数据查询接口，包括 A 股历史行情、
+ * 实时行情、个股信息、指数日线和分钟级数据。作为 EastMoneyController 的补充方案。
+ * 注意：使用本控制器前需要确保本地的 AKTools 服务已启动。
+ */
 @Slf4j
 @RestController
 @RequestMapping("/aktools")

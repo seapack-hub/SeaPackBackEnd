@@ -12,6 +12,13 @@ import org.springframework.stereotype.Service;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * AKTools 集成服务
+ * <p>
+ * 通过 HTTP 请求调用本地 AKTools 服务（AKShare 的 HTTP API 封装），
+ * 提供 A 股历史行情、实时行情、个股信息等数据的查询能力。
+ * AKTools 需在本地启动运行：aktools serve
+ */
 @Slf4j
 @Service
 public class AkToolsService {
