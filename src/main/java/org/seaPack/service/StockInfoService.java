@@ -3,14 +3,17 @@ package org.seaPack.service;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 import lombok.extern.slf4j.Slf4j;
+import org.seaPack.mapper.IndustrySectorMapper;
 import org.seaPack.mapper.StockInfoMapper;
 import org.seaPack.mapper.StockMarketDataMapper;
+import org.seaPack.model.IndustrySector;
 import org.seaPack.model.StockInfo;
 import org.seaPack.model.StockMarketData;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -25,6 +28,9 @@ public class StockInfoService {
     @Autowired
     private StockMarketDataMapper stockMarketDataMapper;
 
+    @Autowired
+    private IndustrySectorMapper industrySectorMapper;
+
     /**
      * 分页查询股票列表
      * @param pageNum 页码
@@ -33,9 +39,31 @@ public class StockInfoService {
      * @return 分页结果
      */
     public PageInfo<StockInfo> getStockList(int pageNum, int pageSize, StockInfo param) {
+        expandIndustryIds(param);
         PageHelper.startPage(pageNum, pageSize);
         List<StockInfo> list = stockInfoMapper.selectStockList(param);
         return new PageInfo<>(list);
+    }
+
+    /**
+     * 若industry不为空，递归获取其所有子级ID并设置到industryIds中
+     */
+    private void expandIndustryIds(StockInfo param) {
+        String industry = param.getIndustry();
+        if (industry == null || industry.isEmpty()) {
+            return;
+        }
+        List<String> ids = new ArrayList<>();
+        collectDescendantIds(Long.valueOf(industry), ids);
+        param.setIndustryIds(ids);
+    }
+
+    private void collectDescendantIds(Long parentId, List<String> ids) {
+        ids.add(String.valueOf(parentId));
+        List<IndustrySector> children = industrySectorMapper.selectByParentId(parentId);
+        for (IndustrySector child : children) {
+            collectDescendantIds(child.getId(), ids);
+        }
     }
 
     /**
@@ -44,6 +72,7 @@ public class StockInfoService {
      * @return 股票列表
      */
     public List<StockInfo> getStockListAll(StockInfo param) {
+        expandIndustryIds(param);
         return stockInfoMapper.selectStockList(param);
     }
 

@@ -46,7 +46,10 @@
                 AND s.exchange = #{exchange}
             </if>
             <if test="industry != null and industry != ''">
-                AND s.industry = #{industry}
+                AND s.industry IN
+                <foreach item="item" index="index" collection="industryIds" open="(" separator="," close=")">
+                    #{item}
+                </foreach>
             </if>
             <if test="keywords != null and keywords != ''">
                 AND (s.stock_code LIKE CONCAT('%', #{keywords}, '%')

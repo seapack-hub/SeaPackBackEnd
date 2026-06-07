@@ -6,6 +6,7 @@ import lombok.Data;
 import org.hibernate.annotations.Comment;
 
 import java.util.Date;
+import java.util.List;
 
 @Data
 @Entity
@@ -51,6 +52,10 @@ public class StockInfo {
     @Transient
     @Comment("交易所名称")
     private String exchangeName;
+
+    @Transient
+    @Comment("行业ID集合(含子级)，用于父级筛选时查询全部子级数据")
+    private List<String> industryIds;
 
     @Comment("关键字(查询用)")
     private String keywords;
