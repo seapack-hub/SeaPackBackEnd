@@ -4,6 +4,10 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
+/**
+ * 登录请求 DTO
+ * <p>接收前端登录表单提交的用户名和加密密码，含基础校验。</p>
+ */
 @Data
 public class LoginRequest {
 

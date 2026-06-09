@@ -8,6 +8,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+/**
+ * 认证控制器
+ * <p>提供用户登录认证接口，支持滑块验证码校验与 RSA 解密密码传输。</p>
+ */
 @RestController
 @RequestMapping("/auth")
 public class AuthController {
@@ -21,6 +25,16 @@ public class AuthController {
     @Autowired
     private RsaUtil rsaUtil;
 
+    /**
+     * 用户登录
+     * <p>支持滑块验证码校验（可在开发环境关闭），密码经 RSA 公钥加密传输，
+     * 后端解密后与数据库密码比对。</p>
+     * @param token    滑块验证码 token（isVerify=false 时校验）
+     * @param sliderX  用户拖拽 x 坐标
+     * @param username 用户名
+     * @param password RSA 加密后的密码
+     * @param isVerify 是否跳过滑块验证（true=跳过，用于开发调试）
+     */
     @GetMapping("/login")
     public ResponseEntity<String> login(
             @RequestParam(defaultValue = "" ) String token,

@@ -17,12 +17,23 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import org.springframework.core.io.ClassPathResource;
 
+/**
+ * 滑块验证码服务
+ * <p>随机选取背景图，在随机位置抠出滑块区域并半透明遮盖，
+ * 将正确位置存入 Redis（2 分钟过期），前端拖拽后校验偏差是否在 20px 内。</p>
+ */
 @Service
 public class CaptchaService {
 
     @Autowired
     private StringRedisTemplate redisTemplate;
 
+    /**
+     * 生成滑块验证码
+     * <p>从 classpath:static/images/ 下随机选取背景图，生成带缺口背景和滑块图，
+     * 正确缺口位置存入 Redis。</p>
+     * @return 包含背景图、滑块图、token 和滑块初始坐标的 DTO
+     */
     public CaptchaDTO generateCaptcha() throws IOException {
         String[] images = {"bg1.jpg", "bg2.jpg", "bg3.jpg", "bg4.jpg", "bg5.jpg"};
         String imageName = images[new Random().nextInt(images.length)];
@@ -59,6 +70,12 @@ public class CaptchaService {
         return new CaptchaDTO(imageToBase64(bgWithGap), imageToBase64(sliderImage), token, sliderX, gapY);
     }
 
+    /**
+     * 校验滑块验证码
+     * @param token 验证会话 token
+     * @param userX 用户拖拽的 x 坐标
+     * @return 是否校验通过（偏差 &le; 20px）
+     */
     public boolean verifyCaptcha(String token, double userX) {
         String storedX = redisTemplate.opsForValue().get("captcha:" + token);
         if (storedX == null) return false;
@@ -67,6 +84,9 @@ public class CaptchaService {
         return isValid;
     }
 
+    /**
+     * 在图片上绘制干扰线条（增强防机器识别能力）
+     */
     private void drawInterferenceLines(BufferedImage image) {
         Graphics2D g2d = image.createGraphics();
         g2d.setColor(Color.BLUE);
@@ -82,6 +102,9 @@ public class CaptchaService {
         g2d.dispose();
     }
 
+    /**
+     * BufferedImage 转 base64 字符串（含 data:image/png 前缀）
+     */
     private String imageToBase64(BufferedImage image) throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         ImageIO.write(image, "png", baos);

@@ -10,16 +10,24 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+/**
+ * AI 模型配置
+ * <p>根据配置文件中的激活提供商动态创建 ChatLanguageModel / StreamingChatLanguageModel / ChatMemory，
+ * 供 @AiService（Assistant 接口）自动装配。</p>
+ */
 @Configuration
 public class AiConfig {
 
     @Autowired
     private AIProperties aiProperties;
 
+    /**
+     * 同步对话模型
+     * <p>使用 OpenAiChatModel（兼容 OpenAI 协议的所有服务，如 DeepSeek、通义千问等）。</p>
+     */
     @Bean
     public ChatLanguageModel chatLanguageModel(){
 
-        // 1. 获取当前激活的提供商配置
         String providerName = aiProperties.getActiveProvider();
         AIProperties.ProviderConfig config = aiProperties.getProviders().get(providerName);
 
@@ -35,12 +43,11 @@ public class AiConfig {
     }
 
     /**
-     * 新增：配置流式对话模型
-     * 注意：Bean 的名称必须叫 streamingChatLanguageModel，或者在 @AiService 中显式指定
+     * 流式对话模型
+     * <p>阿里云（通义千问）使用 QwenStreamingChatModel，其余使用 OpenAiStreamingChatModel。</p>
      */
     @Bean
     public StreamingChatLanguageModel streamingChatLanguageModel() {
-        // 1. 同样获取当前激活的提供商配置
         String providerName = aiProperties.getActiveProvider();
         AIProperties.ProviderConfig config = aiProperties.getProviders().get(providerName);
 
@@ -50,12 +57,11 @@ public class AiConfig {
 
         if ("aliyun".equalsIgnoreCase(providerName)) {
             return QwenStreamingChatModel.builder()
-                    .apiKey(config.getApiKey()) // 阿里云只需要 apiKey (即 DashScope 的 API Key)
-                    .modelName(config.getChatModel()) // 例如 "qwen-plus"
+                    .apiKey(config.getApiKey())
+                    .modelName(config.getChatModel())
                     .build();
         }
 
-        // 2. 使用 OpenAiStreamingChatModel 构建流式模型（同样兼容千问等大模型）
         return OpenAiStreamingChatModel.builder()
                 .baseUrl(config.getBaseUrl())
                 .apiKey(config.getApiKey())
@@ -64,11 +70,11 @@ public class AiConfig {
     }
 
     /**
-     * 将 ChatMemory 注册为 Spring Bean
-     * 注意：Bean 的名字默认是方法名 "chatMemory"
+     * 对话记忆（滑动窗口）
+     * <p>保留最近 10 轮对话消息，用于维持多轮对话上下文。</p>
      */
     @Bean
     public MessageWindowChatMemory chatMemory() {
-        return MessageWindowChatMemory.withMaxMessages(10); // 保留最近 10 轮对话
+        return MessageWindowChatMemory.withMaxMessages(10);
     }
 }

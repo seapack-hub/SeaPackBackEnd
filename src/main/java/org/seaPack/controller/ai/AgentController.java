@@ -1,7 +1,5 @@
 package org.seaPack.controller.ai;
 
-import dev.langchain4j.model.chat.ChatLanguageModel;
-import dev.langchain4j.model.chat.StreamingChatLanguageModel;
 import dev.langchain4j.rag.content.Content;
 import dev.langchain4j.service.TokenStream;
 import jakarta.servlet.http.HttpServletResponse;
@@ -17,8 +15,12 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter
 import java.io.IOException;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 
+/**
+ * AI 智能体控制器
+ * <p>通过 SSE 流式执行 AI Agent 任务，根据任务类型自动选择流式/非流式模式，
+ * 支持任务进度推送与工具调用。</p>
+ */
 @RestController
 @RequestMapping("/agent")
 @Slf4j
@@ -34,6 +36,15 @@ public class AgentController {
         this.progressService = progressService;
     }
 
+    /**
+     * 运行 AI Agent 任务（SSE 流式返回）
+     * <p>根据任务内容自动判断是否需要工具调用：
+     * 需要文件/报告等生成能力时走非流式模式，纯对话走流式模式。
+     * 流式模式若不支持工具调用则自动降级。</p>
+     * @param task     任务描述文本
+     * @param response HTTP 响应对象
+     * @return SSE 事件流发射器
+     */
     @GetMapping(value="/run-agent")
     public ResponseBodyEmitter runAgent(@RequestParam String task, HttpServletResponse response) {
 
@@ -52,13 +63,13 @@ public class AgentController {
         emitter.onCompletion(() -> {
             isCompleted.set(true);
             progressService.clearContext();
-            log.info("🔗 SSE 连接正常关闭");
+            log.info("SSE 连接正常关闭");
         });
 
         emitter.onError((e) -> {
             isCompleted.set(true);
             progressService.clearContext();
-            log.error("连接发生错误", e);
+            log.error("SSE 连接发生错误", e);
         });
 
         new Thread(() -> {
@@ -83,7 +94,7 @@ public class AgentController {
                         handleStreaming(task, emitter, isCompleted);
                     } catch (IllegalArgumentException e) {
                         if (e.getMessage() != null && e.getMessage().contains("Tools are currently not supported")) {
-                            log.warn("⚠️ 检测到不支持流式工具，自动降级为非流式模式...");
+                            log.warn("检测到不支持流式工具，自动降级为非流式模式...");
                             safeSend(emitter, isCompleted, "data: {\"type\": \"content\", \"message\": \"当前模型不支持流式生成，已自动切换为普通模式...\"}\n\n");
                             handleNonStreaming(task, emitter, isCompleted);
                         } else {
@@ -104,6 +115,9 @@ public class AgentController {
         return emitter;
     }
 
+    /**
+     * 安全发送 SSE 数据，连接断开时自动取消
+     */
     private void safeSend(ResponseBodyEmitter emitter, AtomicBoolean isCompleted, String data) {
         if (isCompleted.get()) {
             throw new CancellationException("客户端连接已断开");
@@ -117,6 +131,9 @@ public class AgentController {
         }
     }
 
+    /**
+     * 转义 JSON 特殊字符
+     */
     private String escapeJson(String s) {
         if (s == null) return "";
         return s.replace("\\", "\\\\")
@@ -125,6 +142,9 @@ public class AgentController {
                 .replace("\r", "\\r");
     }
 
+    /**
+     * 非流式模式：调用带工具的 AI Agent，等待完整结果后一次性返回
+     */
     private void handleNonStreaming(String task, ResponseBodyEmitter emitter, AtomicBoolean isCompleted) {
         try {
             safeSend(emitter, isCompleted, "data: {\"type\": \"content\", \"message\": \"正在调用工具处理...\"}\n\n");
@@ -137,6 +157,9 @@ public class AgentController {
         }
     }
 
+    /**
+     * 流式模式：逐 token 推送 AI 回复，同时推送检索到的知识库内容
+     */
     private void handleStreaming(String task, ResponseBodyEmitter emitter, AtomicBoolean isCompleted) {
         TokenStream tokenStream = assistant.chatStream(task);
 
@@ -163,7 +186,7 @@ public class AgentController {
         tokenStream.onError(throwable -> {
             safeSend(emitter, isCompleted, "data: {\"status\": \"error\", \"message\": \"" + throwable.getMessage() + "\"}\n\n");
             if (throwable instanceof CancellationException) {
-                log.info("🛑 任务已被用户主动取消/连接已断开");
+                log.info("任务已被用户主动取消/连接已断开");
                 emitter.complete();
                 return;
             }

@@ -1,6 +1,9 @@
 package org.seaPack.controller.ai;
 
+import dev.langchain4j.service.TokenStream;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.seaPack.config.AIProperties;
 import org.seaPack.dto.ai.ChatRequest;
 import org.seaPack.service.ai.RagService;
@@ -17,6 +20,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * AI 对话控制器
+ * <p>提供基于 SSE(Server-Sent Events) 的流式对话接口，
+ * 支持 RAG 上下文检索增强，可对接多种 AI 模型提供商。</p>
+ */
+@Slf4j
 @RestController
 @RequestMapping("/chat")
 @CrossOrigin(origins = "*")
@@ -29,6 +38,13 @@ public class ChatController {
     @Autowired
     private RagService ragService;
 
+    /**
+     * AI 模型对话（流式返回 SSE 事件流）
+     * <p>支持多轮对话，若请求中指定了 namespace 则自动检索知识库上下文注入 system prompt。
+     * 流式响应以 text/event-stream 格式逐 token 返回。</p>
+     * @param request 对话请求体（含消息列表、可选命名空间等）
+     * @return SSE 流式响应
+     */
     @PostMapping("/aiModel")
     public ResponseEntity<StreamingResponseBody> chat(@RequestBody ChatRequest request) {
 

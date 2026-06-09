@@ -5,18 +5,30 @@ import dev.langchain4j.service.TokenStream;
 import dev.langchain4j.service.UserMessage;
 import dev.langchain4j.service.spring.AiService;
 
+/**
+ * AI 助手接口（LangChain4j @AiService）
+ * <p>自动绑定配置中的 ChatLanguageModel 和 ChatMemory，提供同步与流式两种对话方式。
+ * 流式返回 TokenStream 供 SSE 逐 token 推送。</p>
+ */
 @AiService(
         chatModel = "chatLanguageModel",
         chatMemory = "chatMemory"
-) // 自动绑定你配置类里的千问大模型
+)
 public interface Assistant {
 
-    // 普通对话用这个
+    /**
+     * 同步对话（等待完整回复）
+     * @param userMessage 用户输入
+     * @return AI 完整回复文本
+     */
     @SystemMessage("你是一个专业的智能助手，擅长搜集资料并整理成文档。")
     String chat(@UserMessage String userMessage);
 
-    // 流式方法（Controller 里要用这个！）
-    // 注意：这里没有返回值类型 String，而是 TokenStream
+    /**
+     * 流式对话（逐 token 返回）
+     * @param userMessage 用户输入
+     * @return TokenStream 用于注册 onNext / onComplete / onError 回调
+     */
     @SystemMessage("你是一个专业的智能助手...")
     TokenStream chatStream(@UserMessage String userMessage);
 }

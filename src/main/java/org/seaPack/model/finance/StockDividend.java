@@ -54,10 +54,12 @@ public class StockDividend {
     @Comment("分红方案原文，如: 10派5元送3股转2股")
     private String planText;
 
+    @JsonFormat(pattern = "yyyy-MM-dd", timezone = "GMT+8")
     @Column(name = "announcement_date")
     @Comment("预案公告日期")
     private Date announcementDate;
 
+    @JsonFormat(pattern = "yyyy-MM-dd", timezone = "GMT+8")
     @Column(name = "ex_dividend_date")
     @Comment("除权除息日")
     private Date exDividendDate;

@@ -15,6 +15,9 @@ public class DepartmentServiceImpl implements DepartmentService {
     @Autowired
     private DepartmentMapper departmentMapper;
 
+    /**
+     * 获取完整部门树（根节点递归构建）
+     */
     public List<Department> getDepartmentTree() {
         List<Department> allDept = departmentMapper.selectAllDepartments();
         List<Department> rootDept = allDept.stream()
@@ -24,6 +27,9 @@ public class DepartmentServiceImpl implements DepartmentService {
         return rootDept;
     }
 
+    /**
+     * 递归构建部门子树
+     */
     public void buildTree(Department parent, List<Department> allDepts) {
         List<Department> children = allDepts.stream()
                 .filter(dept -> parent.getDeptId().equals(dept.getParentDeptId()))
@@ -32,6 +38,9 @@ public class DepartmentServiceImpl implements DepartmentService {
         children.forEach(child -> buildTree(child, allDepts));
     }
 
+    /**
+     * 根据部门 ID 获取子树
+     */
     public Department getSubTree(Integer deptId){
         return departmentMapper.selectSubTreeByPath(deptId);
     }

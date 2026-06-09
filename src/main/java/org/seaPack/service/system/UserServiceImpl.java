@@ -16,12 +16,18 @@ public class UserServiceImpl implements UserService {
     @Autowired
     private UserMapper userMapper;
 
+    /**
+     * 分页查询用户列表
+     */
     public PageInfo<User> getUserList(int pageNum, int pageSize, String keywords, String status, Long deptId, String startTime, String endTime) {
         PageHelper.startPage(pageNum, pageSize);
         List<User> users = userMapper.selectUserList(keywords, status, deptId, startTime, endTime);
         return new PageInfo<>(users);
     }
 
+    /**
+     * 根据用户名查询用户
+     */
     public User selectUserByName(String userName){
         return userMapper.selectUserByName(userName);
     }
