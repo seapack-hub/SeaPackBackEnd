@@ -11,8 +11,8 @@ import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFParagraph;
 import org.apache.poi.xwpf.usermodel.XWPFRun;
 import org.seaPack.common.FileType;
-import org.seaPack.dto.AgentContext;
-import org.seaPack.service.ProgressService;
+import org.seaPack.dto.ai.AgentContext;
+import org.seaPack.service.common.ProgressService;
 import org.springframework.stereotype.Component;
 import dev.langchain4j.agent.tool.Tool;
 

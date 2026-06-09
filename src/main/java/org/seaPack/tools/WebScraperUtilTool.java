@@ -3,8 +3,8 @@ package org.seaPack.tools;
 import dev.langchain4j.agent.tool.Tool;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
-import org.seaPack.dto.AgentContext;
-import org.seaPack.service.ProgressService;
+import org.seaPack.dto.ai.AgentContext;
+import org.seaPack.service.common.ProgressService;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;

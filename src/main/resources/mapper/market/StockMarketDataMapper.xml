@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.market.StockMarketDataMapper">
+
+    <resultMap id="BaseResultMap" type="org.seaPack.model.market.StockMarketData">
+        <id column="id" jdbcType="BIGINT" property="id" />
+        <result column="stock_id" jdbcType="BIGINT" property="stockId" />
+        <result column="current_price" jdbcType="DECIMAL" property="currentPrice" />
+        <result column="dividend_per_share" jdbcType="DECIMAL" property="dividendPerShare" />
+        <result column="calculated_yield" jdbcType="DECIMAL" property="calculatedYield" />
+        <result column="data_time" jdbcType="TIMESTAMP" property="dataTime" />
+        <result column="create_time" jdbcType="TIMESTAMP" property="createTime" />
+        <result column="stock_code" jdbcType="VARCHAR" property="stockCode" />
+        <result column="stock_name" jdbcType="VARCHAR" property="stockName" />
+    </resultMap>
+
+    <select id="selectStockMarketList" parameterType="org.seaPack.model.market.StockMarketData" resultMap="BaseResultMap">
+        select
+        m.id,
+        m.stock_id,
+        m.current_price,
+        m.dividend_per_share,
+        m.calculated_yield,
+        m.data_time,
+        m.create_time,
+        s.stock_code,
+        s.stock_name
+        from stock_market_data m
+        left join stock_basic s on m.stock_id = s.stock_id
+        <where>
+            <if test="stockId != null">
+                AND m.stock_id = #{stockId}
+            </if>
+            <if test="stockCode != null and stockCode != ''">
+                AND s.stock_code = #{stockCode}
+            </if>
+        </where>
+        order by m.data_time DESC
+    </select>
+
+    <select id="selectLatestByStockId" parameterType="java.lang.Long" resultMap="BaseResultMap">
+        select
+        m.id,
+        m.stock_id,
+        m.current_price,
+        m.dividend_per_share,
+        m.calculated_yield,
+        m.data_time,
+        m.create_time,
+        s.stock_code,
+        s.stock_name
+        from stock_market_data m
+        left join stock_basic s on m.stock_id = s.stock_id
+        where m.stock_id = #{stockId}
+        order by m.data_time DESC
+        limit 1
+    </select>
+
+    <select id="selectHistoryByStockId" parameterType="java.lang.Long" resultMap="BaseResultMap">
+        select
+        m.id,
+        m.stock_id,
+        m.current_price,
+        m.dividend_per_share,
+        m.calculated_yield,
+        m.data_time,
+        m.create_time,
+        s.stock_code,
+        s.stock_name
+        from stock_market_data m
+        left join stock_basic s on m.stock_id = s.stock_id
+        where m.stock_id = #{stockId}
+        order by m.data_time ASC
+    </select>
+
+    <insert id="insertStockMarketData" parameterType="org.seaPack.model.market.StockMarketData" useGeneratedKeys="true" keyProperty="id">
+        insert into stock_market_data
+        (stock_id, current_price, dividend_per_share, calculated_yield, data_time, create_time)
+        values
+        (#{stockId}, #{currentPrice}, #{dividendPerShare}, #{calculatedYield}, #{dataTime}, NOW())
+    </insert>
+
+    <select id="selectAverageDividendYield" resultType="java.util.Map">
+        select
+        s.stock_code,
+        s.stock_name,
+        ROUND(AVG(m.calculated_yield), 2) as avg_yield,
+        MAX(m.calculated_yield) as max_yield,
+        MIN(m.calculated_yield) as min_yield,
+        COUNT(*) as data_count,
+        MAX(m.data_time) as latest_data_time
+        from stock_market_data m
+        join stock_basic s on m.stock_id = s.stock_id
+        group by s.stock_id, s.stock_code, s.stock_name
+        order by avg_yield DESC
+    </select>
+
+</mapper>

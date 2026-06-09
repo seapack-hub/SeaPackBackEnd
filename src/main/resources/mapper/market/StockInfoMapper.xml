@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.market.StockInfoMapper">
+
+    <resultMap id="BaseResultMap" type="org.seaPack.model.market.StockInfo">
+        <id column="stock_id" jdbcType="BIGINT" property="stockId" />
+        <result column="stock_code" jdbcType="VARCHAR" property="stockCode" />
+        <result column="stock_name" jdbcType="VARCHAR" property="stockName" />
+        <result column="exchange" jdbcType="VARCHAR" property="exchange" />
+        <result column="exchange_name" jdbcType="VARCHAR" property="exchangeName" />
+        <result column="industry" jdbcType="VARCHAR" property="industry" />
+        <result column="industry_name" jdbcType="VARCHAR" property="industryName" />
+        <result column="created_at" jdbcType="TIMESTAMP" property="createdAt" />
+        <result column="updated_at" jdbcType="TIMESTAMP" property="updatedAt" />
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        s.stock_id,
+        s.stock_code,
+        s.stock_name,
+        s.exchange,
+        d.dict_name AS exchange_name,
+        s.industry,
+        ind.label AS industry_name,
+        s.created_at,
+        s.updated_at
+    </sql>
+
+    <select id="selectStockList" parameterType="org.seaPack.model.market.StockInfo" resultMap="BaseResultMap">
+        select
+        <include refid="Base_Column_List" />
+        from stock_basic s
+        left join industry_sector ind on s.industry = ind.id
+        left join sys_dict d on s.exchange = d.dict_code and d.dict_type = 'exchange_type'
+        <where>
+            <if test="stockId != null">
+                AND s.stock_id = #{stockId}
+            </if>
+            <if test="stockCode != null and stockCode != ''">
+                AND s.stock_code = #{stockCode}
+            </if>
+            <if test="stockName != null and stockName != ''">
+                AND s.stock_name LIKE CONCAT('%', #{stockName}, '%')
+            </if>
+            <if test="exchange != null and exchange != ''">
+                AND s.exchange = #{exchange}
+            </if>
+            <if test="industry != null and industry != ''">
+                AND s.industry IN
+                <foreach item="item" index="index" collection="industryIds" open="(" separator="," close=")">
+                    #{item}
+                </foreach>
+            </if>
+            <if test="keywords != null and keywords != ''">
+                AND (s.stock_code LIKE CONCAT('%', #{keywords}, '%')
+                OR s.stock_name LIKE CONCAT('%', #{keywords}, '%'))
+            </if>
+        </where>
+        order by s.created_at DESC
+    </select>
+
+    <select id="selectStockById" parameterType="java.lang.Long" resultMap="BaseResultMap">
+        select
+        <include refid="Base_Column_List" />
+        from stock_basic s
+        left join industry_sector ind on s.industry = ind.id
+        left join sys_dict d on s.exchange = d.dict_code and d.dict_type = 'exchange_type'
+        where s.stock_id = #{stockId}
+    </select>
+
+    <select id="selectStockByCode" parameterType="java.lang.String" resultMap="BaseResultMap">
+        select
+        <include refid="Base_Column_List" />
+        from stock_basic s
+        left join industry_sector ind on s.industry = ind.id
+        left join sys_dict d on s.exchange = d.dict_code and d.dict_type = 'exchange_type'
+        where s.stock_code = #{stockCode}
+        limit 1
+    </select>
+
+    <select id="checkStockCodeExists" parameterType="java.lang.String" resultType="java.lang.Integer">
+        select count(*) from stock_basic
+        where stock_code = #{stockCode}
+    </select>
+
+    <insert id="insertStock" parameterType="org.seaPack.model.market.StockInfo" useGeneratedKeys="true" keyProperty="stockId" keyColumn="stock_id">
+        insert into stock_basic
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="stockCode != null">stock_code,</if>
+            <if test="stockName != null">stock_name,</if>
+            <if test="exchange != null">exchange,</if>
+            <if test="industry != null">industry,</if>
+            created_at,
+            updated_at
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="stockCode != null">#{stockCode},</if>
+            <if test="stockName != null">#{stockName},</if>
+            <if test="exchange != null">#{exchange},</if>
+            <if test="industry != null">#{industry},</if>
+            NOW(),
+            NOW()
+        </trim>
+    </insert>
+
+    <update id="updateStock" parameterType="org.seaPack.model.market.StockInfo">
+        update stock_basic
+        <set>
+            <if test="stockName != null">stock_name = #{stockName},</if>
+            <if test="exchange != null">exchange = #{exchange},</if>
+            <if test="industry != null">industry = #{industry},</if>
+            updated_at = NOW()
+        </set>
+        where stock_id = #{stockId}
+    </update>
+
+    <delete id="deleteStock" parameterType="java.lang.Long">
+        delete from stock_basic where stock_id = #{stockId}
+    </delete>
+
+</mapper>

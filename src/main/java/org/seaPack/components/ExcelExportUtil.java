@@ -5,8 +5,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
-import org.seaPack.dto.ExportHeader;
-import org.seaPack.dto.ExportRequest;
+import org.seaPack.dto.common.ExportHeader;
+import org.seaPack.dto.common.ExportRequest;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
