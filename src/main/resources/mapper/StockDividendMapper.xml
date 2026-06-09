@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.StockDividendMapper">
+
+    <!-- 基础映射：stock_dividend 表字段 + 字典名称 + 股票名称 -->
+    <resultMap id="BaseResultMap" type="org.seaPack.model.StockDividend">
+        <id column="id" jdbcType="BIGINT" property="id" />
+        <result column="stock_code" jdbcType="VARCHAR" property="stockCode" />
+        <result column="year" jdbcType="INTEGER" property="year" />
+        <result column="dividend_type" jdbcType="VARCHAR" property="dividendType" />
+        <result column="cash_per_share" jdbcType="DECIMAL" property="cashPerShare" />
+        <result column="bonus_shares_per_10" jdbcType="DECIMAL" property="bonusSharesPer10" />
+        <result column="transfer_shares_per_10" jdbcType="DECIMAL" property="transferSharesPer10" />
+        <result column="plan_text" jdbcType="VARCHAR" property="planText" />
+        <result column="announcement_date" jdbcType="DATE" property="announcementDate" />
+        <result column="ex_dividend_date" jdbcType="DATE" property="exDividendDate" />
+        <result column="status" jdbcType="VARCHAR" property="status" />
+        <result column="created_at" jdbcType="TIMESTAMP" property="createdAt" />
+        <result column="dividend_type_name" jdbcType="VARCHAR" property="dividendTypeName" />
+        <result column="status_name" jdbcType="VARCHAR" property="statusName" />
+        <result column="stock_name" jdbcType="VARCHAR" property="stockName" />
+    </resultMap>
+
+    <!-- 通用查询列：关联 stock_basic 查股票名称，关联 sys_dict 查字典中文名 -->
+    <sql id="Base_Column_List">
+        sd.id,
+        sd.stock_code,
+        sd.year,
+        sd.dividend_type,
+        sd.cash_per_share,
+        sd.bonus_shares_per_10,
+        sd.transfer_shares_per_10,
+        sd.plan_text,
+        sd.announcement_date,
+        sd.ex_dividend_date,
+        sd.status,
+        sd.created_at,
+        d1.dict_name AS dividend_type_name,
+        d2.dict_name AS status_name,
+        sb.stock_name
+    </sql>
+
+    <!-- 多条件分页查询：支持股票代码、年份、分红类型、状态精确匹配，关键字模糊搜索 -->
+    <select id="selectList" resultMap="BaseResultMap">
+        select
+        <include refid="Base_Column_List" />
+        from stock_dividend sd
+        left join stock_basic sb on sd.stock_code = sb.stock_code
+        left join sys_dict d1 on sd.dividend_type = d1.dict_code and d1.dict_type = 'stock_dividend_type'
+        left join sys_dict d2 on sd.status = d2.dict_code and d2.dict_type = 'stock_dividend_status'
+        <where>
+            <if test="stockCode != null and stockCode != ''">
+                AND sd.stock_code = #{stockCode}
+            </if>
+            <if test="year != null">
+                AND sd.year = #{year}
+            </if>
+            <if test="dividendType != null and dividendType != ''">
+                AND sd.dividend_type = #{dividendType}
+            </if>
+            <if test="status != null and status != ''">
+                AND sd.status = #{status}
+            </if>
+            <if test="keyword != null and keyword != ''">
+                AND (sb.stock_name LIKE CONCAT('%', #{keyword}, '%')
+                OR sd.stock_code LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+        </where>
+        order by sd.year DESC, sd.dividend_type ASC, sd.id ASC
+    </select>
+
+    <!-- 按主键查询（含字典名称和股票名称） -->
+    <select id="selectById" parameterType="java.lang.Long" resultMap="BaseResultMap">
+        select
+        <include refid="Base_Column_List" />
+        from stock_dividend sd
+        left join stock_basic sb on sd.stock_code = sb.stock_code
+        left join sys_dict d1 on sd.dividend_type = d1.dict_code and d1.dict_type = 'stock_dividend_type'
+        left join sys_dict d2 on sd.status = d2.dict_code and d2.dict_type = 'stock_dividend_status'
+        where sd.id = #{id}
+    </select>
+
+    <!-- 按 stock_code + year + dividend_type 唯一约束查询（用于新增时判重） -->
+    <select id="selectByUnique" resultMap="BaseResultMap">
+        select
+        <include refid="Base_Column_List" />
+        from stock_dividend sd
+        left join stock_basic sb on sd.stock_code = sb.stock_code
+        left join sys_dict d1 on sd.dividend_type = d1.dict_code and d1.dict_type = 'stock_dividend_type'
+        left join sys_dict d2 on sd.status = d2.dict_code and d2.dict_type = 'stock_dividend_status'
+        where sd.stock_code = #{stockCode}
+          and sd.year = #{year}
+          and sd.dividend_type = #{dividendType}
+        limit 1
+    </select>
+
+    <!-- 新增分红记录（动态列，自增主键回填） -->
+    <insert id="insert" parameterType="org.seaPack.model.StockDividend" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        insert into stock_dividend
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="stockCode != null">stock_code,</if>
+            <if test="year != null">year,</if>
+            <if test="dividendType != null">dividend_type,</if>
+            <if test="cashPerShare != null">cash_per_share,</if>
+            <if test="bonusSharesPer10 != null">bonus_shares_per_10,</if>
+            <if test="transferSharesPer10 != null">transfer_shares_per_10,</if>
+            <if test="planText != null">plan_text,</if>
+            <if test="announcementDate != null">announcement_date,</if>
+            <if test="exDividendDate != null">ex_dividend_date,</if>
+            <if test="status != null">status,</if>
+            created_at
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="stockCode != null">#{stockCode},</if>
+            <if test="year != null">#{year},</if>
+            <if test="dividendType != null">#{dividendType},</if>
+            <if test="cashPerShare != null">#{cashPerShare},</if>
+            <if test="bonusSharesPer10 != null">#{bonusSharesPer10},</if>
+            <if test="transferSharesPer10 != null">#{transferSharesPer10},</if>
+            <if test="planText != null">#{planText},</if>
+            <if test="announcementDate != null">#{announcementDate},</if>
+            <if test="exDividendDate != null">#{exDividendDate},</if>
+            <if test="status != null">#{status},</if>
+            NOW()
+        </trim>
+    </insert>
+
+    <!-- 更新分红记录（动态列，仅更新非空字段） -->
+    <update id="update" parameterType="org.seaPack.model.StockDividend">
+        update stock_dividend
+        <set>
+            <if test="cashPerShare != null">cash_per_share = #{cashPerShare},</if>
+            <if test="bonusSharesPer10 != null">bonus_shares_per_10 = #{bonusSharesPer10},</if>
+            <if test="transferSharesPer10 != null">transfer_shares_per_10 = #{transferSharesPer10},</if>
+            <if test="planText != null">plan_text = #{planText},</if>
+            <if test="announcementDate != null">announcement_date = #{announcementDate},</if>
+            <if test="exDividendDate != null">ex_dividend_date = #{exDividendDate},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="dividendType != null">dividend_type = #{dividendType},</if>
+            <if test="year != null">year = #{year},</if>
+        </set>
+        where id = #{id}
+    </update>
+
+    <!-- 物理删除分红记录 -->
+    <delete id="deleteById" parameterType="java.lang.Long">
+        delete from stock_dividend where id = #{id}
+    </delete>
+
+</mapper>
