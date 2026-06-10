@@ -238,7 +238,12 @@
 			<version>1.15.4</version>
 		</dependency>
 
-
+		<!-- DuckDB JDBC：轻量级嵌入式数据库，可直接用 SQL 查询 Parquet 文件 -->
+		<dependency>
+			<groupId>org.duckdb</groupId>
+			<artifactId>duckdb_jdbc</artifactId>
+			<version>1.0.0</version>
+		</dependency>
 
 	</dependencies>
 
