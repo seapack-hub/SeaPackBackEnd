@@ -21,7 +21,7 @@ import java.util.List;
 public class StockDailyService {
 
     /** Parquet 文件存放的基础目录 */
-    @Value("${stock.parquet.dir:D:\\a_stock_daily_parquet}")
+    @Value("${stock.parquet.dir}")
     private String parquetDir;
 
     /**
