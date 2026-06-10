@@ -48,71 +48,71 @@ public class AgentController {
     @GetMapping(value="/run-agent")
     public ResponseBodyEmitter runAgent(@RequestParam String task, HttpServletResponse response) {
 
-        response.setContentType("text/event-stream");
-        response.setCharacterEncoding("UTF-8");
-        response.setHeader("Cache-Control", "no-cache");
-        response.setHeader("Connection", "keep-alive");
+        response.setContentType("text/event-stream"); // 设置 SSE 内容类型
+        response.setCharacterEncoding("UTF-8"); // 使用 UTF-8 编码
+        response.setHeader("Cache-Control", "no-cache"); // 禁止客户端缓存 SSE 数据
+        response.setHeader("Connection", "keep-alive"); // 保持长连接
 
-        ResponseBodyEmitter emitter = new ResponseBodyEmitter(300000L);
+        ResponseBodyEmitter emitter = new ResponseBodyEmitter(300000L); // 创建 SSE 发射器，超时 5 分钟
 
-        AtomicBoolean isCompleted = new AtomicBoolean(false);
+        AtomicBoolean isCompleted = new AtomicBoolean(false); // 线程安全的完成状态标记
 
-        AgentContext context = new AgentContext(emitter, isCompleted);
-        progressService.setContext(context);
+        AgentContext context = new AgentContext(emitter, isCompleted); // 创建 Agent 上下文
+        progressService.setContext(context); // 将上下文注册到进度服务，供工具调用时推送进度
 
-        emitter.onCompletion(() -> {
-            isCompleted.set(true);
-            progressService.clearContext();
+        emitter.onCompletion(() -> { // 注册 SSE 正常完成回调
+            isCompleted.set(true); // 标记任务完成
+            progressService.clearContext(); // 清除进度上下文
             log.info("SSE 连接正常关闭");
         });
 
-        emitter.onError((e) -> {
-            isCompleted.set(true);
-            progressService.clearContext();
+        emitter.onError((e) -> { // 注册 SSE 异常回调
+            isCompleted.set(true); // 标记任务完成
+            progressService.clearContext(); // 清除进度上下文
             log.error("SSE 连接发生错误", e);
         });
 
-        new Thread(() -> {
+        new Thread(() -> { // 异步线程执行 AI 任务，不阻塞 HTTP 请求线程
             try{
-                safeSend(emitter, isCompleted, "data: {\"status\": \"start\", \"message\": \"事件: 任务开始...\"}\n\n");
-                safeSend(emitter, isCompleted, "data: {\"status\": \"start\", \"message\": \"状态: 正在理解需求...\"}\n\n");
+                safeSend(emitter, isCompleted, "data: {\"status\": \"start\", \"message\": \"事件: 任务开始...\"}\n\n"); // 推送任务开始事件
+                safeSend(emitter, isCompleted, "data: {\"status\": \"start\", \"message\": \"状态: 正在理解需求...\"}\n\n"); // 推送需求理解状态
 
-                boolean needTool = task.contains("生成")
-                        || task.contains("文件")
-                        || task.contains("报告")
-                        || task.contains("写")
-                        || task.contains("表格")
-                        || task.contains("Excel")
-                        || task.contains("PDF")
-                        || task.contains("整理")
-                        || task.contains("文档");
+                boolean needTool = task.contains("生成") // 判断任务是否需要调用工具
+                        || task.contains("文件") // 包含"文件"关键词
+                        || task.contains("报告") // 包含"报告"关键词
+                        || task.contains("写") // 包含"写"关键词
+                        || task.contains("表格") // 包含"表格"关键词
+                        || task.contains("Excel") // 包含"Excel"关键词
+                        || task.contains("PDF") // 包含"PDF"关键词
+                        || task.contains("整理") // 包含"整理"关键词
+                        || task.contains("文档"); // 包含"文档"关键词
 
-                if (needTool) {
+                if (needTool) { // 需要工具调用时走非流式模式
                     handleNonStreaming(task, emitter, isCompleted);
-                }else{
+                }else{ // 纯对话走流式模式
                     try {
                         handleStreaming(task, emitter, isCompleted);
-                    } catch (IllegalArgumentException e) {
-                        if (e.getMessage() != null && e.getMessage().contains("Tools are currently not supported")) {
+                    } catch (IllegalArgumentException e) { // 捕获流式不支持工具的异常
+                        if (e.getMessage() != null && e.getMessage().contains("Tools are currently not supported")) { // 确认为工具不支持
                             log.warn("检测到不支持流式工具，自动降级为非流式模式...");
-                            safeSend(emitter, isCompleted, "data: {\"type\": \"content\", \"message\": \"当前模型不支持流式生成，已自动切换为普通模式...\"}\n\n");
-                            handleNonStreaming(task, emitter, isCompleted);
-                        } else {
+                            safeSend(emitter, isCompleted, "data: {\"type\": \"content\", \"message\": \"当前模型不支持流式生成，已自动切换为普通模式...\"}\n\n"); // 通知客户端降级
+                            handleNonStreaming(task, emitter, isCompleted); // 降级为非流式模式
+                        } else { // 其他异常则向上抛出
                             throw e;
                         }
                     }
                 }
-            } catch (Exception e) {
-                safeSend(emitter, isCompleted, "data: {\"status\": \"error\", \"message\": \"" + e.getMessage() + "\"}\n\n");
-                emitter.completeWithError(e);
-            } finally {
-                progressService.clearContext();
-                if (!isCompleted.get()) {
-                    emitter.complete();
+            } catch (Exception e) { // 捕获所有未处理异常
+                safeSend(emitter, isCompleted, "data: {\"status\": \"error\", \"message\": \"" + e.getMessage() + "\"}\n\n"); // 推送错误信息
+                emitter.completeWithError(e); // 以异常状态结束 SSE
+            } finally { // 无论成功或异常，最终清理
+                progressService.clearContext(); // 清理进度上下文
+                if (!isCompleted.get()) { // 如果尚未标记完成
+                    emitter.complete(); // 正常结束 SSE 连接
                 }
             };
-        }).start();
-        return emitter;
+        }).start(); // 启动异步线程
+        return emitter; // 返回 SSE 发射器给客户端
     }
 
     /**
