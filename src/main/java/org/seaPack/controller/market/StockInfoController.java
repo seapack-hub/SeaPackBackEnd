@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j; // Lombok 日志
 import org.seaPack.model.market.StockInfo; // 股票信息实体
 import org.seaPack.model.market.StockMarketData; // 行情数据实体
 import org.seaPack.service.market.StockInfoService; // 股票信息服务
+import org.seaPack.service.market.StockBasicSyncService; // StockBasic 同步服务
 import org.springframework.beans.factory.annotation.Autowired; // Spring 依赖注入
 import org.springframework.http.ResponseEntity; // HTTP 响应实体
 import org.springframework.web.bind.annotation.*; // Spring Web MVC 注解
@@ -23,6 +24,9 @@ public class StockInfoController {
 
     @Autowired // 注入股票信息服务
     private StockInfoService stockInfoService;
+
+    @Autowired // 注入 StockBasic 同步服务
+    private StockBasicSyncService stockBasicSyncService;
 
     /**
      * 分页查询股票列表
@@ -127,5 +131,21 @@ public class StockInfoController {
     @GetMapping("/dividend/average")
     public ResponseEntity<List<Map<String, Object>>> averageDividendYield() {
         return ResponseEntity.ok(stockInfoService.getAverageDividendYield());
+    }
+
+    /**
+     * 从 Parquet 标的池生成 StockBasic 初始化 SQL
+     * <p>
+     * 读取本地 Parquet 文件中全市场 A 股数据，
+     * 将交易所代码映射为字典值（SH→SSE, SZ→SZSE, BJ→BSE），
+     * 生成 INSERT IGNORE INTO stock_basic SQL 文件并保存到桌面。
+     *
+     * @return SQL 文件路径
+     */
+    @GetMapping("/sync/generate-sql")
+    public ResponseEntity<String> generateStockBasicSql() {
+        String filePath = stockBasicSyncService.generateSqlFile();
+        log.info("StockBasic SQL 文件已生成：{}", filePath);
+        return ResponseEntity.ok("SQL 文件已生成：" + filePath);
     }
 }
