@@ -3,7 +3,6 @@ package org.seaPack.controller.market;
 import com.github.pagehelper.PageInfo; // MyBatis 分页信息
 import lombok.extern.slf4j.Slf4j; // Lombok 日志
 import org.seaPack.model.market.StockInfo; // 股票信息实体
-import org.seaPack.model.market.StockMarketData; // 行情数据实体
 import org.seaPack.service.market.StockInfoService; // 股票信息服务
 import org.seaPack.service.market.StockBasicSyncService; // StockBasic 同步服务
 import org.springframework.beans.factory.annotation.Autowired; // Spring 依赖注入
@@ -11,7 +10,6 @@ import org.springframework.http.ResponseEntity; // HTTP 响应实体
 import org.springframework.web.bind.annotation.*; // Spring Web MVC 注解
 
 import java.util.List; // List 集合
-import java.util.Map; // Map 集合
 
 /**
  * 股票信息控制器
@@ -96,41 +94,6 @@ public class StockInfoController {
     @GetMapping("/code/{stockCode}")
     public ResponseEntity<StockInfo> byCode(@PathVariable String stockCode) {
         return ResponseEntity.ok(stockInfoService.getStockByCode(stockCode));
-    }
-
-    /**
-     * 查询股票最新行情
-     * @param stockId 股票 ID
-     */
-    @GetMapping("/market/latest/{stockId}")
-    public ResponseEntity<StockMarketData> latestMarketData(@PathVariable Long stockId) {
-        return ResponseEntity.ok(stockInfoService.getLatestMarketData(stockId));
-    }
-
-    /**
-     * 查询股票历史分红趋势
-     * @param stockId 股票 ID
-     */
-    @GetMapping("/market/history/{stockId}")
-    public ResponseEntity<List<StockMarketData>> marketHistory(@PathVariable Long stockId) {
-        return ResponseEntity.ok(stockInfoService.getDividendHistory(stockId));
-    }
-
-    /**
-     * 多条件查询行情数据
-     * @param param 查询条件
-     */
-    @GetMapping("/market/list")
-    public ResponseEntity<List<StockMarketData>> marketList(StockMarketData param) {
-        return ResponseEntity.ok(stockInfoService.getMarketDataList(param));
-    }
-
-    /**
-     * 统计全市场平均股息率
-     */
-    @GetMapping("/dividend/average")
-    public ResponseEntity<List<Map<String, Object>>> averageDividendYield() {
-        return ResponseEntity.ok(stockInfoService.getAverageDividendYield());
     }
 
     /**

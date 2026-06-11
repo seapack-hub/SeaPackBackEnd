@@ -3,6 +3,7 @@ package org.seaPack.controller.finance;
 import com.github.pagehelper.PageInfo; // MyBatis 分页信息
 import lombok.extern.slf4j.Slf4j; // Lombok 日志
 import org.seaPack.model.finance.StockDividend; // 股票分红实体
+import org.seaPack.service.finance.DividendExportService; // 分红 TXT 导出服务
 import org.seaPack.service.finance.StockDividendService; // 股票分红服务
 import org.springframework.beans.factory.annotation.Autowired; // Spring 依赖注入
 import org.springframework.http.ResponseEntity; // HTTP 响应实体
@@ -19,6 +20,9 @@ public class StockDividendController {
 
     @Autowired // 注入股票分红服务
     private StockDividendService stockDividendService;
+
+    @Autowired // 注入分红 TXT 导出服务
+    private DividendExportService dividendExportService;
 
     /**
      * 分页查询分红记录
@@ -77,5 +81,27 @@ public class StockDividendController {
     @DeleteMapping("/delete/{id}")
     public ResponseEntity<Integer> delete(@PathVariable Long id) {
         return ResponseEntity.ok(stockDividendService.delete(id));
+    }
+
+    /**
+     * 导出分红 TXT 文件到桌面
+     * <p>读取 a_stock_dividend_history.parquet 并生成可读 TXT 报告。</p>
+     */
+    @GetMapping("/export-txt")
+    public ResponseEntity<String> exportTxt() {
+        String filePath = dividendExportService.exportTxt();
+        log.info("分红 TXT 已导出至：{}", filePath);
+        return ResponseEntity.ok("分红 TXT 已导出至：" + filePath);
+    }
+
+    /**
+     * 根据本地 Parquet 生成 stock_dividend INSERT SQL 文件
+     * <p>先 TRUNCATE 旧数据，再逐条 INSERT 覆盖全量分红记录。</p>
+     */
+    @GetMapping("/generate-sql")
+    public ResponseEntity<String> generateSql() {
+        String filePath = dividendExportService.generateSql();
+        log.info("分红 SQL 已生成至：{}", filePath);
+        return ResponseEntity.ok("分红 SQL 已生成至：" + filePath);
     }
 }

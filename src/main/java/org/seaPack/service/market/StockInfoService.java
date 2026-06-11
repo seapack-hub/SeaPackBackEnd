@@ -5,17 +5,14 @@ import com.github.pagehelper.PageInfo;
 import lombok.extern.slf4j.Slf4j;
 import org.seaPack.mapper.market.IndustrySectorMapper;
 import org.seaPack.mapper.market.StockInfoMapper;
-import org.seaPack.mapper.market.StockMarketDataMapper;
 import org.seaPack.model.market.IndustrySector;
 import org.seaPack.model.market.StockInfo;
-import org.seaPack.model.market.StockMarketData;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 @Slf4j
 @Service
@@ -24,9 +21,6 @@ public class StockInfoService {
 
     @Autowired
     private StockInfoMapper stockInfoMapper;
-
-    @Autowired
-    private StockMarketDataMapper stockMarketDataMapper;
 
     @Autowired
     private IndustrySectorMapper industrySectorMapper;
@@ -120,31 +114,5 @@ public class StockInfoService {
         return stockInfoMapper.deleteStock(stockId);
     }
 
-    /**
-     * 查询股票最新行情
-     */
-    public StockMarketData getLatestMarketData(Long stockId) {
-        return stockMarketDataMapper.selectLatestByStockId(stockId);
-    }
 
-    /**
-     * 查询股票历史分红趋势
-     */
-    public List<StockMarketData> getDividendHistory(Long stockId) {
-        return stockMarketDataMapper.selectHistoryByStockId(stockId);
-    }
-
-    /**
-     * 多条件查询行情数据
-     */
-    public List<StockMarketData> getMarketDataList(StockMarketData param) {
-        return stockMarketDataMapper.selectStockMarketList(param);
-    }
-
-    /**
-     * 统计全市场平均股息率
-     */
-    public List<Map<String, Object>> getAverageDividendYield() {
-        return stockMarketDataMapper.selectAverageDividendYield();
-    }
 }

@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.market.UserStockMonitorMapper">
+
+    <resultMap id="BaseResultMap" type="org.seaPack.model.market.UserStockMonitor">
+        <id column="id" jdbcType="BIGINT" property="id" />
+        <result column="user_id" jdbcType="BIGINT" property="userId" />
+        <result column="stock_code" jdbcType="VARCHAR" property="stockCode" />
+        <result column="is_active" jdbcType="TINYINT" property="isActive" />
+        <result column="remark" jdbcType="VARCHAR" property="remark" />
+        <result column="created_at" jdbcType="TIMESTAMP" property="createdAt" />
+        <result column="updated_at" jdbcType="TIMESTAMP" property="updatedAt" />
+    </resultMap>
+
+    <!-- 分页条件查询：监控池 + 股票名称 + 阈值 JSON -->
+    <select id="selectMonitorList" parameterType="org.seaPack.dto.market.UserStockMonitorQuery" resultType="java.util.Map">
+        SELECT
+            m.id AS monitor_id,
+            m.stock_code,
+            s.stock_name,
+            m.is_active,
+            m.remark,
+            COALESCE(
+                CONCAT('[', GROUP_CONCAT(
+                    DISTINCT CONCAT(
+                        '{"id":', t.id,
+                        ', "rate":', t.threshold_rate,
+                        ', "type":"', t.trigger_type, '"}'
+                    )
+                ), ']'),
+                '[]'
+            ) AS thresholds
+        FROM user_stock_monitor m
+        LEFT JOIN stock_basic s ON m.stock_code = s.stock_code
+        LEFT JOIN monitor_threshold_config t ON m.id = t.monitor_id AND t.is_active = 1
+        <where>
+            m.user_id = #{userId}
+            <if test="stockCode != null and stockCode != ''">
+                AND m.stock_code LIKE CONCAT('%', #{stockCode}, '%')
+            </if>
+            <if test="stockName != null and stockName != ''">
+                AND s.stock_name LIKE CONCAT('%', #{stockName}, '%')
+            </if>
+            <if test="isActive != null">
+                AND m.is_active = #{isActive}
+            </if>
+        </where>
+        GROUP BY m.id, m.stock_code, s.stock_name, m.is_active, m.remark
+        ORDER BY m.created_at DESC
+    </select>
+
+    <select id="selectById" parameterType="java.lang.Long" resultMap="BaseResultMap">
+        SELECT * FROM user_stock_monitor WHERE id = #{id}
+    </select>
+
+    <select id="selectByUserAndCode" resultMap="BaseResultMap">
+        SELECT * FROM user_stock_monitor
+        WHERE user_id = #{userId} AND stock_code = #{stockCode}
+        LIMIT 1
+    </select>
+
+    <insert id="insert" parameterType="org.seaPack.model.market.UserStockMonitor" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO user_stock_monitor
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="userId != null">user_id,</if>
+            <if test="stockCode != null">stock_code,</if>
+            is_active,
+            <if test="remark != null">remark,</if>
+            created_at,
+            updated_at
+        </trim>
+        <trim prefix="VALUES (" suffix=")" suffixOverrides=",">
+            <if test="userId != null">#{userId},</if>
+            <if test="stockCode != null">#{stockCode},</if>
+            1,
+            <if test="remark != null">#{remark},</if>
+            NOW(),
+            NOW()
+        </trim>
+    </insert>
+
+    <update id="update" parameterType="org.seaPack.model.market.UserStockMonitor">
+        UPDATE user_stock_monitor
+        <set>
+            <if test="isActive != null">is_active = #{isActive},</if>
+            <if test="remark != null">remark = #{remark},</if>
+            updated_at = NOW()
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById" parameterType="java.lang.Long">
+        DELETE FROM user_stock_monitor WHERE id = #{id}
+    </delete>
+
+</mapper>

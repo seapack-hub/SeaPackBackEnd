@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.market.MonitorThresholdConfigMapper">
+
+    <resultMap id="BaseResultMap" type="org.seaPack.model.market.MonitorThresholdConfig">
+        <id column="id" jdbcType="BIGINT" property="id" />
+        <result column="monitor_id" jdbcType="BIGINT" property="monitorId" />
+        <result column="threshold_rate" jdbcType="DECIMAL" property="thresholdRate" />
+        <result column="trigger_type" jdbcType="VARCHAR" property="triggerType" />
+        <result column="is_active" jdbcType="TINYINT" property="isActive" />
+        <result column="created_at" jdbcType="TIMESTAMP" property="createdAt" />
+        <result column="updated_at" jdbcType="TIMESTAMP" property="updatedAt" />
+    </resultMap>
+
+    <select id="selectByMonitorId" parameterType="java.lang.Long" resultMap="BaseResultMap">
+        SELECT * FROM monitor_threshold_config
+        WHERE monitor_id = #{monitorId}
+        ORDER BY threshold_rate ASC
+    </select>
+
+    <select id="selectById" parameterType="java.lang.Long" resultMap="BaseResultMap">
+        SELECT * FROM monitor_threshold_config WHERE id = #{id}
+    </select>
+
+    <insert id="insert" parameterType="org.seaPack.model.market.MonitorThresholdConfig" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO monitor_threshold_config
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="monitorId != null">monitor_id,</if>
+            <if test="thresholdRate != null">threshold_rate,</if>
+            <if test="triggerType != null">trigger_type,</if>
+            is_active,
+            created_at,
+            updated_at
+        </trim>
+        <trim prefix="VALUES (" suffix=")" suffixOverrides=",">
+            <if test="monitorId != null">#{monitorId},</if>
+            <if test="thresholdRate != null">#{thresholdRate},</if>
+            <if test="triggerType != null">#{triggerType},</if>
+            1,
+            NOW(),
+            NOW()
+        </trim>
+    </insert>
+
+    <update id="update" parameterType="org.seaPack.model.market.MonitorThresholdConfig">
+        UPDATE monitor_threshold_config
+        <set>
+            <if test="thresholdRate != null">threshold_rate = #{thresholdRate},</if>
+            <if test="triggerType != null">trigger_type = #{triggerType},</if>
+            <if test="isActive != null">is_active = #{isActive},</if>
+            updated_at = NOW()
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById" parameterType="java.lang.Long">
+        DELETE FROM monitor_threshold_config WHERE id = #{id}
+    </delete>
+
+</mapper>
