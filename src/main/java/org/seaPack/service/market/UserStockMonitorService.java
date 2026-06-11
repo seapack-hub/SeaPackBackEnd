@@ -2,6 +2,7 @@ package org.seaPack.service.market;
 
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
+import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.seaPack.dto.market.UserStockMonitorQuery;
 import org.seaPack.dto.market.UserStockMonitorVO;
@@ -14,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -110,35 +112,33 @@ public class UserStockMonitorService {
     }
 
     /**
-     * 新增阈值规则
+     * 保存阈值（先删后插全量替换）
      */
-    public int addThreshold(MonitorThresholdConfig threshold) {
-        if (threshold.getThresholdRate() == null || threshold.getTriggerType() == null) {
-            throw new RuntimeException("阈值比例和触发类型不能为空");
+    @Transactional
+    public void saveThresholds(Long monitorId, List<ThresholdRowDTO> rows) {
+        thresholdMapper.deleteByMonitorId(monitorId);
+        for (ThresholdRowDTO row : rows) {
+            MonitorThresholdConfig t = new MonitorThresholdConfig();
+            t.setMonitorId(monitorId);
+            t.setThresholdRate(BigDecimal.valueOf(row.getRate().doubleValue()));
+            t.setTriggerType(row.getType());
+            t.setIsActive(1);
+            thresholdMapper.insert(t);
         }
-        return thresholdMapper.insert(threshold);
     }
 
     /**
-     * 更新阈值规则
+     * 查询指定监控记录的所有阈值
      */
-    public int updateThreshold(MonitorThresholdConfig threshold) {
-        MonitorThresholdConfig existing = thresholdMapper.selectById(threshold.getId());
-        if (existing == null) {
-            throw new RuntimeException("阈值规则不存在");
-        }
-        return thresholdMapper.update(threshold);
+    public List<MonitorThresholdConfig> getThresholdList(Long monitorId) {
+        return thresholdMapper.selectByMonitorId(monitorId);
     }
 
-    /**
-     * 删除阈值规则
-     */
-    public int deleteThreshold(Long id) {
-        MonitorThresholdConfig existing = thresholdMapper.selectById(id);
-        if (existing == null) {
-            throw new RuntimeException("阈值规则不存在");
-        }
-        return thresholdMapper.deleteById(id);
+    // ---- 阈值行 DTO ----
+    @Data
+    public static class ThresholdRowDTO {
+        private String type;
+        private Number rate;
     }
 
     // ---- 类型转换辅助方法 ----

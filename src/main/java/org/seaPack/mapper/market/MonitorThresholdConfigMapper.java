@@ -27,4 +27,7 @@ public interface MonitorThresholdConfigMapper {
 
     /** 删除阈值 */
     int deleteById(@Param("id") Long id);
+
+    /** 删除指定监控记录的所有阈值 */
+    int deleteByMonitorId(@Param("monitorId") Long monitorId);
 }

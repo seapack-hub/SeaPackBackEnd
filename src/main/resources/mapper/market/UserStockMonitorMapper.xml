@@ -59,6 +59,14 @@
         LIMIT 1
     </select>
 
+    <!-- 查询所有启用监控的股票代码及所属交易所（去重） -->
+    <select id="selectDistinctActiveCodes" resultType="java.util.Map">
+        SELECT DISTINCT m.stock_code, s.exchange
+        FROM user_stock_monitor m
+        LEFT JOIN stock_basic s ON m.stock_code = s.stock_code
+        WHERE m.is_active = 1
+    </select>
+
     <insert id="insert" parameterType="org.seaPack.model.market.UserStockMonitor" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
         INSERT INTO user_stock_monitor
         <trim prefix="(" suffix=")" suffixOverrides=",">

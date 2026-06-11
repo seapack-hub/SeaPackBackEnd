@@ -24,6 +24,9 @@ public interface UserStockMonitorMapper {
     /** 按 userId + stockCode 查询（用于新增时判重） */
     UserStockMonitor selectByUserAndCode(@Param("userId") Long userId, @Param("stockCode") String stockCode);
 
+    /** 查询所有启用状态的监控股票代码及交易所（去重） */
+    List<Map<String, String>> selectDistinctActiveCodes();
+
     /** 新增监控记录 */
     int insert(UserStockMonitor record);
 
