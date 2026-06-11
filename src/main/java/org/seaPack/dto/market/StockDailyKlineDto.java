@@ -5,7 +5,7 @@ import lombok.Data;
 /**
  * A 股日 K 线数据 DTO
  * <p>
- * 对应 TickFlow 下载的 Parquet 文件中的每行记录，
+ * 对应 Parquet 文件中的每行记录，
  * 包含股票代码、交易日期、开高低收价格、成交量和成交额等字段。
  */
 @Data

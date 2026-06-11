@@ -14,7 +14,7 @@ import java.util.List;
  * <p>
  * 提供从本地 Parquet 文件中读取全市场 A 股标的池基本信息的接口，
  * 支持查询全部标的列表、按股票代码或 symbol 精确查询。
- * 数据由 Python 脚本通过 TickFlow 获取并每日更新。
+ * 数据由 Python 脚本通过 AKShare 获取并每日更新。
  */
 @Slf4j
 @RestController

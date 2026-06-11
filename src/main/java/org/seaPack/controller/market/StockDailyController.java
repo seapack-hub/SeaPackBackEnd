@@ -12,9 +12,8 @@ import java.util.List;
 /**
  * A 股日 K 线数据控制器
  * <p>
- * 提供从本地 Parquet 文件（由 TickFlow 下载）中读取日 K 线数据的接口，
- * 前端可通过股票代码和日期范围筛选数据。
- * 数据格式与 TickFlow 的 klines.get 接口返回的字段一致。
+ * 提供从本地 Parquet 文件中读取日 K 线数据的接口，
+ * 支持通过股票代码和日期范围筛选数据。
  */
 @Slf4j
 @RestController

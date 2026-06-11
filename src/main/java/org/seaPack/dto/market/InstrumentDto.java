@@ -6,7 +6,7 @@ import lombok.Data;
  * A 股标的池基础信息 DTO
  * <p>
  * 对应本地 Parquet 文件中全市场 A 股标的的基本信息，
- * 数据由 Python 脚本通过 TickFlow 获取并保存为 Parquet 格式，
+ * 数据由 Python 脚本通过 AKShare 获取并保存为 Parquet 格式，
  * 包含股票代码、名称、上市日期、总股本、流通股本、涨跌停价格等字段。
  */
 @Data

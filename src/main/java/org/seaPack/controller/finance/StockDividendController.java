@@ -4,6 +4,7 @@ import com.github.pagehelper.PageInfo; // MyBatis 分页信息
 import lombok.extern.slf4j.Slf4j; // Lombok 日志
 import org.seaPack.model.finance.StockDividend; // 股票分红实体
 import org.seaPack.service.finance.DividendExportService; // 分红 TXT 导出服务
+import org.seaPack.service.finance.StockDividendImportService; // 分红 Parquet → SQL 导入服务
 import org.seaPack.service.finance.StockDividendService; // 股票分红服务
 import org.springframework.beans.factory.annotation.Autowired; // Spring 依赖注入
 import org.springframework.http.ResponseEntity; // HTTP 响应实体
@@ -23,6 +24,9 @@ public class StockDividendController {
 
     @Autowired // 注入分红 TXT 导出服务
     private DividendExportService dividendExportService;
+
+    @Autowired // 注入分红 Parquet → SQL 导入服务
+    private StockDividendImportService stockDividendImportService;
 
     /**
      * 分页查询分红记录
@@ -103,5 +107,15 @@ public class StockDividendController {
         String filePath = dividendExportService.generateSql();
         log.info("分红 SQL 已生成至：{}", filePath);
         return ResponseEntity.ok("分红 SQL 已生成至：" + filePath);
+    }
+
+    /**
+     * 读取 bank_dividend_cninfo.parquet 生成银行股分红 INSERT SQL 到桌面
+     */
+    @GetMapping("/generate-bank-sql")
+    public ResponseEntity<String> generateBankSql() {
+        String filePath = stockDividendImportService.generateSql();
+        log.info("银行股分红 SQL 已生成至：{}", filePath);
+        return ResponseEntity.ok("银行股分红 SQL 已生成至：" + filePath);
     }
 }

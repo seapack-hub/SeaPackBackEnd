@@ -14,7 +14,7 @@ import java.util.List;
  * <p>
  * 使用 DuckDB JDBC 直接以 SQL 方式查询磁盘上全市场标的池 Parquet 文件，
  * 支持查询全部标的或按股票代码／symbol 精确查询。
- * Parquet 文件由 Python 脚本通过 TickFlow 下载并存放在指定目录。
+ * Parquet 文件由 Python 脚本下载并存放在指定目录。
  */
 @Slf4j
 @Service

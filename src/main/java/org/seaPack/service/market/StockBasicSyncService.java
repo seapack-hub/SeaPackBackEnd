@@ -67,7 +67,7 @@ public class StockBasicSyncService {
             writer.println("-- ============================================================");
             writer.println("-- StockBasic 初始化数据 SQL");
             writer.println("-- 生成时间: " + new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date()));
-            writer.println("-- 数据来源: a_stock_instruments.parquet (TickFlow)");
+            writer.println("-- 数据来源: a_stock_instruments.parquet");
             writer.println("-- 标的总数: " + allInstruments.size());
             writer.println("-- ============================================================");
             writer.println();
