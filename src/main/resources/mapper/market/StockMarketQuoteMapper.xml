@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.market.StockMarketQuoteMapper">
+
+    <resultMap id="QuoteResultMap" type="org.seaPack.dto.market.StockMarketQuoteDto">
+        <result column="stock_code" jdbcType="VARCHAR" property="stockCode" />
+        <result column="stock_name" jdbcType="VARCHAR" property="stockName" />
+        <result column="exchange" jdbcType="VARCHAR" property="exchange" />
+        <result column="exchange_name" jdbcType="VARCHAR" property="exchangeName" />
+        <result column="industry" jdbcType="VARCHAR" property="industry" />
+        <result column="industry_name" jdbcType="VARCHAR" property="industryName" />
+        <result column="current_price" jdbcType="DECIMAL" property="currentPrice" />
+        <result column="open_price" jdbcType="DECIMAL" property="openPrice" />
+        <result column="high_price" jdbcType="DECIMAL" property="highPrice" />
+        <result column="low_price" jdbcType="DECIMAL" property="lowPrice" />
+        <result column="dynamic_yield" jdbcType="DECIMAL" property="dynamicYield" />
+        <result column="trade_date" jdbcType="DATE" property="tradeDate" />
+        <result column="quote_update_time" jdbcType="TIMESTAMP" property="quoteUpdateTime" />
+        <result column="latest_dividend_year" jdbcType="INTEGER" property="latestDividendYear" />
+        <result column="latest_dividend_type" jdbcType="VARCHAR" property="latestDividendType" />
+        <result column="latest_cash_per_share" jdbcType="DECIMAL" property="latestCashPerShare" />
+        <result column="latest_bonus_shares_per_10" jdbcType="DECIMAL" property="latestBonusSharesPer10" />
+        <result column="latest_transfer_shares_per_10" jdbcType="DECIMAL" property="latestTransferSharesPer10" />
+        <result column="latest_plan_text" jdbcType="VARCHAR" property="latestPlanText" />
+        <result column="dividend_per_share" jdbcType="DECIMAL" property="dividendPerShare" />
+        <result column="change_percent" jdbcType="DECIMAL" property="changePercent" />
+        <result column="dividend_yield" jdbcType="DECIMAL" property="dividendYield" />
+    </resultMap>
+
+    <sql id="Quote_Column_List">
+        s.stock_code,
+        s.stock_name,
+        s.exchange,
+        d.dict_name AS exchange_name,
+        s.industry,
+        ind.label AS industry_name,
+        rq.current_price,
+        rq.open_price,
+        rq.high_price,
+        rq.low_price,
+        rq.dynamic_yield,
+        rq.trade_date,
+        rq.update_time AS quote_update_time,
+        sd.year AS latest_dividend_year,
+        sd.dividend_type AS latest_dividend_type,
+        sd.cash_per_share AS latest_cash_per_share,
+        sd.bonus_shares_per_10 AS latest_bonus_shares_per_10,
+        sd.transfer_shares_per_10 AS latest_transfer_shares_per_10,
+        sd.plan_text AS latest_plan_text,
+        ROUND(sd.cash_per_share, 4) AS dividend_per_share,
+        ROUND((rq.current_price - rq.open_price) / rq.open_price * 100, 4) AS change_percent,
+        ROUND(sd.cash_per_share / rq.current_price * 100, 6) AS dividend_yield
+    </sql>
+
+    <select id="selectMarketQuoteList" parameterType="org.seaPack.dto.market.StockMarketQuoteDto"
+            resultMap="QuoteResultMap">
+        SELECT
+        <include refid="Quote_Column_List" />
+        FROM stock_basic s
+        LEFT JOIN industry_sector ind ON s.industry = ind.id
+        LEFT JOIN sys_dict d ON s.exchange = d.dict_code AND d.dict_type = 'exchange_type'
+        LEFT JOIN (
+            SELECT r1.* FROM stock_realtime_quote r1
+            INNER JOIN (
+                SELECT stock_code, MAX(trade_date) AS max_date
+                FROM stock_realtime_quote
+                GROUP BY stock_code
+            ) r2 ON r1.stock_code = r2.stock_code AND r1.trade_date = r2.max_date
+        ) rq ON s.stock_code = rq.stock_code
+        LEFT JOIN (
+            SELECT d1.* FROM stock_dividend d1
+            INNER JOIN (
+                SELECT stock_code, MAX(year) AS max_year
+                FROM stock_dividend
+                GROUP BY stock_code
+            ) d2 ON d1.stock_code = d2.stock_code AND d1.year = d2.max_year
+        ) sd ON s.stock_code = sd.stock_code
+        <where>
+            <if test="stockCode != null and stockCode != ''">
+                AND s.stock_code LIKE CONCAT('%', #{stockCode}, '%')
+            </if>
+            <if test="stockName != null and stockName != ''">
+                AND s.stock_name LIKE CONCAT('%', #{stockName}, '%')
+            </if>
+            <if test="exchange != null and exchange != ''">
+                AND s.exchange = #{exchange}
+            </if>
+            <if test="industry != null and industry != ''">
+                AND s.industry = #{industry}
+            </if>
+            <if test="keywords != null and keywords != ''">
+                AND (s.stock_code LIKE CONCAT('%', #{keywords}, '%')
+                OR s.stock_name LIKE CONCAT('%', #{keywords}, '%'))
+            </if>
+        </where>
+        ORDER BY ISNULL(dividend_yield) ASC, dividend_yield DESC, s.stock_code ASC
+    </select>
+
+</mapper>

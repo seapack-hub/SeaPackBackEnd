@@ -1,4 +1,4 @@
-package org.seaPack.service.market;
+package org.seaPack.service.parse;
 
 import lombok.extern.slf4j.Slf4j;
 import org.seaPack.dto.market.StockDailyKlineDto;

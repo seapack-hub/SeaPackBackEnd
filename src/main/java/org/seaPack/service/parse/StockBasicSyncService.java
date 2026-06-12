@@ -1,7 +1,8 @@
-package org.seaPack.service.market;
+package org.seaPack.service.parse;
 
 import lombok.extern.slf4j.Slf4j;
 import org.seaPack.dto.market.InstrumentDto;
+import org.seaPack.service.market.InstrumentService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
