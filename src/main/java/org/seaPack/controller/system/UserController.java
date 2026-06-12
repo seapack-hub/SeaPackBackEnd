@@ -4,13 +4,12 @@ import com.github.pagehelper.PageInfo; // MyBatis 分页信息
 import org.seaPack.model.system.User; // 用户实体
 import org.seaPack.service.system.UserService; // 用户服务
 import org.springframework.beans.factory.annotation.Autowired; // Spring 依赖注入
-import org.springframework.web.bind.annotation.GetMapping; // GET 请求映射
-import org.springframework.web.bind.annotation.RequestMapping; // 请求路径映射
-import org.springframework.web.bind.annotation.RestController; // REST 控制器
+import org.springframework.http.ResponseEntity; // HTTP 响应实体
+import org.springframework.web.bind.annotation.*; // Spring Web MVC 注解
 
 /**
  * 用户控制器
- * 提供用户管理相关接口。
+ * 提供用户管理的分页查询、新增、修改和删除接口。
  */
 @RestController // 标识为 RESTful 控制器
 @RequestMapping("/user") // 请求基础路径
@@ -31,14 +30,43 @@ public class UserController {
      */
     @GetMapping("/page/list")
     public PageInfo<User> getUserList(
-            int pageNum,
-            int pageSize,
-            String keywords,
-            String status,
-            Long deptId,
-            String startTime,
-            String endTime) {
+            @RequestParam(defaultValue = "1") int pageNum,
+            @RequestParam(defaultValue = "10") int pageSize,
+            @RequestParam(required = false) String keywords,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) Long deptId,
+            @RequestParam(required = false) String startTime,
+            @RequestParam(required = false) String endTime) {
         return userService.getUserList(pageNum, pageSize, keywords, status, deptId, startTime, endTime);
     }
 
+    /**
+     * 新增用户
+     * @param user 用户实体
+     * @return 影响行数
+     */
+    @PostMapping("/insert")
+    public ResponseEntity<Integer> insert(@RequestBody User user) {
+        return ResponseEntity.ok(userService.insertUser(user));
+    }
+
+    /**
+     * 修改用户信息
+     * @param user 用户实体（需含 id）
+     * @return 影响行数
+     */
+    @PostMapping("/update")
+    public ResponseEntity<Integer> update(@RequestBody User user) {
+        return ResponseEntity.ok(userService.updateUser(user));
+    }
+
+    /**
+     * 删除用户
+     * @param id 用户 ID
+     * @return 影响行数
+     */
+    @DeleteMapping("/delete/{id}")
+    public ResponseEntity<Integer> delete(@PathVariable Long id) {
+        return ResponseEntity.ok(userService.deleteUser(id));
+    }
 }

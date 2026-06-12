@@ -54,35 +54,58 @@
         ORDER BY create_time DESC
     </select>
 
-    <!--注册登录验证，根据用户查询用户是否存在-->
+    <!-- 根据用户名查询用户（用于登录验证） -->
     <select id="selectUserByName" resultMap="userResultMap">
-        select id,
-        user_name,
-        password
-        from user
+        SELECT id, user_name, password
+        FROM user
         <where>
            <if test="userName != null and userName != ''">
-               and user_name = #{userName}
+               AND user_name = #{userName}
            </if>
         </where>
     </select>
 
-    <!-- 3. 插入操作示例 -->
+    <!-- 根据 ID 查询用户 -->
+    <select id="selectUserById" resultMap="userResultMap">
+        SELECT id, user_name, mobile, nick_name, gender, email,
+               status, dept_id, dept_name, create_time, password
+        FROM user
+        WHERE id = #{id}
+    </select>
+
+    <!-- 新增用户，插入所有业务字段 -->
     <insert id="insertUser" parameterType="org.seaPack.model.system.User"
             useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO user (user_name, email)
-        VALUES (#{userName}, #{email})
+        INSERT INTO user (
+            user_name, mobile, nick_name, gender, email,
+            status, dept_id, dept_name, password, create_time
+        ) VALUES (
+            #{userName}, #{mobile}, #{nickName}, #{gender}, #{email},
+            #{status}, #{deptId}, #{deptName}, #{password}, NOW()
+        )
     </insert>
 
-    <!-- 4. 更新操作示例 -->
+    <!-- 更新用户信息，只更新非空字段 -->
     <update id="updateUser" parameterType="org.seaPack.model.system.User">
         UPDATE user
         <set>
             <if test="userName != null">user_name = #{userName},</if>
+            <if test="mobile != null">mobile = #{mobile},</if>
+            <if test="nickName != null">nick_name = #{nickName},</if>
+            <if test="gender != null">gender = #{gender},</if>
             <if test="email != null">email = #{email},</if>
-            update_time = NOW()
+            <if test="status != null">status = #{status},</if>
+            <if test="deptId != null">dept_id = #{deptId},</if>
+            <if test="deptName != null">dept_name = #{deptName},</if>
+            <if test="password != null">password = #{password},</if>
+            create_time = #{createTime}
         </set>
         WHERE id = #{id}
     </update>
+
+    <!-- 根据 ID 删除用户 -->
+    <delete id="deleteUser" parameterType="java.lang.Long">
+        DELETE FROM user WHERE id = #{id}
+    </delete>
 
 </mapper>

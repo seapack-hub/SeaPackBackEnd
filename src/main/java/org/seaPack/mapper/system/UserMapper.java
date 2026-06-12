@@ -32,6 +32,13 @@ public interface UserMapper {
     User selectUserByName(@Param("userName") String userName);
 
     /**
+     * 根据 ID 查询用户
+     * @param id 用户 ID
+     * @return 用户信息
+     */
+    User selectUserById(@Param("id") Long id);
+
+    /**
      * 新增用户
      * @param user 用户信息
      * @return 影响行数
@@ -44,4 +51,11 @@ public interface UserMapper {
      * @return 影响行数
      */
     int updateUser(User user);
+
+    /**
+     * 根据 ID 删除用户
+     * @param id 用户 ID
+     * @return 影响行数
+     */
+    int deleteUser(@Param("id") Long id);
 }
