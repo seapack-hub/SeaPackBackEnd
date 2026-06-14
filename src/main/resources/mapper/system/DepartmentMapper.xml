@@ -21,6 +21,24 @@
         ORDER BY dept_path, seq
     </select>
 
+    <!-- 多条件分页查询部门列表 -->
+    <select id="selectDeptList" resultMap="Department">
+        SELECT dept_id, dept_name, parent_dept_id, dept_level, dept_path, seq, create_time, update_time
+        FROM department
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND dept_name LIKE CONCAT('%', #{keyword}, '%')
+            </if>
+            <if test="deptLevel != null">
+                AND dept_level = #{deptLevel}
+            </if>
+            <if test="parentDeptId != null">
+                AND parent_dept_id = #{parentDeptId}
+            </if>
+        </where>
+        ORDER BY dept_path, seq
+    </select>
+
     <!-- 按路径前缀查询子树 -->
     <select id="selectSubTreeByPath" resultMap="Department">
         SELECT dept_id, dept_name, parent_dept_id, dept_level, dept_path, seq
@@ -28,5 +46,42 @@
         WHERE dept_path LIKE CONCAT(#{deptId}, '%')
         ORDER BY dept_path, seq
     </select>
+
+    <!-- 根据 ID 查询部门 -->
+    <select id="selectById" resultMap="Department">
+        SELECT dept_id, dept_name, parent_dept_id, dept_level, dept_path, seq, create_time, update_time
+        FROM department
+        WHERE dept_id = #{deptId}
+    </select>
+
+    <!-- 新增部门，返回自增 ID -->
+    <insert id="insertDept" useGeneratedKeys="true" keyProperty="deptId">
+        INSERT INTO department (dept_name, parent_dept_id, dept_level, dept_path, seq)
+        VALUES (#{deptName}, #{parentDeptId}, #{deptLevel}, #{deptPath}, #{seq})
+    </insert>
+
+    <!-- 修改部门 -->
+    <update id="updateDept">
+        UPDATE department
+        <set>
+            <if test="deptName != null">dept_name = #{deptName},</if>
+            <if test="parentDeptId != null">parent_dept_id = #{parentDeptId},</if>
+            <if test="deptLevel != null">dept_level = #{deptLevel},</if>
+            <if test="deptPath != null">dept_path = #{deptPath},</if>
+            <if test="seq != null">seq = #{seq},</if>
+        </set>
+        WHERE dept_id = #{deptId}
+    </update>
+
+    <!-- 更新部门路径与层级 -->
+    <update id="updateDeptPath">
+        UPDATE department SET dept_path = #{deptPath}, dept_level = #{deptLevel}
+        WHERE dept_id = #{deptId}
+    </update>
+
+    <!-- 删除部门（数据库级联删除子部门） -->
+    <delete id="deleteDept">
+        DELETE FROM department WHERE dept_id = #{deptId}
+    </delete>
 
 </mapper>

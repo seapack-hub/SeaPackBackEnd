@@ -71,4 +71,25 @@ public class UserService {
         }
         return userMapper.deleteUser(id);
     }
+
+    /**
+     * 批量删除用户
+     */
+    public int batchDeleteUsers(List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return 0;
+        }
+        return userMapper.batchDeleteUsers(ids);
+    }
+
+    /**
+     * 重置用户密码为默认密码
+     */
+    public int resetPassword(Long id, String newPassword) {
+        User existing = userMapper.selectUserById(id);
+        if (existing == null) {
+            throw new RuntimeException("用户不存在");
+        }
+        return userMapper.resetPassword(id, newPassword);
+    }
 }

@@ -61,32 +61,20 @@ public class StockMarketQuoteDto {
     /** 关键字（模糊搜索 stock_code + stock_name） */
     private String keywords;
 
-    // ========== stock_dividend（最新分红记录） ==========
-    /** 最新分红年份 */
+    // ========== stock_dividend（最近完整自然年分红聚合） ==========
+    /** 最近一个完整自然年（如当前 2026 年则取 2025） */
     private Integer latestDividendYear;
 
-    /** 最新分红类型 */
-    private String latestDividendType;
-
-    /** 每股派现 */
+    /** 年度每股分红总和（支持一年多次分红累加） */
     private BigDecimal latestCashPerShare;
-
-    /** 每10股送股 */
-    private BigDecimal latestBonusSharesPer10;
-
-    /** 每10股转增 */
-    private BigDecimal latestTransferSharesPer10;
-
-    /** 最新分红方案原文 */
-    private String latestPlanText;
 
     // ========== 计算指标 ==========
     /** 涨跌幅(%) = (currentPrice - openPrice) / openPrice * 100 */
     private BigDecimal changePercent;
 
-    /** 每股分红(元) = latestCashPerShare */
+    /** 年度每股分红总和 */
     private BigDecimal dividendPerShare;
 
-    /** 股息率(%) = latestCashPerShare / currentPrice * 100 */
+    /** 股息率(%) = totalCashPerYear / currentPrice * 100 */
     private BigDecimal dividendYield;
 }
