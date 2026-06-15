@@ -4,6 +4,10 @@
 
     <resultMap id="BaseResultMap" type="org.seaPack.model.common.NotificationLog">
         <id column="id" jdbcType="BIGINT" property="id" />
+        <result column="user_id" jdbcType="BIGINT" property="userId" />
+        <result column="monitor_id" jdbcType="BIGINT" property="monitorId" />
+        <result column="stock_code" jdbcType="VARCHAR" property="stockCode" />
+        <result column="stock_name" jdbcType="VARCHAR" property="stockName" />
         <result column="stock_id" jdbcType="BIGINT" property="stockId" />
         <result column="rule_id" jdbcType="BIGINT" property="ruleId" />
         <result column="trigger_yield" jdbcType="DECIMAL" property="triggerYield" />
@@ -14,16 +18,28 @@
     </resultMap>
 
     <select id="selectLogsByStockId" parameterType="java.lang.Long" resultMap="BaseResultMap">
-        select * from notification_log
-        where stock_id = #{stockId}
-        order by create_time DESC
+        SELECT * FROM notification_log
+        WHERE stock_id = #{stockId}
+        ORDER BY create_time DESC
     </select>
 
-    <insert id="insertLog" parameterType="org.seaPack.model.common.NotificationLog" useGeneratedKeys="true" keyProperty="id">
-        insert into notification_log
-        (stock_id, rule_id, trigger_yield, notify_type, status, message, create_time)
-        values
-        (#{stockId}, #{ruleId}, #{triggerYield}, #{notifyType}, #{status}, #{message}, NOW())
+    <select id="selectLogsByUserId" parameterType="java.lang.Long" resultMap="BaseResultMap">
+        SELECT * FROM notification_log
+        WHERE user_id = #{userId}
+        ORDER BY create_time DESC
+    </select>
+
+    <insert id="insertLog" parameterType="org.seaPack.model.common.NotificationLog"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO notification_log (
+            user_id, monitor_id, stock_code, stock_name,
+            stock_id, rule_id, trigger_yield,
+            notify_type, status, message, create_time
+        ) VALUES (
+            #{userId}, #{monitorId}, #{stockCode}, #{stockName},
+            #{stockId}, #{ruleId}, #{triggerYield},
+            #{notifyType}, #{status}, #{message}, NOW()
+        )
     </insert>
 
 </mapper>

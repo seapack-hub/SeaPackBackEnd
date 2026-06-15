@@ -168,6 +168,12 @@
 			<artifactId>spring-boot-starter-security</artifactId>
 		</dependency>
 
+		<!-- 邮件发送 -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-mail</artifactId>
+		</dependency>
+
 		<!-- word Excel 处理 -->
 		<dependency>
 			<groupId>org.apache.poi</groupId>

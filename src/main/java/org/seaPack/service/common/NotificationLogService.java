@@ -1,41 +1,44 @@
 package org.seaPack.service.common;
 
-import lombok.extern.slf4j.Slf4j; // Lombok 日志
-import org.seaPack.mapper.common.NotificationLogMapper; // 通知日志 Mapper
-import org.seaPack.model.common.NotificationLog; // 通知日志实体
-import org.springframework.beans.factory.annotation.Autowired; // Spring 依赖注入
-import org.springframework.stereotype.Service; // Spring 服务注解
-import org.springframework.transaction.annotation.Transactional; // 事务管理
+import lombok.extern.slf4j.Slf4j;
+import org.seaPack.mapper.common.NotificationLogMapper;
+import org.seaPack.model.common.NotificationLog;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List; // List 集合
+import java.util.List;
 
 /**
  * 通知日志服务
- * 提供通知日志的查询与新增功能。
+ * <p>提供通知日志的查询与新增功能。</p>
  */
-@Slf4j // Lombok 日志
-@Service // 标识为 Spring 服务 Bean
-@Transactional(readOnly = false) // 启用写入事务
+@Slf4j
+@Service
+@Transactional(readOnly = false)
 public class NotificationLogService {
 
-    @Autowired // 注入通知日志 Mapper
+    @Autowired
     private NotificationLogMapper notificationLogMapper;
 
     /**
      * 根据股票 ID 查询通知日志
-     * @param stockId 股票 ID
-     * @return 通知日志列表
      */
     public List<NotificationLog> getLogsByStockId(Long stockId) {
-        return notificationLogMapper.selectLogsByStockId(stockId); // 调用 Mapper 查询
+        return notificationLogMapper.selectLogsByStockId(stockId);
+    }
+
+    /**
+     * 根据用户 ID 查询通知日志
+     */
+    public List<NotificationLog> getLogsByUserId(Long userId) {
+        return notificationLogMapper.selectLogsByUserId(userId);
     }
 
     /**
      * 新增通知日志
-     * @param log 通知日志实体
-     * @return 影响行数
      */
     public int insertLog(NotificationLog log) {
-        return notificationLogMapper.insertLog(log); // 调用 Mapper 插入
+        return notificationLogMapper.insertLog(log);
     }
 }

@@ -40,6 +40,15 @@ public class MonitorThresholdConfig {
     private Integer isActive;
 
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    @Column(name = "last_triggered_time")
+    @Comment("上次触发时间，用于防抖")
+    private Date lastTriggeredTime;
+
+    @Column(name = "trigger_value")
+    @Comment("实际触发时的数值快照")
+    private BigDecimal triggerValue;
+
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
     @Column(name = "created_at")
     @Comment("创建时间")
     private Date createdAt;

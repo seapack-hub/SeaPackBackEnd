@@ -8,6 +8,8 @@
         <result column="threshold_rate" jdbcType="DECIMAL" property="thresholdRate" />
         <result column="trigger_type" jdbcType="VARCHAR" property="triggerType" />
         <result column="is_active" jdbcType="TINYINT" property="isActive" />
+        <result column="last_triggered_time" jdbcType="TIMESTAMP" property="lastTriggeredTime" />
+        <result column="trigger_value" jdbcType="DECIMAL" property="triggerValue" />
         <result column="created_at" jdbcType="TIMESTAMP" property="createdAt" />
         <result column="updated_at" jdbcType="TIMESTAMP" property="updatedAt" />
     </resultMap>
@@ -48,6 +50,8 @@
             <if test="thresholdRate != null">threshold_rate = #{thresholdRate},</if>
             <if test="triggerType != null">trigger_type = #{triggerType},</if>
             <if test="isActive != null">is_active = #{isActive},</if>
+            <if test="lastTriggeredTime != null">last_triggered_time = #{lastTriggeredTime},</if>
+            <if test="triggerValue != null">trigger_value = #{triggerValue},</if>
             updated_at = NOW()
         </set>
         WHERE id = #{id}

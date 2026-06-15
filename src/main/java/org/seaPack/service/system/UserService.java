@@ -33,6 +33,13 @@ public class UserService {
     }
 
     /**
+     * 根据 ID 查询用户
+     */
+    public User getUserById(Long id) {
+        return userMapper.selectUserById(id);
+    }
+
+    /**
      * 根据用户名查询用户
      */
     public User selectUserByName(String userName) {

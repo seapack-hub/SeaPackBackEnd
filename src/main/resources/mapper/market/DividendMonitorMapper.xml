@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.market.DividendMonitorMapper">
+
+    <!-- 查询所有启用状态的监控记录（含股票名称） -->
+    <select id="selectAllActiveMonitors" resultType="java.util.Map">
+        SELECT
+            m.id          AS monitor_id,
+            m.user_id,
+            m.stock_code,
+            COALESCE(s.stock_name, '') AS stock_name
+        FROM user_stock_monitor m
+        LEFT JOIN stock_basic s ON m.stock_code = s.stock_code
+        WHERE m.is_active = 1
+    </select>
+
+    <!-- 查询指定股票的最新行情价 + 最新分红每股派现金额 -->
+    <!-- 与 StockMarketQuoteMapper 逻辑保持一致：取最新交易日行情 + 最新年份分红 -->
+    <select id="selectLatestQuoteAndDividend" resultType="java.util.Map">
+        SELECT
+            rq.current_price,
+            sd.cash_per_share
+        FROM (
+            SELECT r1.current_price
+            FROM stock_realtime_quote r1
+            INNER JOIN (
+                SELECT stock_code, MAX(trade_date) AS max_date
+                FROM stock_realtime_quote
+                WHERE stock_code = #{stockCode}
+                GROUP BY stock_code
+            ) r2 ON r1.stock_code = r2.stock_code AND r1.trade_date = r2.max_date
+        ) rq
+        CROSS JOIN (
+            SELECT d1.cash_per_share
+            FROM stock_dividend d1
+            INNER JOIN (
+                SELECT stock_code, MAX(year) AS max_year
+                FROM stock_dividend
+                WHERE stock_code = #{stockCode}
+                GROUP BY stock_code
+            ) d2 ON d1.stock_code = d2.stock_code AND d1.year = d2.max_year
+        ) sd
+    </select>
+
+</mapper>
