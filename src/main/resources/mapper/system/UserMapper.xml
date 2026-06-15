@@ -20,38 +20,39 @@
     <!-- 2. 动态条件查询（用户提供的核心代码） -->
     <select id="selectUserList" resultMap="userResultMap">
         SELECT
-            id,
-            user_name,
-            password,
-            email,
-            mobile,
-            nick_name,
-            gender,
-            status,
-            dept_id,
-            dept_name,
-            DATE_FORMAT(create_time, '%Y-%m-%d %H:%i:%s') AS create_time
-        FROM user
+            u.id,
+            u.user_name,
+            u.password,
+            u.email,
+            u.mobile,
+            u.nick_name,
+            u.gender,
+            u.status,
+            u.dept_id,
+            d.dept_name,
+            DATE_FORMAT(u.create_time, '%Y-%m-%d %H:%i:%s') AS create_time
+        FROM user u
+        LEFT JOIN department d ON u.dept_id = d.dept_id
         <where>
             <if test="keywords != null and keywords != ''">
                 AND (
-                   user_name LIKE CONCAT('%', #{keywords}, '%')
-                 OR nick_name LIKE CONCAT('%' #{keywords}, '%')
-                 OR mobile = #{keywords}
+                   u.user_name LIKE CONCAT('%', #{keywords}, '%')
+                 OR u.nick_name LIKE CONCAT('%' #{keywords}, '%')
+                 OR u.mobile = #{keywords}
                 )
             </if>
             <if test="status != null and status != ''">
-                AND status = #{status}
+                AND u.status = #{status}
             </if>
             <if test="deptId != null and deptId != ''">
-                AND dept_id = #{deptId}
+                AND u.dept_id = #{deptId}
             </if>
             <!-- 扩展：时间范围查询 -->
             <if test="startTime != null and startTime != '' and endTime != null and endTime != ''">
-                AND DATE(create_time) BETWEEN #{startTime} AND #{endTime}
+                AND DATE(u.create_time) BETWEEN #{startTime} AND #{endTime}
             </if>
         </where>
-        ORDER BY create_time DESC
+        ORDER BY u.create_time DESC
     </select>
 
     <!-- 根据用户名查询用户（用于登录验证） -->
@@ -107,5 +108,18 @@
     <delete id="deleteUser" parameterType="java.lang.Long">
         DELETE FROM user WHERE id = #{id}
     </delete>
+
+    <!-- 批量删除用户 -->
+    <delete id="batchDeleteUsers">
+        DELETE FROM user WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+    <!-- 重置用户密码 -->
+    <update id="resetPassword">
+        UPDATE user SET password = #{newPassword} WHERE id = #{id}
+    </update>
 
 </mapper>

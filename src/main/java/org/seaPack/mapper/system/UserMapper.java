@@ -58,4 +58,19 @@ public interface UserMapper {
      * @return 影响行数
      */
     int deleteUser(@Param("id") Long id);
+
+    /**
+     * 批量删除用户
+     * @param ids 用户 ID 列表
+     * @return 影响行数
+     */
+    int batchDeleteUsers(@Param("ids") List<Long> ids);
+
+    /**
+     * 重置用户密码
+     * @param id 用户 ID
+     * @param newPassword 新密码
+     * @return 影响行数
+     */
+    int resetPassword(@Param("id") Long id, @Param("newPassword") String newPassword);
 }
