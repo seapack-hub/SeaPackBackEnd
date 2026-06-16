@@ -1,14 +1,15 @@
 package org.seaPack.controller.system;
 
 import com.github.pagehelper.PageInfo; // MyBatis 分页信息
-import org.seaPack.model.system.User; // 用户实体
-import org.seaPack.service.system.UserService; // 用户服务
-import org.springframework.beans.factory.annotation.Autowired; // Spring 依赖注入
-import org.springframework.http.ResponseEntity; // HTTP 响应实体
-import org.springframework.web.bind.annotation.*; // Spring Web MVC 注解
+import org.seaPack.model.system.User;
+import org.seaPack.service.system.SysUserRoleService;
+import org.seaPack.service.system.UserService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
 
-import java.util.List; // List 集合
-import java.util.Map; // Map 集合
+import java.util.List;
+import java.util.Map;
 
 /**
  * 用户控制器
@@ -18,8 +19,11 @@ import java.util.Map; // Map 集合
 @RequestMapping("/user") // 请求基础路径
 public class UserController {
 
-    @Autowired // 注入用户服务
+    @Autowired
     private UserService userService;
+
+    @Autowired
+    private SysUserRoleService sysUserRoleService;
 
     /**
      * 分页查询用户列表
@@ -93,5 +97,26 @@ public class UserController {
         Long id = Long.valueOf(param.get("id").toString());
         String newPassword = (String) param.get("newPassword");
         return ResponseEntity.ok(userService.resetPassword(id, newPassword));
+    }
+
+    /**
+     * 为用户分配角色（全量覆盖）
+     * <p>在用户管理页面中通过"分配角色"弹窗调用，先清除旧绑定，再批量插入新角色。</p>
+     *
+     * @param id   用户 ID
+     * @param body JSON 体 { roleIds: [1, 2, 3] }
+     */
+    @PutMapping("/{id}/roles")
+    public ResponseEntity<Void> assignRoles(@PathVariable Long id, @RequestBody Map<String, List<Long>> body) {
+        sysUserRoleService.assignRoles(id, body.get("roleIds"));
+        return ResponseEntity.ok().build();
+    }
+
+    /**
+     * 查询用户已绑定的角色 ID 列表（用于回显分配角色弹窗的勾选状态）
+     */
+    @GetMapping("/{id}/roles")
+    public ResponseEntity<List<Long>> getRoleIds(@PathVariable Long id) {
+        return ResponseEntity.ok(sysUserRoleService.getRoleIdsByUserId(id));
     }
 }

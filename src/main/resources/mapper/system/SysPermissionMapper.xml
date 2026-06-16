@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.system.SysPermissionMapper">
+
+    <!-- ==================== SysPermission 基础 CRUD ==================== -->
+
+    <resultMap id="permResultMap" type="org.seaPack.model.system.permission.SysPermission">
+        <id property="id" column="id"/>
+        <result property="parentId" column="parent_id"/>
+        <result property="name" column="name"/>
+        <result property="permKey" column="perm_key"/>
+        <result property="type" column="type"/>
+        <result property="path" column="path"/>
+        <result property="component" column="component"/>
+        <result property="sortOrder" column="sort_order"/>
+        <result property="status" column="status"/>
+    </resultMap>
+
+    <!-- 查询所有权限记录，按排序字段和 ID 升序排列（返回扁平列表，树形组装在 Service 层完成） -->
+    <select id="selectAllPermissions" resultMap="permResultMap">
+        SELECT id, parent_id, name, perm_key, type, path, component, sort_order, status
+        FROM sys_permission
+        ORDER BY sort_order ASC, id ASC
+    </select>
+
+    <!-- 根据主键查询权限 -->
+    <select id="selectPermissionById" resultMap="permResultMap">
+        SELECT id, parent_id, name, perm_key, type, path, component, sort_order, status
+        FROM sys_permission WHERE id = #{id}
+    </select>
+
+    <!-- 根据父级 ID 查询直接子节点（用于递归删除检查） -->
+    <select id="selectChildrenByParentId" resultMap="permResultMap">
+        SELECT id, parent_id, name, perm_key, type, path, component, sort_order, status
+        FROM sys_permission WHERE parent_id = #{parentId}
+    </select>
+
+    <!-- 新增权限节点（目录/菜单/按钮） -->
+    <insert id="insertPermission" parameterType="org.seaPack.model.system.permission.SysPermission"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO sys_permission (parent_id, name, perm_key, type, path, component, sort_order, status)
+        VALUES (#{parentId}, #{name}, #{permKey}, #{type}, #{path}, #{component}, #{sortOrder}, #{status})
+    </insert>
+
+    <!-- 更新权限节点信息（仅更新非空字段） -->
+    <update id="updatePermission" parameterType="org.seaPack.model.system.permission.SysPermission">
+        UPDATE sys_permission
+        <set>
+            <if test="parentId != null">parent_id = #{parentId},</if>
+            <if test="name != null">name = #{name},</if>
+            <if test="permKey != null">perm_key = #{permKey},</if>
+            <if test="type != null">type = #{type},</if>
+            <if test="path != null">path = #{path},</if>
+            <if test="component != null">component = #{component},</if>
+            <if test="sortOrder != null">sort_order = #{sortOrder},</if>
+            <if test="status != null">status = #{status},</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <!-- 根据主键删除权限（子节点和 role_permission 关联在 Service 层递归清理） -->
+    <delete id="deletePermissionById">
+        DELETE FROM sys_permission WHERE id = #{id}
+    </delete>
+
+</mapper>

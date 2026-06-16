@@ -6,7 +6,7 @@ import org.hibernate.annotations.Comment;
 
 @Entity
 @Data
-@Table(name = "user")
+@Table(name = "sys_user")
 public class User {
 
     @Id

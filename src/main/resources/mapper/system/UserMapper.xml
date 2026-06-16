@@ -31,7 +31,7 @@
             u.dept_id,
             d.dept_name,
             DATE_FORMAT(u.create_time, '%Y-%m-%d %H:%i:%s') AS create_time
-        FROM user u
+        FROM sys_user u
         LEFT JOIN department d ON u.dept_id = d.dept_id
         <where>
             <if test="keywords != null and keywords != ''">
@@ -58,7 +58,7 @@
     <!-- 根据用户名查询用户（用于登录验证） -->
     <select id="selectUserByName" resultMap="userResultMap">
         SELECT id, user_name, password
-        FROM user
+        FROM sys_user
         <where>
            <if test="userName != null and userName != ''">
                AND user_name = #{userName}
@@ -70,14 +70,14 @@
     <select id="selectUserById" resultMap="userResultMap">
         SELECT id, user_name, mobile, nick_name, gender, email,
                status, dept_id, dept_name, create_time, password
-        FROM user
+        FROM sys_user
         WHERE id = #{id}
     </select>
 
     <!-- 新增用户，插入所有业务字段 -->
     <insert id="insertUser" parameterType="org.seaPack.model.system.User"
             useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO user (
+        INSERT INTO sys_user (
             user_name, mobile, nick_name, gender, email,
             status, dept_id, dept_name, password, create_time
         ) VALUES (
@@ -88,7 +88,7 @@
 
     <!-- 更新用户信息，只更新非空字段 -->
     <update id="updateUser" parameterType="org.seaPack.model.system.User">
-        UPDATE user
+        UPDATE sys_user
         <set>
             <if test="userName != null">user_name = #{userName},</if>
             <if test="mobile != null">mobile = #{mobile},</if>
@@ -106,12 +106,12 @@
 
     <!-- 根据 ID 删除用户 -->
     <delete id="deleteUser" parameterType="java.lang.Long">
-        DELETE FROM user WHERE id = #{id}
+        DELETE FROM sys_user WHERE id = #{id}
     </delete>
 
     <!-- 批量删除用户 -->
     <delete id="batchDeleteUsers">
-        DELETE FROM user WHERE id IN
+        DELETE FROM sys_user WHERE id IN
         <foreach collection="ids" item="id" open="(" separator="," close=")">
             #{id}
         </foreach>
@@ -119,7 +119,7 @@
 
     <!-- 重置用户密码 -->
     <update id="resetPassword">
-        UPDATE user SET password = #{newPassword} WHERE id = #{id}
+        UPDATE sys_user SET password = #{newPassword} WHERE id = #{id}
     </update>
 
 </mapper>

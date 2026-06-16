@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.system.SysRolePermissionMapper">
+
+    <!-- ==================== SysRolePermission 中间表操作 ==================== -->
+
+    <resultMap id="permResultMap" type="org.seaPack.model.system.permission.SysPermission">
+        <id property="id" column="id"/>
+        <result property="parentId" column="parent_id"/>
+        <result property="name" column="name"/>
+        <result property="permKey" column="perm_key"/>
+        <result property="type" column="type"/>
+        <result property="path" column="path"/>
+        <result property="component" column="component"/>
+        <result property="sortOrder" column="sort_order"/>
+        <result property="status" column="status"/>
+    </resultMap>
+
+    <!-- 查询角色已分配的权限 ID 列表（仅 ID，用于回显 el-tree 勾选状态） -->
+    <select id="selectPermissionIdsByRoleId" resultType="long">
+        SELECT permission_id FROM sys_role_permission WHERE role_id = #{roleId}
+    </select>
+
+    <!-- 联表查询角色已分配的权限详情 -->
+    <select id="selectPermissionsByRoleId" resultMap="permResultMap">
+        SELECT p.id, p.parent_id, p.name, p.perm_key, p.type, p.path, p.component, p.sort_order, p.status
+        FROM sys_role_permission rp
+        INNER JOIN sys_permission p ON rp.permission_id = p.id
+        WHERE rp.role_id = #{roleId}
+    </select>
+
+    <!-- 删除角色所有权限绑定（全量覆盖前清空旧数据） -->
+    <delete id="deleteByRoleId">
+        DELETE FROM sys_role_permission WHERE role_id = #{roleId}
+    </delete>
+
+    <!-- 批量插入角色-权限绑定关系 -->
+    <insert id="insertBatch">
+        INSERT INTO sys_role_permission (role_id, permission_id) VALUES
+        <foreach collection="permissionIds" item="permId" separator=",">
+            (#{roleId}, #{permId})
+        </foreach>
+    </insert>
+
+    <!-- 删除指定权限的所有角色绑定（权限节点删除时级联清理） -->
+    <delete id="deleteByPermissionId">
+        DELETE FROM sys_role_permission WHERE permission_id = #{permissionId}
+    </delete>
+
+</mapper>

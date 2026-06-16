@@ -1,12 +1,17 @@
 package org.seaPack.controller.auth;
 
 import org.seaPack.components.RsaUtil;
+import org.seaPack.dto.system.PermissionTreeNode;
+import org.seaPack.dto.system.UserInfoVO;
 import org.seaPack.model.system.User;
+import org.seaPack.service.auth.AuthService;
 import org.seaPack.service.auth.CaptchaService;
 import org.seaPack.service.system.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 /**
  * 认证控制器
@@ -21,6 +26,9 @@ public class AuthController {
 
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private AuthService authService;
 
     @Autowired
     private RsaUtil rsaUtil;
@@ -57,5 +65,33 @@ public class AuthController {
             }
         }
         return ResponseEntity.status(401).body("用户名或密码错误");
+    }
+
+    /**
+     * 获取当前登录用户信息及权限
+     * <p>返回用户角色编码列表和权限标识符集合（如 ['user:add', 'role:delete']）。
+     * 前端存入 Pinia/Vuex，用于 v-permission 指令判断按钮显隐。</p>
+     *
+     * @param userId 用户 ID（待接入 JWT 后改为从 token 解析）
+     */
+    @GetMapping("/user-info")
+    public ResponseEntity<UserInfoVO> userInfo(@RequestParam Long userId) {
+        UserInfoVO vo = authService.getUserInfo(userId);
+        if (vo == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(vo);
+    }
+
+    /**
+     * 获取当前用户的动态菜单树
+     * <p>仅返回 type=1(目录) 和 type=2(菜单) 的节点，且根据用户角色过滤。
+     * 前端拿到后通过 router.addRoute() 动态注册路由并渲染侧边栏。</p>
+     *
+     * @param userId 用户 ID（待接入 JWT 后改为从 token 解析）
+     */
+    @GetMapping("/menus")
+    public ResponseEntity<List<PermissionTreeNode>> menus(@RequestParam Long userId) {
+        return ResponseEntity.ok(authService.getUserMenus(userId));
     }
 }

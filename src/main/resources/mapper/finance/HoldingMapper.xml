@@ -95,7 +95,7 @@
         s.last_updated
     from holdings s
     inner join fund_base_info f on f.fund_code = s.fund_code
-    inner join user u on u.id = s.user_id
+    inner join sys_user u on u.id = s.user_id
   </select>
   <select id="selectByPrimaryKey" parameterType="java.lang.Integer" resultMap="BaseResultMap">
     select 

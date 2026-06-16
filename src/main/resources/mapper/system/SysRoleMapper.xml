@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.system.SysRoleMapper">
+
+    <!-- ==================== SysRole 基础 CRUD ==================== -->
+
+    <resultMap id="roleResultMap" type="org.seaPack.model.system.permission.SysRole">
+        <id property="id" column="id"/>
+        <result property="roleName" column="role_name"/>
+        <result property="roleCode" column="role_code"/>
+        <result property="description" column="description"/>
+        <result property="status" column="status"/>
+        <result property="createTime" column="create_time"/>
+    </resultMap>
+
+    <!-- 分页查询角色列表，支持按角色名模糊搜索和状态筛选 -->
+    <select id="selectRoleList" resultMap="roleResultMap">
+        SELECT id, role_name, role_code, description, status, create_time
+        FROM sys_role
+        <where>
+            <if test="roleName != null and roleName != ''">
+                AND role_name LIKE CONCAT('%', #{roleName}, '%')
+            </if>
+            <if test="status != null">
+                AND status = #{status}
+            </if>
+        </where>
+        ORDER BY create_time DESC
+    </select>
+
+    <!-- 根据主键查询角色 -->
+    <select id="selectRoleById" resultMap="roleResultMap">
+        SELECT id, role_name, role_code, description, status, create_time
+        FROM sys_role WHERE id = #{id}
+    </select>
+
+    <!-- 新增角色 -->
+    <insert id="insertRole" parameterType="org.seaPack.model.system.permission.SysRole"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO sys_role (role_name, role_code, description, status, create_time)
+        VALUES (#{roleName}, #{roleCode}, #{description}, #{status}, NOW())
+    </insert>
+
+    <!-- 更新角色信息（仅更新非空字段） -->
+    <update id="updateRole" parameterType="org.seaPack.model.system.permission.SysRole">
+        UPDATE sys_role
+        <set>
+            <if test="roleName != null">role_name = #{roleName},</if>
+            <if test="roleCode != null">role_code = #{roleCode},</if>
+            <if test="description != null">description = #{description},</if>
+            <if test="status != null">status = #{status},</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <!-- 根据主键删除角色（外键 ON DELETE CASCADE 会同步清理 sys_role_permission） -->
+    <delete id="deleteRoleById">
+        DELETE FROM sys_role WHERE id = #{id}
+    </delete>
+
+</mapper>

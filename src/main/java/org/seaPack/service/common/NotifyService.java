@@ -71,14 +71,8 @@ public class NotifyService {
                 "</table><br/><small>SeaPack 监控系统自动发送</small>",
                 stockName, stockCode, triggeredRate, direction, thresholdRate, triggeredPrice);
 
-        // 优先手机号通知，手机号为空时降级为邮件通知
-        if (user.getMobile() != null && !user.getMobile().isEmpty()) {
-            if (smsEnabled) {
-                sendSms(user.getMobile(), stockCode, triggeredRate, direction, thresholdRate);
-            } else {
-                log.info("SMS 通知未启用，跳过手机号 {}", user.getMobile());
-            }
-        } else if (user.getEmail() != null && !user.getEmail().isEmpty()) {
+        // 优先邮件通知，邮件为空时降级为手机号通知
+        if (user.getEmail() != null && !user.getEmail().isEmpty()) {
             if (emailEnabled) {
                 try {
                     sendEmail(user.getEmail(), subject, body);
@@ -88,6 +82,12 @@ public class NotifyService {
                 }
             } else {
                 log.info("邮件通知未启用，跳过邮箱 {}", user.getEmail());
+            }
+        } else if (user.getMobile() != null && !user.getMobile().isEmpty()) {
+            if (smsEnabled) {
+                sendSms(user.getMobile(), stockCode, triggeredRate, direction, thresholdRate);
+            } else {
+                log.info("SMS 通知未启用，跳过手机号 {}", user.getMobile());
             }
         } else {
             log.warn("用户 {} 无手机号也无邮箱，无法发送通知", userId);

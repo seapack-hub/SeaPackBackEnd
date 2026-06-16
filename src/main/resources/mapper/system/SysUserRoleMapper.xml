@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.system.SysUserRoleMapper">
+
+    <!-- ==================== SysUserRole 中间表操作 ==================== -->
+
+    <resultMap id="roleResultMap" type="org.seaPack.model.system.permission.SysRole">
+        <id property="id" column="id"/>
+        <result property="roleName" column="role_name"/>
+        <result property="roleCode" column="role_code"/>
+        <result property="description" column="description"/>
+        <result property="status" column="status"/>
+        <result property="createTime" column="create_time"/>
+    </resultMap>
+
+    <!-- 联表查询用户拥有的角色详情 -->
+    <select id="selectRolesByUserId" resultMap="roleResultMap">
+        SELECT r.id, r.role_name, r.role_code, r.description, r.status, r.create_time
+        FROM sys_user_role ur
+        INNER JOIN sys_role r ON ur.role_id = r.id
+        WHERE ur.user_id = #{userId}
+    </select>
+
+    <!-- 删除用户的所有角色绑定（全量覆盖前清空旧数据） -->
+    <delete id="deleteByUserId">
+        DELETE FROM sys_user_role WHERE user_id = #{userId}
+    </delete>
+
+    <!-- 批量插入用户-角色绑定关系 -->
+    <insert id="insertBatch">
+        INSERT INTO sys_user_role (user_id, role_id) VALUES
+        <foreach collection="roleIds" item="roleId" separator=",">
+            (#{userId}, #{roleId})
+        </foreach>
+    </insert>
+
+</mapper>
