@@ -1,6 +1,7 @@
 package org.seaPack.controller.auth;
 
 import org.seaPack.components.RsaUtil;
+import org.seaPack.dto.auth.LoginResponse;
 import org.seaPack.dto.system.PermissionTreeNode;
 import org.seaPack.dto.system.UserInfoVO;
 import org.seaPack.model.system.User;
@@ -35,36 +36,26 @@ public class AuthController {
 
     /**
      * 用户登录
-     * <p>支持滑块验证码校验（可在开发环境关闭），密码经 RSA 公钥加密传输，
-     * 后端解密后与数据库密码比对。</p>
-     * @param token    滑块验证码 token（isVerify=false 时校验）
-     * @param sliderX  用户拖拽 x 坐标
      * @param username 用户名
      * @param password RSA 加密后的密码
-     * @param isVerify 是否跳过滑块验证（true=跳过，用于开发调试）
      */
     @GetMapping("/login")
-    public ResponseEntity<String> login(
-            @RequestParam(defaultValue = "" ) String token,
-            @RequestParam(defaultValue = "0" ) double sliderX,
+    public ResponseEntity<LoginResponse> login(
             @RequestParam String username,
-            @RequestParam String password,
-            @RequestParam(defaultValue = "true" ) boolean isVerify
+            @RequestParam String password
     ) throws Exception {
-        if (!isVerify && !captchaService.verifyCaptcha(token, sliderX)) {
-            return ResponseEntity.status(200).body("滑块验证失败");
+
+        if(username.isEmpty() || password.isEmpty()){
+            return ResponseEntity.status(401).body(null);
         }
 
-        if(!username.isEmpty() && !password.isEmpty()){
-            User user = userService.selectUserByName(username);
-            if (user == null) return ResponseEntity.status(401).body("用户名错误");
-
+        try {
             String rawPassword = rsaUtil.decrypt(password);
-            if(rawPassword.equals(user.getPassword())){
-                return ResponseEntity.ok("登录成功");
-            }
+            LoginResponse response = authService.login(username, rawPassword);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(401).body(null);
         }
-        return ResponseEntity.status(401).body("用户名或密码错误");
     }
 
     /**

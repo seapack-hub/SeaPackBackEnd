@@ -1,5 +1,7 @@
 package org.seaPack.service.auth;
 
+import org.seaPack.config.JwtUtil;
+import org.seaPack.dto.auth.LoginResponse;
 import org.seaPack.dto.system.PermissionTreeNode;
 import org.seaPack.dto.system.UserInfoVO;
 import org.seaPack.mapper.system.SysPermissionMapper;
@@ -35,6 +37,31 @@ public class AuthService {
 
     @Autowired
     private SysPermissionMapper permissionMapper;
+
+    @Autowired
+    private JwtUtil jwtUtil;
+
+    public LoginResponse login(String username, String rawPassword) {
+        User user = userMapper.selectUserByName(username);
+        if (user == null) {
+            throw new RuntimeException("用户名或密码错误");
+        }
+
+        if (!rawPassword.equals(user.getPassword())) {
+            throw new RuntimeException("用户名或密码错误");
+        }
+
+        String token = jwtUtil.generateToken(user.getId(), user.getUserName());
+
+        return LoginResponse.builder()
+                .token(token)
+                .userId(user.getId())
+                .username(user.getUserName())
+                .nickName(user.getNickName())
+                .email(user.getEmail())
+                .mobile(user.getMobile())
+                .build();
+    }
 
     /**
      * 获取当前用户信息及权限
