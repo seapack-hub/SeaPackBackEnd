@@ -10,6 +10,8 @@ import org.seaPack.service.auth.CaptchaService;
 import org.seaPack.service.system.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -62,11 +64,14 @@ public class AuthController {
      * 获取当前登录用户信息及权限
      * <p>返回用户角色编码列表和权限标识符集合（如 ['user:add', 'role:delete']）。
      * 前端存入 Pinia/Vuex，用于 v-permission 指令判断按钮显隐。</p>
-     *
-     * @param userId 用户 ID（待接入 JWT 后改为从 token 解析）
+     * <p>userId 从 JWT token 中自动解析，无需前端传参。</p>
      */
     @GetMapping("/user-info")
-    public ResponseEntity<UserInfoVO> userInfo(@RequestParam Long userId) {
+    public ResponseEntity<UserInfoVO> userInfo() {
+        Long userId = getCurrentUserId();
+        if (userId == null) {
+            return ResponseEntity.status(401).build();
+        }
         UserInfoVO vo = authService.getUserInfo(userId);
         if (vo == null) {
             return ResponseEntity.notFound().build();
@@ -78,11 +83,26 @@ public class AuthController {
      * 获取当前用户的动态菜单树
      * <p>仅返回 type=1(目录) 和 type=2(菜单) 的节点，且根据用户角色过滤。
      * 前端拿到后通过 router.addRoute() 动态注册路由并渲染侧边栏。</p>
-     *
-     * @param userId 用户 ID（待接入 JWT 后改为从 token 解析）
+     * <p>userId 从 JWT token 中自动解析，无需前端传参。</p>
      */
     @GetMapping("/menus")
-    public ResponseEntity<List<PermissionTreeNode>> menus(@RequestParam Long userId) {
+    public ResponseEntity<List<PermissionTreeNode>> menus() {
+        Long userId = getCurrentUserId();
+        if (userId == null) {
+            return ResponseEntity.status(401).build();
+        }
         return ResponseEntity.ok(authService.getUserMenus(userId));
+    }
+
+    /**
+     * 从 SecurityContext 中获取当前登录用户的 userId
+     * <p>由 JwtAuthenticationFilter 在请求拦截时写入。</p>
+     */
+    private Long getCurrentUserId() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.getPrincipal() instanceof Long) {
+            return (Long) auth.getPrincipal();
+        }
+        return null;
     }
 }

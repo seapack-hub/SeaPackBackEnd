@@ -26,6 +26,14 @@ public class UserController {
     private SysUserRoleService sysUserRoleService;
 
     /**
+     * 根据用户 ID 查询用户详情
+     */
+    @GetMapping("/{id}")
+    public ResponseEntity<User> getUserById(@PathVariable Long id) {
+        return ResponseEntity.ok(userService.getUserById(id));
+    }
+
+    /**
      * 分页查询用户列表
      * @param pageNum 页码
      * @param pageSize 每页条数
