@@ -44,7 +44,7 @@ public class SecurityConfig {
                         "/auth/rsa/**",
                         "/captcha/**",
                         "/rsa/**",
-                        "/hello"
+                        "/hello",
                         "/hello",
                         "/images/**"
                     ).permitAll()
