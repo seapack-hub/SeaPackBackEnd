@@ -45,6 +45,8 @@ public class SecurityConfig {
                         "/captcha/**",
                         "/rsa/**",
                         "/hello"
+                        "/hello",
+                        "/images/**"
                     ).permitAll()
                     // 其余接口 —— 需携带有效 token
                     .anyRequest().authenticated()
