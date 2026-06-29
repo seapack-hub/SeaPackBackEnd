@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.blog.BlogProjectMapper">
+
+    <resultMap id="projectResultMap" type="org.seaPack.model.blog.BlogProject">
+        <id property="id" column="id"/>
+        <result property="name" column="name"/>
+        <result property="description" column="description"/>
+        <result property="icon" column="icon"/>
+        <result property="color" column="color"/>
+        <result property="bgColor" column="bg_color"/>
+        <result property="url" column="url"/>
+        <result property="sort" column="sort"/>
+        <result property="status" column="status"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <!-- 分页查询项目列表 -->
+    <select id="selectProjectList" resultMap="projectResultMap">
+        SELECT id, name, description, icon, color, bg_color,
+               url, sort, status, create_time, update_time
+        FROM blog_project
+        <where>
+            <if test="status != null">
+                AND status = #{status}
+            </if>
+            <if test="keyword != null and keyword != ''">
+                AND (name LIKE CONCAT('%', #{keyword}, '%')
+                  OR description LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+        </where>
+        ORDER BY sort ASC, create_time DESC
+    </select>
+
+    <!-- 根据主键查询项目 -->
+    <select id="selectProjectById" resultMap="projectResultMap">
+        SELECT id, name, description, icon, color, bg_color,
+               url, sort, status, create_time, update_time
+        FROM blog_project WHERE id = #{id}
+    </select>
+
+    <!-- 新增项目 -->
+    <insert id="insertProject" parameterType="org.seaPack.model.blog.BlogProject"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO blog_project (name, description, icon, color, bg_color,
+                                   url, sort, status, create_time)
+        VALUES (#{name}, #{description}, #{icon}, #{color}, #{bgColor},
+                #{url}, #{sort}, #{status}, NOW())
+    </insert>
+
+    <!-- 更新项目（仅更新非空字段） -->
+    <update id="updateProject" parameterType="org.seaPack.model.blog.BlogProject">
+        UPDATE blog_project
+        <set>
+            <if test="name != null">name = #{name},</if>
+            <if test="description != null">description = #{description},</if>
+            <if test="icon != null">icon = #{icon},</if>
+            <if test="color != null">color = #{color},</if>
+            <if test="bgColor != null">bg_color = #{bgColor},</if>
+            <if test="url != null">url = #{url},</if>
+            <if test="sort != null">sort = #{sort},</if>
+            <if test="status != null">status = #{status},</if>
+            update_time = NOW()
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <!-- 删除项目 -->
+    <delete id="deleteProjectById">
+        DELETE FROM blog_project WHERE id = #{id}
+    </delete>
+
+</mapper>

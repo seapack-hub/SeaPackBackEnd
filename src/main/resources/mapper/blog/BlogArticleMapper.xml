@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.blog.BlogArticleMapper">
+
+    <resultMap id="articleResultMap" type="org.seaPack.model.blog.BlogArticle">
+        <id property="id" column="id"/>
+        <result property="title" column="title"/>
+        <result property="summary" column="summary"/>
+        <result property="contentMd" column="content_md"/>
+        <result property="contentHtml" column="content_html"/>
+        <result property="category" column="category"/>
+        <result property="tag" column="tag"/>
+        <result property="tagType" column="tag_type"/>
+        <result property="coverIcon" column="cover_icon"/>
+        <result property="coverColor" column="cover_color"/>
+        <result property="status" column="status"/>
+        <result property="viewCount" column="view_count"/>
+        <result property="likeCount" column="like_count"/>
+        <result property="isTop" column="is_top"/>
+        <result property="sort" column="sort"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <!-- 分页查询文章列表 -->
+    <select id="selectArticleList" resultMap="articleResultMap">
+        SELECT id, title, summary, category, tag, tag_type,
+               cover_icon, cover_color, status, view_count, like_count,
+               is_top, sort, create_time, update_time
+        FROM blog_article
+        <where>
+            <if test="category != null and category != ''">
+                AND category = #{category}
+            </if>
+            <if test="status != null">
+                AND status = #{status}
+            </if>
+            <if test="keyword != null and keyword != ''">
+                AND (title LIKE CONCAT('%', #{keyword}, '%')
+                  OR summary LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+            <if test="isTop != null">
+                AND is_top = #{isTop}
+            </if>
+        </where>
+        ORDER BY is_top DESC, sort DESC, create_time DESC
+    </select>
+
+    <!-- 根据主键查询文章（含全部字段） -->
+    <select id="selectArticleById" resultMap="articleResultMap">
+        SELECT id, title, summary, content_md, content_html, category, tag, tag_type,
+               cover_icon, cover_color, status, view_count, like_count,
+               is_top, sort, create_time, update_time
+        FROM blog_article WHERE id = #{id}
+    </select>
+
+    <!-- 新增文章 -->
+    <insert id="insertArticle" parameterType="org.seaPack.model.blog.BlogArticle"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO blog_article (title, summary, content_md, content_html, category,
+                                   tag, tag_type, cover_icon, cover_color, status,
+                                   view_count, like_count, is_top, sort, create_time)
+        VALUES (#{title}, #{summary}, #{contentMd}, #{contentHtml}, #{category},
+                #{tag}, #{tagType}, #{coverIcon}, #{coverColor}, #{status},
+                0, 0, #{isTop}, #{sort}, NOW())
+    </insert>
+
+    <!-- 更新文章（仅更新非空字段） -->
+    <update id="updateArticle" parameterType="org.seaPack.model.blog.BlogArticle">
+        UPDATE blog_article
+        <set>
+            <if test="title != null">title = #{title},</if>
+            <if test="summary != null">summary = #{summary},</if>
+            <if test="contentMd != null">content_md = #{contentMd},</if>
+            <if test="contentHtml != null">content_html = #{contentHtml},</if>
+            <if test="category != null">category = #{category},</if>
+            <if test="tag != null">tag = #{tag},</if>
+            <if test="tagType != null">tag_type = #{tagType},</if>
+            <if test="coverIcon != null">cover_icon = #{coverIcon},</if>
+            <if test="coverColor != null">cover_color = #{coverColor},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="isTop != null">is_top = #{isTop},</if>
+            <if test="sort != null">sort = #{sort},</if>
+            update_time = NOW()
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <!-- 删除文章 -->
+    <delete id="deleteArticleById">
+        DELETE FROM blog_article WHERE id = #{id}
+    </delete>
+
+</mapper>
