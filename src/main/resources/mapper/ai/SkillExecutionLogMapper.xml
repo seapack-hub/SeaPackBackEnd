@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.ai.SkillExecutionLogMapper">
+
+    <resultMap id="BaseMap" type="org.seaPack.model.ai.SkillExecutionLog">
+        <id property="id" column="id"/>
+        <result property="skillId" column="skill_id"/>
+        <result property="skillCode" column="skill_code"/>
+        <result property="moduleKey" column="module_key"/>
+        <result property="inputParams" column="input_params"/>
+        <result property="outputResult" column="output_result"/>
+        <result property="tokensPrompt" column="tokens_prompt"/>
+        <result property="tokensCompletion" column="tokens_completion"/>
+        <result property="durationMs" column="duration_ms"/>
+        <result property="status" column="status"/>
+        <result property="errorMessage" column="error_message"/>
+        <result property="createdBy" column="created_by"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <select id="selectList" resultMap="BaseMap">
+        SELECT id, skill_id, skill_code, module_key, input_params, output_result,
+               tokens_prompt, tokens_completion, duration_ms, status, error_message, created_by, created_at
+        FROM ai_skill_execution_log
+        <where>
+            <if test="skillId != null">AND skill_id = #{skillId}</if>
+            <if test="skillCode != null and skillCode != ''">AND skill_code = #{skillCode}</if>
+            <if test="moduleKey != null and moduleKey != ''">AND module_key = #{moduleKey}</if>
+            <if test="status != null and status != ''">AND status = #{status}</if>
+            <if test="createdBy != null">AND created_by = #{createdBy}</if>
+        </where>
+        ORDER BY created_at DESC
+    </select>
+
+    <select id="selectById" resultMap="BaseMap">
+        SELECT * FROM ai_skill_execution_log WHERE id = #{id}
+    </select>
+
+    <insert id="insert" parameterType="org.seaPack.model.ai.SkillExecutionLog"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO ai_skill_execution_log (skill_id, skill_code, module_key, input_params, output_result,
+                                             tokens_prompt, tokens_completion, duration_ms, status, error_message, created_by, created_at)
+        VALUES (#{skillId}, #{skillCode}, #{moduleKey}, #{inputParams}, #{outputResult},
+                #{tokensPrompt}, #{tokensCompletion}, #{durationMs}, #{status}, #{errorMessage}, #{createdBy}, NOW())
+    </insert>
+
+</mapper>
