@@ -1,6 +1,7 @@
 package org.seaPack.controller.ai;
 
 import com.github.pagehelper.PageInfo;
+import org.seaPack.dto.ai.SkillBindingVO;
 import org.seaPack.dto.ai.SkillExecuteRequest;
 import org.seaPack.dto.ai.SkillExecuteResponse;
 import org.seaPack.model.ai.Skill;
@@ -163,6 +164,15 @@ public class SkillController {
             return ResponseEntity.notFound().build();
         }
         return ResponseEntity.ok(log);
+    }
+
+    /**
+     * 查询模块绑定的技能列表（含技能详情和参数定义）
+     * <p>前端根据返回数据动态渲染模块按钮和参数表单。</p>
+     */
+    @GetMapping("/bindings")
+    public List<SkillBindingVO> getBindingsWithDetails(@RequestParam(required = false) String moduleKey) {
+        return bindingService.getBindingsWithDetails(moduleKey);
     }
 
     /** 获取技能的所有模块绑定关系 */

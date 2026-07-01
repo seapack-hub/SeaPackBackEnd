@@ -1,5 +1,6 @@
 package org.seaPack.service.ai;
 
+import org.seaPack.dto.ai.SkillBindingVO;
 import org.seaPack.mapper.ai.SkillModuleBindingMapper;
 import org.seaPack.model.ai.SkillModuleBinding;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -52,6 +53,14 @@ public class SkillModuleBindingService {
     @Transactional
     public int deleteById(Long id) {
         return bindingMapper.deleteById(id);
+    }
+
+    /**
+     * 查询模块绑定的技能列表（含技能详情和参数定义）
+     * <p>供前端动态渲染模块按钮和表单使用。</p>
+     */
+    public List<SkillBindingVO> getBindingsWithDetails(String moduleKey) {
+        return bindingMapper.selectBindingsWithDetails(moduleKey);
     }
 
     /** 删除指定技能的所有绑定（级联删除时使用） */

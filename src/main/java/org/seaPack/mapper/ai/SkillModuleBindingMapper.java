@@ -2,6 +2,7 @@ package org.seaPack.mapper.ai;
 
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+import org.seaPack.dto.ai.SkillBindingVO;
 import org.seaPack.model.ai.SkillModuleBinding;
 
 import java.util.List;
@@ -23,4 +24,6 @@ public interface SkillModuleBindingMapper {
     int deleteById(@Param("id") Long id);
 
     int deleteBySkillId(@Param("skillId") Long skillId);
+
+    List<SkillBindingVO> selectBindingsWithDetails(@Param("moduleKey") String moduleKey);
 }
