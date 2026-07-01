@@ -30,7 +30,7 @@
         FROM blog_article
         <where>
             <if test="category != null and category != ''">
-                AND category = #{category}
+                AND category LIKE CONCAT('%', #{category}, '%')
             </if>
             <if test="status != null">
                 AND status = #{status}
