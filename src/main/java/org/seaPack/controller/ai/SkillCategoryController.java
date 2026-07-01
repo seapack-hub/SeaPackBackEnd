@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.*;
  * <p>提供分类的增删改查接口，所有接口需携带 JWT Token（除登录接口外）。</p>
  */
 @RestController
-@RequestMapping("/api/ai/skill-categories")
+@RequestMapping("/ai/skill-categories")
 public class SkillCategoryController {
 
     @Autowired

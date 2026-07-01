@@ -23,7 +23,7 @@ import java.util.List;
  * <p>提供技能的完整 CRUD、参数管理、模块绑定管理、AI 执行及日志查询接口。</p>
  */
 @RestController
-@RequestMapping("/api/ai/skills")
+@RequestMapping("/ai/skills")
 public class SkillController {
 
     @Autowired

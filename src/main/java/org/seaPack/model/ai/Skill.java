@@ -26,6 +26,10 @@ public class Skill {
     @Comment("所属分类ID")
     private Long categoryId;
 
+    /** 所属分类名称（非数据库字段，关联查询填充） */
+    @Transient
+    private String categoryName;
+
     @Column(name = "name")
     @Comment("技能名称，如文章AI写作助手")
     private String name;
@@ -77,6 +81,10 @@ public class Skill {
     @Column(name = "use_count")
     @Comment("使用次数（统计）")
     private Integer useCount;
+
+    @Column(name = "version")
+    @Comment("版本号，如 v1.0.0")
+    private String version;
 
     @Column(name = "created_by")
     @Comment("创建人ID")
