@@ -23,7 +23,7 @@ public class RestTemplateConfig {
      * - maxIdleConnections：最大空闲连接数 50
      * - keepAliveDuration：空闲连接保活时间 5 分钟
      * - connectTimeout：连接超时 10 秒
-     * - readTimeout：读取超时 30 秒
+     * - readTimeout：读取超时 120 秒
      * - retryOnConnectionFailure：连接失败自动重试
      */
     @Bean
@@ -33,7 +33,7 @@ public class RestTemplateConfig {
         OkHttpClient okHttpClient = new OkHttpClient.Builder()
                 .connectionPool(connectionPool)
                 .connectTimeout(10, TimeUnit.SECONDS)
-                .readTimeout(30, TimeUnit.SECONDS)
+                .readTimeout(120, TimeUnit.SECONDS)
                 .retryOnConnectionFailure(true)
                 .build();
 

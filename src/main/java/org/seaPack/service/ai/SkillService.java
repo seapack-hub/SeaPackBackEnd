@@ -236,7 +236,11 @@ public class SkillService {
             log.setSkillId(skill.getId());
             log.setSkillCode(skill.getCode());
             log.setModuleKey(skill.getModuleKey());
-            log.setInputParams(params.toString());
+            try {
+                log.setInputParams(objectMapper.writeValueAsString(params));
+            } catch (Exception jsonEx) {
+                log.setInputParams(params.toString());
+            }
             log.setStatus("fail");
             log.setErrorMessage(e.getMessage());
             log.setDurationMs((int) durationMs);
