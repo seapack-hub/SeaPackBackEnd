@@ -1,5 +1,6 @@
 package org.seaPack.model.blog;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.Comment;
@@ -78,10 +79,12 @@ public class BlogArticle {
     @Comment("排序号（置顶文章排序用）")
     private Integer sort;
 
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
     @Column(name = "create_time")
     @Comment("创建时间")
     private Date createTime;
 
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
     @Column(name = "update_time")
     @Comment("更新时间")
     private Date updateTime;
