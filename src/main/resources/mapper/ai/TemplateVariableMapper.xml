@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.ai.TemplateVariableMapper">
+
+    <resultMap id="BaseMap" type="org.seaPack.model.ai.TemplateVariable">
+        <id property="id" column="id"/>
+        <result property="templateId" column="template_id"/>
+        <result property="varName" column="var_name"/>
+        <result property="label" column="label"/>
+        <result property="varType" column="var_type"/>
+        <result property="required" column="required"/>
+        <result property="defaultValue" column="default_value"/>
+        <result property="options" column="options"/>
+        <result property="placeholder" column="placeholder"/>
+        <result property="sortOrder" column="sort_order"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <!-- 根据模板 ID 查询变量列表 -->
+    <select id="selectByTemplateId" resultMap="BaseMap">
+        SELECT id, template_id, var_name, label, var_type, required,
+               default_value, options, placeholder, sort_order, created_at
+        FROM ai_template_variable
+        WHERE template_id = #{templateId}
+        ORDER BY sort_order ASC, id ASC
+    </select>
+
+    <!-- 删除指定模板下的所有变量 -->
+    <delete id="deleteByTemplateId">
+        DELETE FROM ai_template_variable WHERE template_id = #{templateId}
+    </delete>
+
+    <!-- 批量插入变量 -->
+    <insert id="batchInsert">
+        INSERT INTO ai_template_variable (template_id, var_name, label, var_type, required,
+                                          default_value, options, placeholder, sort_order, created_at)
+        VALUES
+        <foreach collection="list" item="item" separator=",">
+            (#{item.templateId}, #{item.varName}, #{item.label}, #{item.varType}, #{item.required},
+             #{item.defaultValue}, #{item.options}, #{item.placeholder}, #{item.sortOrder}, NOW())
+        </foreach>
+    </insert>
+
+</mapper>

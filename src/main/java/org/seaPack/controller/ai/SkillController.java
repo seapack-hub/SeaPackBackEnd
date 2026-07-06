@@ -1,9 +1,9 @@
 package org.seaPack.controller.ai;
 
 import com.github.pagehelper.PageInfo;
+import org.seaPack.dto.ai.AiExecuteResult;
 import org.seaPack.dto.ai.SkillBindingVO;
 import org.seaPack.dto.ai.SkillExecuteRequest;
-import org.seaPack.dto.ai.SkillExecuteResponse;
 import org.seaPack.model.ai.Skill;
 import org.seaPack.model.ai.SkillExecutionLog;
 import org.seaPack.model.ai.SkillModuleBinding;
@@ -107,8 +107,8 @@ public class SkillController {
     @PostMapping("/{id}/execute")
     public ResponseEntity<?> execute(@PathVariable Long id, @RequestBody SkillExecuteRequest request) {
         try {
-            SkillExecuteResponse response = skillService.execute(id, request, getCurrentUserId());
-            return ResponseEntity.ok(response);
+            AiExecuteResult result = skillService.execute(id, request, getCurrentUserId());
+            return ResponseEntity.ok(result);
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }

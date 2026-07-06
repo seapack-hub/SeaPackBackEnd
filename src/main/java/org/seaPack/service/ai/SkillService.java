@@ -4,8 +4,8 @@ import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.seaPack.config.AIProperties;
+import org.seaPack.dto.ai.AiExecuteResult;
 import org.seaPack.dto.ai.SkillExecuteRequest;
-import org.seaPack.dto.ai.SkillExecuteResponse;
 import org.seaPack.mapper.ai.SkillExecutionLogMapper;
 import org.seaPack.mapper.ai.SkillMapper;
 import org.seaPack.mapper.ai.SkillModuleBindingMapper;
@@ -13,16 +13,11 @@ import org.seaPack.mapper.ai.SkillParamMapper;
 import org.seaPack.model.ai.Skill;
 import org.seaPack.model.ai.SkillExecutionLog;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * AI 技能核心服务
@@ -109,9 +104,7 @@ public class SkillService {
      * @return 执行结果（含输出内容、Token 统计、耗时）
      */
     @Transactional
-    public SkillExecuteResponse execute(Long skillId, SkillExecuteRequest request, Long userId) {
-        long startTime = System.currentTimeMillis();
-        SkillExecuteResponse response = new SkillExecuteResponse();
+    public AiExecuteResult execute(Long skillId, SkillExecuteRequest request, Long userId) {
 
         // 1. 加载技能并校验状态
         Skill skill = skillMapper.selectById(skillId);
@@ -133,122 +126,55 @@ public class SkillService {
         if (params == null) {
             params = new HashMap<>();
         }
-        String filledPrompt = replacePlaceholders(promptTemplate, params);
+        String filledPrompt = AiExecuteHelper.replacePlaceholders(promptTemplate, params);
         if (request.getUserMessage() != null && !request.getUserMessage().isBlank()) {
             filledPrompt += "\n\n用户补充信息：\n" + request.getUserMessage();
         }
 
-        // 4. 获取 AI 提供商配置
-        String providerName = aiProperties.getActiveProvider();
-        AIProperties.ProviderConfig config = aiProperties.getProviders().get(providerName);
-        if (config == null) {
-            throw new RuntimeException("AI 配置错误：未找到提供商 [" + providerName + "]");
-        }
-
-        // 5. 构建 LLM API 请求（OpenAI 兼容格式，非流式）
-        String url = config.getBaseUrl().replaceAll("/+$", "") + "/chat/completions";
-
-        Map<String, Object> requestBody = new HashMap<>();
-        requestBody.put("model", config.getChatModel());
-
-        List<Map<String, String>> messages = new ArrayList<>();
-        Map<String, String> systemMsg = new HashMap<>();
-        systemMsg.put("role", "system");
-        systemMsg.put("content", filledPrompt);
-        messages.add(systemMsg);
-        requestBody.put("messages", messages);
-        requestBody.put("stream", false);
-
-        // 6. 设置可选的 LLM 参数
-        if (skill.getTemperature() != null) {
-            requestBody.put("temperature", skill.getTemperature());
-        }
-        if (skill.getMaxTokens() != null) {
-            requestBody.put("max_tokens", skill.getMaxTokens());
-        }
-
-        // 7. 发送 HTTP 请求
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("Authorization", "Bearer " + config.getApiKey());
-
-        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
-
+        // 4. 调用 LLM API
+        AiExecuteResult result;
         try {
-            Map<String, Object> apiResponse = restTemplate.postForObject(url, entity, Map.class);
-            long durationMs = System.currentTimeMillis() - startTime;
-
-            // 8. 解析 AI 响应
-            String output = "";
-            Integer promptTokens = 0;
-            Integer completionTokens = 0;
-
-            if (apiResponse != null) {
-                List<Map<String, Object>> choices = (List<Map<String, Object>>) apiResponse.get("choices");
-                if (choices != null && !choices.isEmpty()) {
-                    Map<String, Object> choice = choices.get(0);
-                    Map<String, String> message = (Map<String, String>) choice.get("message");
-                    if (message != null && message.get("content") != null) {
-                        output = message.get("content");
-                    }
-                }
-
-                Map<String, Object> usage = (Map<String, Object>) apiResponse.get("usage");
-                if (usage != null) {
-                    promptTokens = usage.get("prompt_tokens") != null ? (Integer) usage.get("prompt_tokens") : 0;
-                    completionTokens = usage.get("completion_tokens") != null ? (Integer) usage.get("completion_tokens") : 0;
-                }
-            }
-
-            // 9. 记录成功执行日志
-            SkillExecutionLog log = new SkillExecutionLog();
-            log.setSkillId(skill.getId());
-            log.setSkillCode(skill.getCode());
-            log.setModuleKey(skill.getModuleKey());
-            log.setInputParams(objectMapper.writeValueAsString(params));
-            log.setOutputResult(output);
-            log.setTokensPrompt(promptTokens);
-            log.setTokensCompletion(completionTokens);
-            log.setDurationMs((int) durationMs);
-            log.setStatus("success");
-            log.setCreatedBy(userId);
-            logMapper.insert(log);
-
-            // 10. 增加技能使用次数
-            skillMapper.incrementUseCount(skill.getId());
-
-            // 11. 组装响应
-            response.setSkillId(skill.getId());
-            response.setSkillCode(skill.getCode());
-            response.setOutput(output);
-            response.setTokensPrompt(promptTokens);
-            response.setTokensCompletion(completionTokens);
-            response.setDurationMs((int) durationMs);
-            response.setLogId(log.getId());
-
-            return response;
-
+            result = AiExecuteHelper.callLLM(filledPrompt, skill.getTemperature(), skill.getMaxTokens(), restTemplate, aiProperties);
         } catch (Exception e) {
-            // 12. 记录失败执行日志
-            long durationMs = System.currentTimeMillis() - startTime;
-
-            SkillExecutionLog log = new SkillExecutionLog();
-            log.setSkillId(skill.getId());
-            log.setSkillCode(skill.getCode());
-            log.setModuleKey(skill.getModuleKey());
+            // 记录失败执行日志
+            SkillExecutionLog failLog = new SkillExecutionLog();
+            failLog.setSkillId(skill.getId());
+            failLog.setSkillCode(skill.getCode());
+            failLog.setModuleKey(skill.getModuleKey());
             try {
-                log.setInputParams(objectMapper.writeValueAsString(params));
+                failLog.setInputParams(objectMapper.writeValueAsString(params));
             } catch (Exception jsonEx) {
-                log.setInputParams(params.toString());
+                failLog.setInputParams(params.toString());
             }
-            log.setStatus("fail");
-            log.setErrorMessage(e.getMessage());
-            log.setDurationMs((int) durationMs);
-            log.setCreatedBy(userId);
-            logMapper.insert(log);
-
+            failLog.setStatus("fail");
+            failLog.setErrorMessage(e.getMessage());
+            failLog.setCreatedBy(userId);
+            logMapper.insert(failLog);
             throw new RuntimeException("AI 技能执行失败: " + e.getMessage(), e);
         }
+
+        // 5. 记录成功执行日志
+        SkillExecutionLog log = new SkillExecutionLog();
+        log.setSkillId(skill.getId());
+        log.setSkillCode(skill.getCode());
+        log.setModuleKey(skill.getModuleKey());
+        try {
+            log.setInputParams(objectMapper.writeValueAsString(params));
+        } catch (Exception jsonEx) {
+            log.setInputParams(params.toString());
+        }
+        log.setOutputResult(result.getOutput());
+        log.setTokensPrompt(result.getTokensPrompt());
+        log.setTokensCompletion(result.getTokensCompletion());
+        log.setDurationMs(result.getDurationMs());
+        log.setStatus("success");
+        log.setCreatedBy(userId);
+        logMapper.insert(log);
+
+        // 6. 增加技能使用次数
+        skillMapper.incrementUseCount(skill.getId());
+
+        return result;
     }
 
     /**
@@ -266,21 +192,4 @@ public class SkillService {
         return logMapper.selectById(id);
     }
 
-    /**
-     * 替换模板中的 {{variable}} 占位符
-     * <p>支持 {{ variable }} 带空格格式，将匹配到的变量名从 params 中取值替换。</p>
-     */
-    private String replacePlaceholders(String template, Map<String, Object> params) {
-        Pattern pattern = Pattern.compile("\\{\\{\\s*(\\w+)\\s*}}");
-        Matcher matcher = pattern.matcher(template);
-        StringBuffer sb = new StringBuffer();
-        while (matcher.find()) {
-            String key = matcher.group(1);
-            Object value = params.get(key);
-            String replacement = value != null ? value.toString() : "";
-            matcher.appendReplacement(sb, Matcher.quoteReplacement(replacement));
-        }
-        matcher.appendTail(sb);
-        return sb.toString();
-    }
 }

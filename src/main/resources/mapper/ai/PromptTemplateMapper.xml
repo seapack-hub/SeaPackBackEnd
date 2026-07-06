@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.ai.PromptTemplateMapper">
+
+    <resultMap id="BaseMap" type="org.seaPack.model.ai.PromptTemplate">
+        <id property="id" column="id"/>
+        <result property="name" column="name"/>
+        <result property="code" column="code"/>
+        <result property="category" column="category"/>
+        <result property="content" column="content"/>
+        <result property="description" column="description"/>
+        <result property="outputFormat" column="output_format"/>
+        <result property="version" column="version"/>
+        <result property="useCount" column="use_count"/>
+        <result property="status" column="status"/>
+        <result property="createdBy" column="created_by"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <resultMap id="DetailMap" type="org.seaPack.model.ai.PromptTemplate" extends="BaseMap">
+        <collection property="variables" ofType="org.seaPack.model.ai.TemplateVariable"
+                    column="id" select="org.seaPack.mapper.ai.TemplateVariableMapper.selectByTemplateId"/>
+    </resultMap>
+
+    <!-- 分页查询模板列表 -->
+    <select id="selectList" resultMap="BaseMap">
+        SELECT id, name, code, category, content, description, output_format,
+               version, use_count, status, created_by, created_at, updated_at
+        FROM ai_prompt_template
+        <where>
+            <if test="category != null and category != ''">AND category = #{category}</if>
+            <if test="status != null">AND status = #{status}</if>
+            <if test="keyword != null and keyword != ''">
+                AND (name LIKE CONCAT('%', #{keyword}, '%') OR code LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+        </where>
+        ORDER BY status DESC, created_at DESC
+    </select>
+
+    <!-- 全量模板列表（下拉选择用） -->
+    <select id="selectAll" resultMap="BaseMap">
+        SELECT id, name, code, category, content, description, output_format,
+               version, use_count, status, created_by, created_at, updated_at
+        FROM ai_prompt_template
+        WHERE status = 1
+        ORDER BY created_at DESC
+    </select>
+
+    <!-- 根据 ID 查询模板详情（含变量列表） -->
+    <select id="selectById" resultMap="DetailMap">
+        SELECT * FROM ai_prompt_template WHERE id = #{id}
+    </select>
+
+    <!-- 根据编码查询模板 -->
+    <select id="selectByCode" resultMap="BaseMap">
+        SELECT * FROM ai_prompt_template WHERE code = #{code}
+    </select>
+
+    <!-- 校验编码唯一性 -->
+    <select id="countByCode" resultType="int">
+        SELECT COUNT(*) FROM ai_prompt_template WHERE code = #{code}
+        <if test="excludeId != null">AND id != #{excludeId}</if>
+    </select>
+
+    <!-- 新增模板 -->
+    <insert id="insert" parameterType="org.seaPack.model.ai.PromptTemplate"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO ai_prompt_template (name, code, category, content, description,
+                                        output_format, version, use_count, status, created_by, created_at, updated_at)
+        VALUES (#{name}, #{code}, #{category}, #{content}, #{description},
+                #{outputFormat}, #{version}, 0, #{status}, #{createdBy}, NOW(), NOW())
+    </insert>
+
+    <!-- 更新模板 -->
+    <update id="update" parameterType="org.seaPack.model.ai.PromptTemplate">
+        UPDATE ai_prompt_template
+        <set>
+            <if test="name != null">name = #{name},</if>
+            <if test="code != null">code = #{code},</if>
+            <if test="category != null">category = #{category},</if>
+            <if test="content != null">content = #{content},</if>
+            <if test="description != null">description = #{description},</if>
+            <if test="outputFormat != null">output_format = #{outputFormat},</if>
+            <if test="version != null">version = #{version},</if>
+            <if test="status != null">status = #{status},</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <!-- 增加使用次数 -->
+    <update id="incrementUseCount">
+        UPDATE ai_prompt_template SET use_count = use_count + 1 WHERE id = #{id}
+    </update>
+
+    <!-- 更新状态 -->
+    <update id="updateStatus">
+        UPDATE ai_prompt_template SET status = #{status} WHERE id = #{id}
+    </update>
+
+    <!-- 删除模板 -->
+    <delete id="deleteById">
+        DELETE FROM ai_prompt_template WHERE id = #{id}
+    </delete>
+
+</mapper>
