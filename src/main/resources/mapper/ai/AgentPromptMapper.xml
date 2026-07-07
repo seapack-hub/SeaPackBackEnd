@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.ai.AgentPromptMapper">
+
+    <resultMap id="BaseMap" type="org.seaPack.model.ai.AgentPrompt">
+        <id property="id" column="id"/>
+        <result property="agentId" column="agent_id"/>
+        <result property="templateId" column="template_id"/>
+        <result property="templateName" column="template_name"/>
+        <result property="templateCode" column="template_code"/>
+        <result property="isPrimary" column="is_primary"/>
+        <result property="enabled" column="enabled"/>
+        <result property="sortOrder" column="sort_order"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <select id="selectByAgentId" resultMap="BaseMap">
+        SELECT ap.id, ap.agent_id, ap.template_id, ap.is_primary, ap.enabled, ap.sort_order, ap.created_at,
+               pt.name AS template_name, pt.code AS template_code
+        FROM ai_agent_prompt ap
+        LEFT JOIN ai_prompt_template pt ON ap.template_id = pt.id
+        WHERE ap.agent_id = #{agentId}
+        ORDER BY ap.sort_order ASC, ap.created_at ASC
+    </select>
+
+    <select id="selectById" resultMap="BaseMap">
+        SELECT ap.id, ap.agent_id, ap.template_id, ap.is_primary, ap.enabled, ap.sort_order, ap.created_at,
+               pt.name AS template_name, pt.code AS template_code
+        FROM ai_agent_prompt ap
+        LEFT JOIN ai_prompt_template pt ON ap.template_id = pt.id
+        WHERE ap.id = #{id}
+    </select>
+
+    <select id="countByAgentIdAndTemplateId" resultType="int">
+        SELECT COUNT(*) FROM ai_agent_prompt
+        WHERE agent_id = #{agentId} AND template_id = #{templateId}
+    </select>
+
+    <insert id="insert" parameterType="org.seaPack.model.ai.AgentPrompt"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO ai_agent_prompt (agent_id, template_id, is_primary, enabled, sort_order, created_at)
+        VALUES (#{agentId}, #{templateId}, #{isPrimary}, #{enabled}, #{sortOrder}, NOW())
+    </insert>
+
+    <update id="update" parameterType="org.seaPack.model.ai.AgentPrompt">
+        UPDATE ai_agent_prompt
+        <set>
+            <if test="templateId != null">template_id = #{templateId},</if>
+            <if test="isPrimary != null">is_primary = #{isPrimary},</if>
+            <if test="enabled != null">enabled = #{enabled},</if>
+            <if test="sortOrder != null">sort_order = #{sortOrder},</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM ai_agent_prompt WHERE id = #{id}
+    </delete>
+
+    <delete id="deleteByAgentId">
+        DELETE FROM ai_agent_prompt WHERE agent_id = #{agentId}
+    </delete>
+
+</mapper>

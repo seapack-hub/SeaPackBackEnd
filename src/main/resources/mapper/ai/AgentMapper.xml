@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.ai.AgentMapper">
+
+    <resultMap id="BaseMap" type="org.seaPack.model.ai.Agent">
+        <id property="id" column="id"/>
+        <result property="name" column="name"/>
+        <result property="code" column="code"/>
+        <result property="avatar" column="avatar"/>
+        <result property="description" column="description"/>
+        <result property="systemPrompt" column="system_prompt"/>
+        <result property="greeting" column="greeting"/>
+        <result property="modelCode" column="model_code"/>
+        <result property="temperature" column="temperature"/>
+        <result property="maxTokens" column="max_tokens"/>
+        <result property="outputFormat" column="output_format"/>
+        <result property="memoryEnabled" column="memory_enabled"/>
+        <result property="memoryWindow" column="memory_window"/>
+        <result property="version" column="version"/>
+        <result property="status" column="status"/>
+        <result property="sortOrder" column="sort_order"/>
+        <result property="useCount" column="use_count"/>
+        <result property="createdBy" column="created_by"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <select id="selectList" resultMap="BaseMap">
+        SELECT id, name, code, avatar, description, system_prompt, greeting, model_code,
+               temperature, max_tokens, output_format, memory_enabled, memory_window,
+               version, status, sort_order, use_count, created_by, created_at, updated_at
+        FROM ai_agent
+        <where>
+            <if test="status != null">AND status = #{status}</if>
+            <if test="keyword != null and keyword != ''">
+                AND (name LIKE CONCAT('%', #{keyword}, '%') OR code LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+        </where>
+        ORDER BY sort_order ASC, created_at DESC
+    </select>
+
+    <select id="selectById" resultMap="BaseMap">
+        SELECT * FROM ai_agent WHERE id = #{id}
+    </select>
+
+    <select id="selectByCode" resultMap="BaseMap">
+        SELECT * FROM ai_agent WHERE code = #{code}
+    </select>
+
+    <select id="countByCode" resultType="int">
+        SELECT COUNT(*) FROM ai_agent WHERE code = #{code}
+        <if test="excludeId != null">AND id != #{excludeId}</if>
+    </select>
+
+    <insert id="insert" parameterType="org.seaPack.model.ai.Agent"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO ai_agent (name, code, avatar, description, system_prompt, greeting, model_code,
+                              temperature, max_tokens, output_format, memory_enabled, memory_window,
+                              version, status, sort_order, use_count, created_by, created_at, updated_at)
+        VALUES (#{name}, #{code}, #{avatar}, #{description}, #{systemPrompt}, #{greeting}, #{modelCode},
+                #{temperature}, #{maxTokens}, #{outputFormat}, #{memoryEnabled}, #{memoryWindow},
+                #{version}, #{status}, #{sortOrder}, 0, #{createdBy}, NOW(), NOW())
+    </insert>
+
+    <update id="update" parameterType="org.seaPack.model.ai.Agent">
+        UPDATE ai_agent
+        <set>
+            <if test="name != null">name = #{name},</if>
+            <if test="code != null">code = #{code},</if>
+            <if test="avatar != null">avatar = #{avatar},</if>
+            <if test="description != null">description = #{description},</if>
+            <if test="systemPrompt != null">system_prompt = #{systemPrompt},</if>
+            <if test="greeting != null">greeting = #{greeting},</if>
+            <if test="modelCode != null">model_code = #{modelCode},</if>
+            <if test="temperature != null">temperature = #{temperature},</if>
+            <if test="maxTokens != null">max_tokens = #{maxTokens},</if>
+            <if test="outputFormat != null">output_format = #{outputFormat},</if>
+            <if test="memoryEnabled != null">memory_enabled = #{memoryEnabled},</if>
+            <if test="memoryWindow != null">memory_window = #{memoryWindow},</if>
+            <if test="version != null">version = #{version},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="sortOrder != null">sort_order = #{sortOrder},</if>
+            updated_at = NOW(),
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <update id="incrementUseCount">
+        UPDATE ai_agent SET use_count = use_count + 1 WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM ai_agent WHERE id = #{id}
+    </delete>
+
+</mapper>

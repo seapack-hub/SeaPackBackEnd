@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.ai.AgentSkillMapper">
+
+    <resultMap id="BaseMap" type="org.seaPack.model.ai.AgentSkill">
+        <id property="id" column="id"/>
+        <result property="agentId" column="agent_id"/>
+        <result property="skillId" column="skill_id"/>
+        <result property="skillName" column="skill_name"/>
+        <result property="skillCode" column="skill_code"/>
+        <result property="enabled" column="enabled"/>
+        <result property="isPrimary" column="is_primary"/>
+        <result property="sortOrder" column="sort_order"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <select id="selectByAgentId" resultMap="BaseMap">
+        SELECT as2.id, as2.agent_id, as2.skill_id, as2.enabled, as2.is_primary, as2.sort_order, as2.created_at,
+               s.name AS skill_name, s.code AS skill_code
+        FROM ai_agent_skill as2
+        LEFT JOIN ai_skill s ON as2.skill_id = s.id
+        WHERE as2.agent_id = #{agentId}
+        ORDER BY as2.sort_order ASC, as2.created_at ASC
+    </select>
+
+    <select id="selectById" resultMap="BaseMap">
+        SELECT as2.id, as2.agent_id, as2.skill_id, as2.enabled, as2.is_primary, as2.sort_order, as2.created_at,
+               s.name AS skill_name, s.code AS skill_code
+        FROM ai_agent_skill as2
+        LEFT JOIN ai_skill s ON as2.skill_id = s.id
+        WHERE as2.id = #{id}
+    </select>
+
+    <select id="countByAgentIdAndSkillId" resultType="int">
+        SELECT COUNT(*) FROM ai_agent_skill
+        WHERE agent_id = #{agentId} AND skill_id = #{skillId}
+    </select>
+
+    <insert id="insert" parameterType="org.seaPack.model.ai.AgentSkill"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO ai_agent_skill (agent_id, skill_id, enabled, is_primary, sort_order, created_at)
+        VALUES (#{agentId}, #{skillId}, #{enabled}, #{isPrimary}, #{sortOrder}, NOW())
+    </insert>
+
+    <update id="update" parameterType="org.seaPack.model.ai.AgentSkill">
+        UPDATE ai_agent_skill
+        <set>
+            <if test="skillId != null">skill_id = #{skillId},</if>
+            <if test="enabled != null">enabled = #{enabled},</if>
+            <if test="isPrimary != null">is_primary = #{isPrimary},</if>
+            <if test="sortOrder != null">sort_order = #{sortOrder},</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM ai_agent_skill WHERE id = #{id}
+    </delete>
+
+    <delete id="deleteByAgentId">
+        DELETE FROM ai_agent_skill WHERE agent_id = #{agentId}
+    </delete>
+
+</mapper>

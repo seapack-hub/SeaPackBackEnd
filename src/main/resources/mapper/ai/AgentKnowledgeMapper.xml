@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.ai.AgentKnowledgeMapper">
+
+    <resultMap id="BaseMap" type="org.seaPack.model.ai.AgentKnowledge">
+        <id property="id" column="id"/>
+        <result property="agentId" column="agent_id"/>
+        <result property="knowledgeId" column="knowledge_id"/>
+        <result property="knowledgeName" column="knowledge_name"/>
+        <result property="enabled" column="enabled"/>
+        <result property="retrievalCount" column="retrieval_count"/>
+        <result property="sortOrder" column="sort_order"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <select id="selectByAgentId" resultMap="BaseMap">
+        SELECT ak.id, ak.agent_id, ak.knowledge_id, ak.enabled, ak.retrieval_count, ak.sort_order, ak.created_at,
+               kb.name AS knowledge_name
+        FROM ai_agent_knowledge ak
+        LEFT JOIN ai_knowledge_base kb ON ak.knowledge_id = kb.id
+        WHERE ak.agent_id = #{agentId}
+        ORDER BY ak.sort_order ASC, ak.created_at ASC
+    </select>
+
+    <select id="selectById" resultMap="BaseMap">
+        SELECT ak.id, ak.agent_id, ak.knowledge_id, ak.enabled, ak.retrieval_count, ak.sort_order, ak.created_at,
+               kb.name AS knowledge_name
+        FROM ai_agent_knowledge ak
+        LEFT JOIN ai_knowledge_base kb ON ak.knowledge_id = kb.id
+        WHERE ak.id = #{id}
+    </select>
+
+    <select id="countByAgentIdAndKnowledgeId" resultType="int">
+        SELECT COUNT(*) FROM ai_agent_knowledge
+        WHERE agent_id = #{agentId} AND knowledge_id = #{knowledgeId}
+    </select>
+
+    <insert id="insert" parameterType="org.seaPack.model.ai.AgentKnowledge"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO ai_agent_knowledge (agent_id, knowledge_id, enabled, retrieval_count, sort_order, created_at)
+        VALUES (#{agentId}, #{knowledgeId}, #{enabled}, #{retrievalCount}, #{sortOrder}, NOW())
+    </insert>
+
+    <update id="update" parameterType="org.seaPack.model.ai.AgentKnowledge">
+        UPDATE ai_agent_knowledge
+        <set>
+            <if test="knowledgeId != null">knowledge_id = #{knowledgeId},</if>
+            <if test="enabled != null">enabled = #{enabled},</if>
+            <if test="retrievalCount != null">retrieval_count = #{retrievalCount},</if>
+            <if test="sortOrder != null">sort_order = #{sortOrder},</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM ai_agent_knowledge WHERE id = #{id}
+    </delete>
+
+    <delete id="deleteByAgentId">
+        DELETE FROM ai_agent_knowledge WHERE agent_id = #{agentId}
+    </delete>
+
+</mapper>
