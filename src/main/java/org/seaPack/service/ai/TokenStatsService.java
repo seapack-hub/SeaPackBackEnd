@@ -89,7 +89,6 @@ public class TokenStatsService {
      *
      * @param log 调用明细
      */
-    @Transactional
     public void recordCall(TokenUsageLog log) {
         if (log == null) return;
 

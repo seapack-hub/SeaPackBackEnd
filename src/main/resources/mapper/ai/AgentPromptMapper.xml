@@ -15,8 +15,15 @@
     </resultMap>
 
     <select id="selectByAgentId" resultMap="BaseMap">
-        SELECT ap.id, ap.agent_id, ap.template_id, ap.is_primary, ap.enabled, ap.sort_order, ap.created_at,
-               pt.name AS template_name, pt.code AS template_code
+        SELECT ap.id,
+               ap.agent_id,
+               ap.template_id,
+               ap.is_primary,
+               COALESCE(ap.enabled, 0) AS enabled,
+               ap.sort_order,
+               ap.created_at,
+               pt.name AS template_name,
+               pt.code AS template_code
         FROM ai_agent_prompt ap
         LEFT JOIN ai_prompt_template pt ON ap.template_id = pt.id
         WHERE ap.agent_id = #{agentId}
@@ -24,7 +31,9 @@
     </select>
 
     <select id="selectById" resultMap="BaseMap">
-        SELECT ap.id, ap.agent_id, ap.template_id, ap.is_primary, ap.enabled, ap.sort_order, ap.created_at,
+        SELECT ap.id, ap.agent_id, ap.template_id, ap.is_primary,
+               COALESCE(ap.enabled, 0) AS enabled,
+               ap.sort_order, ap.created_at,
                pt.name AS template_name, pt.code AS template_code
         FROM ai_agent_prompt ap
         LEFT JOIN ai_prompt_template pt ON ap.template_id = pt.id

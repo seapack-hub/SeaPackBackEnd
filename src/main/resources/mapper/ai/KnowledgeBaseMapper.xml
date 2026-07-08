@@ -23,7 +23,7 @@
     </resultMap>
 
     <select id="selectList" resultMap="BaseMap">
-        SELECT id, name, code, description, icon, embedding_model, chunk_size, chunk_overlap, separator,
+        SELECT id, name, code, description, icon, embedding_model, chunk_size, chunk_overlap, `separator`,
                document_count, chunk_count, total_tokens, status, sort_order, created_by, created_at, updated_at
         FROM ai_knowledge_base
         <where>
@@ -51,7 +51,7 @@
     <insert id="insert" parameterType="org.seaPack.model.ai.KnowledgeBase"
             useGeneratedKeys="true" keyProperty="id">
         INSERT INTO ai_knowledge_base (name, code, description, icon, embedding_model,
-                                       chunk_size, chunk_overlap, separator,
+                                       chunk_size, chunk_overlap, `separator`,
                                        document_count, chunk_count, total_tokens,
                                        status, sort_order, created_by, created_at, updated_at)
         VALUES (#{name}, #{code}, #{description}, #{icon}, #{embeddingModel},
@@ -70,7 +70,7 @@
             <if test="embeddingModel != null">embedding_model = #{embeddingModel},</if>
             <if test="chunkSize != null">chunk_size = #{chunkSize},</if>
             <if test="chunkOverlap != null">chunk_overlap = #{chunkOverlap},</if>
-            <if test="separator != null">separator = #{separator},</if>
+            <if test="separator != null">`separator` = #{separator},</if>
             <if test="status != null">status = #{status},</if>
             <if test="sortOrder != null">sort_order = #{sortOrder},</if>
             updated_at = NOW(),
