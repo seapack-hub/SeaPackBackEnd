@@ -3,8 +3,11 @@ package org.seaPack.controller.ai;
 import com.github.pagehelper.PageInfo;
 import org.seaPack.dto.ai.AiExecuteResult;
 import org.seaPack.dto.ai.SkillBindingVO;
+import org.seaPack.dto.ai.SkillDebugRequest;
+import org.seaPack.dto.ai.SkillDebugResponse;
 import org.seaPack.dto.ai.SkillExecuteRequest;
 import org.seaPack.model.ai.Skill;
+import org.seaPack.model.ai.SkillDebugLog;
 import org.seaPack.model.ai.SkillExecutionLog;
 import org.seaPack.model.ai.SkillModuleBinding;
 import org.seaPack.model.ai.SkillParam;
@@ -202,6 +205,46 @@ public class SkillController {
     @DeleteMapping("/{skillId}/bindings/{bindingId}")
     public ResponseEntity<?> deleteBinding(@PathVariable Long skillId, @PathVariable Long bindingId) {
         bindingService.deleteById(bindingId);
+        return ResponseEntity.ok().build();
+    }
+
+    // ===== 调试 =====
+
+    /** 调试执行（含完整请求/响应记录） */
+    @PostMapping("/{id}/debug")
+    public ResponseEntity<?> debug(@PathVariable Long id, @RequestBody SkillDebugRequest request) {
+        try {
+            SkillDebugResponse response = skillService.debug(id, request, getCurrentUserId());
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    /** 调试日志分页查询 */
+    @GetMapping("/debug-logs/page")
+    public PageInfo<SkillDebugLog> getDebugLogs(
+            @RequestParam(defaultValue = "1") int pageNum,
+            @RequestParam(defaultValue = "10") int pageSize,
+            @RequestParam(required = false) Long skillId,
+            @RequestParam(required = false) String status) {
+        return skillService.getDebugLogList(pageNum, pageSize, skillId, status);
+    }
+
+    /** 调试日志详情 */
+    @GetMapping("/detail-debug-logs/{id}")
+    public ResponseEntity<SkillDebugLog> getDebugLogDetail(@PathVariable Long id) {
+        SkillDebugLog log = skillService.getDebugLogById(id);
+        if (log == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(log);
+    }
+
+    /** 删除调试日志 */
+    @DeleteMapping("/delete-debug-logs/{id}")
+    public ResponseEntity<?> deleteDebugLog(@PathVariable Long id) {
+        skillService.deleteDebugLog(id);
         return ResponseEntity.ok().build();
     }
 
