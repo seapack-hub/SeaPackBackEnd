@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.ai.KnowledgeDocumentMapper">
+
+    <resultMap id="BaseMap" type="org.seaPack.model.ai.KnowledgeDocument">
+        <id property="id" column="id"/>
+        <result property="knowledgeId" column="knowledge_id"/>
+        <result property="fileName" column="file_name"/>
+        <result property="filePath" column="file_path"/>
+        <result property="fileSize" column="file_size"/>
+        <result property="fileType" column="file_type"/>
+        <result property="contentType" column="content_type"/>
+        <result property="parseStatus" column="parse_status"/>
+        <result property="vectorStatus" column="vector_status"/>
+        <result property="chunkCount" column="chunk_count"/>
+        <result property="tokenCount" column="token_count"/>
+        <result property="errorMessage" column="error_message"/>
+        <result property="extraMetadata" column="extra_metadata"/>
+        <result property="createdBy" column="created_by"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <select id="selectByKnowledgeId" resultMap="BaseMap">
+        SELECT id, knowledge_id, file_name, file_path, file_size, file_type, content_type,
+               parse_status, vector_status, chunk_count, token_count, error_message,
+               extra_metadata, created_by, created_at, updated_at
+        FROM ai_knowledge_document
+        WHERE knowledge_id = #{knowledgeId}
+        ORDER BY created_at DESC
+    </select>
+
+    <select id="selectById" resultMap="BaseMap">
+        SELECT * FROM ai_knowledge_document WHERE id = #{id}
+    </select>
+
+    <insert id="insert" parameterType="org.seaPack.model.ai.KnowledgeDocument"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO ai_knowledge_document (knowledge_id, file_name, file_path, file_size, file_type, content_type,
+                                           parse_status, vector_status, chunk_count, token_count, error_message,
+                                           extra_metadata, created_by, created_at, updated_at)
+        VALUES (#{knowledgeId}, #{fileName}, #{filePath}, #{fileSize}, #{fileType}, #{contentType},
+                #{parseStatus}, #{vectorStatus}, #{chunkCount}, #{tokenCount}, #{errorMessage},
+                #{extraMetadata}, #{createdBy}, NOW(), NOW())
+    </insert>
+
+    <update id="update" parameterType="org.seaPack.model.ai.KnowledgeDocument">
+        UPDATE ai_knowledge_document
+        <set>
+            <if test="fileName != null">file_name = #{fileName},</if>
+            <if test="filePath != null">file_path = #{filePath},</if>
+            <if test="fileSize != null">file_size = #{fileSize},</if>
+            <if test="fileType != null">file_type = #{fileType},</if>
+            <if test="contentType != null">content_type = #{contentType},</if>
+            <if test="parseStatus != null">parse_status = #{parseStatus},</if>
+            <if test="vectorStatus != null">vector_status = #{vectorStatus},</if>
+            <if test="chunkCount != null">chunk_count = #{chunkCount},</if>
+            <if test="tokenCount != null">token_count = #{tokenCount},</if>
+            <if test="errorMessage != null">error_message = #{errorMessage},</if>
+            <if test="extraMetadata != null">extra_metadata = #{extraMetadata},</if>
+            updated_at = NOW(),
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateStatus">
+        UPDATE ai_knowledge_document
+        <set>
+            <if test="parseStatus != null">parse_status = #{parseStatus},</if>
+            <if test="vectorStatus != null">vector_status = #{vectorStatus},</if>
+            updated_at = NOW(),
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateStats">
+        UPDATE ai_knowledge_document
+        SET chunk_count = #{chunkCount}, token_count = #{tokenCount}, updated_at = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <select id="countByKnowledgeId" resultType="int">
+        SELECT COUNT(*) FROM ai_knowledge_document WHERE knowledge_id = #{knowledgeId}
+    </select>
+
+    <delete id="deleteById">
+        DELETE FROM ai_knowledge_document WHERE id = #{id}
+    </delete>
+
+    <delete id="deleteByKnowledgeId">
+        DELETE FROM ai_knowledge_document WHERE knowledge_id = #{knowledgeId}
+    </delete>
+
+</mapper>

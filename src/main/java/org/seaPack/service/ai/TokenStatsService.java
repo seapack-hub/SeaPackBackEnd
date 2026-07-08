@@ -9,6 +9,7 @@ import org.seaPack.model.ai.TokenUsageDaily;
 import org.seaPack.model.ai.TokenUsageLog;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -88,6 +89,7 @@ public class TokenStatsService {
      *
      * @param log 调用明细
      */
+    @Transactional
     public void recordCall(TokenUsageLog log) {
         if (log == null) return;
 

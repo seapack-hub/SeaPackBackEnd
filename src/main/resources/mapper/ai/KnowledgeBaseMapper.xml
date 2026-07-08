@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.ai.KnowledgeBaseMapper">
+
+    <resultMap id="BaseMap" type="org.seaPack.model.ai.KnowledgeBase">
+        <id property="id" column="id"/>
+        <result property="name" column="name"/>
+        <result property="code" column="code"/>
+        <result property="description" column="description"/>
+        <result property="icon" column="icon"/>
+        <result property="embeddingModel" column="embedding_model"/>
+        <result property="chunkSize" column="chunk_size"/>
+        <result property="chunkOverlap" column="chunk_overlap"/>
+        <result property="separator" column="separator"/>
+        <result property="documentCount" column="document_count"/>
+        <result property="chunkCount" column="chunk_count"/>
+        <result property="totalTokens" column="total_tokens"/>
+        <result property="status" column="status"/>
+        <result property="sortOrder" column="sort_order"/>
+        <result property="createdBy" column="created_by"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <select id="selectList" resultMap="BaseMap">
+        SELECT id, name, code, description, icon, embedding_model, chunk_size, chunk_overlap, separator,
+               document_count, chunk_count, total_tokens, status, sort_order, created_by, created_at, updated_at
+        FROM ai_knowledge_base
+        <where>
+            <if test="status != null">AND status = #{status}</if>
+            <if test="keyword != null and keyword != ''">
+                AND (name LIKE CONCAT('%', #{keyword}, '%') OR code LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+        </where>
+        ORDER BY sort_order ASC, created_at DESC
+    </select>
+
+    <select id="selectById" resultMap="BaseMap">
+        SELECT * FROM ai_knowledge_base WHERE id = #{id}
+    </select>
+
+    <select id="selectByCode" resultMap="BaseMap">
+        SELECT * FROM ai_knowledge_base WHERE code = #{code}
+    </select>
+
+    <select id="countByCode" resultType="int">
+        SELECT COUNT(*) FROM ai_knowledge_base WHERE code = #{code}
+        <if test="excludeId != null">AND id != #{excludeId}</if>
+    </select>
+
+    <insert id="insert" parameterType="org.seaPack.model.ai.KnowledgeBase"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO ai_knowledge_base (name, code, description, icon, embedding_model,
+                                       chunk_size, chunk_overlap, separator,
+                                       document_count, chunk_count, total_tokens,
+                                       status, sort_order, created_by, created_at, updated_at)
+        VALUES (#{name}, #{code}, #{description}, #{icon}, #{embeddingModel},
+                #{chunkSize}, #{chunkOverlap}, #{separator},
+                0, 0, 0,
+                #{status}, #{sortOrder}, #{createdBy}, NOW(), NOW())
+    </insert>
+
+    <update id="update" parameterType="org.seaPack.model.ai.KnowledgeBase">
+        UPDATE ai_knowledge_base
+        <set>
+            <if test="name != null">name = #{name},</if>
+            <if test="code != null">code = #{code},</if>
+            <if test="description != null">description = #{description},</if>
+            <if test="icon != null">icon = #{icon},</if>
+            <if test="embeddingModel != null">embedding_model = #{embeddingModel},</if>
+            <if test="chunkSize != null">chunk_size = #{chunkSize},</if>
+            <if test="chunkOverlap != null">chunk_overlap = #{chunkOverlap},</if>
+            <if test="separator != null">separator = #{separator},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="sortOrder != null">sort_order = #{sortOrder},</if>
+            updated_at = NOW(),
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <!-- 重新统计文档数、分片数、总Token数 -->
+    <update id="updateStats">
+        UPDATE ai_knowledge_base kb
+        SET kb.document_count = (SELECT COUNT(*) FROM ai_knowledge_document WHERE knowledge_id = kb.id),
+            kb.chunk_count = (SELECT COUNT(*) FROM ai_knowledge_chunk WHERE knowledge_id = kb.id),
+            kb.total_tokens = (SELECT IFNULL(SUM(token_count), 0) FROM ai_knowledge_chunk WHERE knowledge_id = kb.id),
+            kb.updated_at = NOW()
+        WHERE kb.id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM ai_knowledge_base WHERE id = #{id}
+    </delete>
+
+</mapper>
