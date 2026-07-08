@@ -8,13 +8,13 @@ import org.hibernate.annotations.Comment;
 import java.util.Date;
 
 /**
- * Agent 关联知识库实体
- * <p>对应 ai_agent_knowledge 表，一个 Agent 可关联多个知识库。</p>
+ * 场景关联知识库实体
+ * <p>对应 ai_scene_knowledge 表，一个场景可关联多个知识库。</p>
  */
 @Entity
 @Data
-@Table(name = "ai_agent_knowledge")
-public class AgentKnowledge {
+@Table(name = "ai_scene_knowledge")
+public class SceneKnowledge {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -22,9 +22,9 @@ public class AgentKnowledge {
     @Comment("主键ID")
     private Long id;
 
-    @Column(name = "agent_id")
-    @Comment("助手ID")
-    private Long agentId;
+    @Column(name = "scene_id")
+    @Comment("场景ID")
+    private Long sceneId;
 
     @Column(name = "knowledge_id")
     @Comment("知识库ID")
@@ -37,14 +37,6 @@ public class AgentKnowledge {
     @Column(name = "enabled")
     @Comment("1启用 0禁用")
     private Integer enabled;
-
-    @Column(name = "retrieval_count")
-    @Comment("每次检索返回片段数")
-    private Integer retrievalCount;
-
-    @Column(name = "sort_order")
-    @Comment("排序号")
-    private Integer sortOrder;
 
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
     @Column(name = "created_at")

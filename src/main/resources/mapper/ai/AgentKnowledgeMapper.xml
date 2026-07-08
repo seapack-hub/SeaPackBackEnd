@@ -17,7 +17,7 @@
         SELECT ak.id, ak.agent_id, ak.knowledge_id, ak.enabled, ak.retrieval_count, ak.sort_order, ak.created_at,
                kb.name AS knowledge_name
         FROM ai_agent_knowledge ak
-        LEFT JOIN ai_knowledge_base kb ON ak.knowledge_id = kb.id
+        LEFT JOIN ai_knowledge kb ON ak.knowledge_id = kb.id
         WHERE ak.agent_id = #{agentId}
         ORDER BY ak.sort_order ASC, ak.created_at ASC
     </select>
@@ -26,7 +26,7 @@
         SELECT ak.id, ak.agent_id, ak.knowledge_id, ak.enabled, ak.retrieval_count, ak.sort_order, ak.created_at,
                kb.name AS knowledge_name
         FROM ai_agent_knowledge ak
-        LEFT JOIN ai_knowledge_base kb ON ak.knowledge_id = kb.id
+        LEFT JOIN ai_knowledge kb ON ak.knowledge_id = kb.id
         WHERE ak.id = #{id}
     </select>
 

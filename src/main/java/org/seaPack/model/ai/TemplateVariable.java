@@ -1,5 +1,6 @@
 package org.seaPack.model.ai;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -64,6 +65,7 @@ public class TemplateVariable {
     @Comment("排序号")
     private Integer sortOrder;
 
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
     @Column(name = "created_at")
     @Comment("创建时间")
     private Date createdAt;

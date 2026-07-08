@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.ai.TokenUsageDailyMapper">
+
+    <resultMap id="OverviewMap" type="org.seaPack.dto.ai.TokenStatOverview">
+    </resultMap>
+
+    <!-- 概览统计：分别聚合今日和昨日数据，用 UNION ALL 合并后转行列 -->
+    <select id="selectOverview" resultType="org.seaPack.dto.ai.TokenStatOverview">
+        SELECT
+            SUM(CASE WHEN stat_date = #{today} THEN call_count ELSE 0 END) AS todayCalls,
+            SUM(CASE WHEN stat_date = #{today} THEN tokens_total ELSE 0 END) AS todayTokens,
+            SUM(CASE WHEN stat_date = #{today} THEN total_cost_yuan ELSE 0 END) AS todayCost,
+            ROUND(
+                CASE WHEN SUM(CASE WHEN stat_date = #{today} THEN call_count ELSE 0 END) > 0
+                     THEN SUM(CASE WHEN stat_date = #{today} THEN success_count ELSE 0 END) * 100.0
+                          / SUM(CASE WHEN stat_date = #{today} THEN call_count ELSE 0 END)
+                     ELSE 0 END, 2
+            ) AS successRate,
+            SUM(CASE WHEN stat_date = #{yesterday} THEN call_count ELSE 0 END) AS yesterdayCalls,
+            SUM(CASE WHEN stat_date = #{yesterday} THEN tokens_total ELSE 0 END) AS yesterdayTokens,
+            SUM(CASE WHEN stat_date = #{yesterday} THEN total_cost_yuan ELSE 0 END) AS yesterdayCost,
+            ROUND(
+                CASE WHEN SUM(CASE WHEN stat_date = #{yesterday} THEN call_count ELSE 0 END) > 0
+                     THEN SUM(CASE WHEN stat_date = #{yesterday} THEN success_count ELSE 0 END) * 100.0
+                          / SUM(CASE WHEN stat_date = #{yesterday} THEN call_count ELSE 0 END)
+                     ELSE 0 END, 2
+            ) AS yesterdaySuccessRate
+        FROM ai_token_usage_daily
+        WHERE stat_date IN (#{today}, #{yesterday})
+    </select>
+
+    <!-- 趋势数据：按天分组聚合 -->
+    <select id="selectTrend" resultType="org.seaPack.dto.ai.TokenTrendItem">
+        SELECT
+            DATE_FORMAT(stat_date, '%Y-%m-%d') AS date,
+            SUM(tokens_input) AS tokensInput,
+            SUM(tokens_output) AS tokensOutput,
+            SUM(tokens_total) AS tokensTotal,
+            SUM(call_count) AS callCount
+        FROM ai_token_usage_daily
+        <where>
+            AND stat_date BETWEEN #{startDate} AND #{endDate}
+            <if test="modelName != null and modelName != ''">AND model_name = #{modelName}</if>
+            <if test="moduleKey != null and moduleKey != ''">AND module_key = #{moduleKey}</if>
+        </where>
+        GROUP BY stat_date
+        ORDER BY stat_date ASC
+    </select>
+
+    <!-- 模型占比：按 model_name 分组聚合 -->
+    <select id="selectModelPie" resultType="org.seaPack.dto.ai.TokenModelPieItem">
+        SELECT
+            model_name AS modelName,
+            SUM(tokens_total) AS tokensTotal,
+            SUM(call_count) AS callCount
+        FROM ai_token_usage_daily
+        <where>
+            AND stat_date BETWEEN #{startDate} AND #{endDate}
+            <if test="modelName != null and modelName != ''">AND model_name = #{modelName}</if>
+            <if test="moduleKey != null and moduleKey != ''">AND module_key = #{moduleKey}</if>
+        </where>
+        GROUP BY model_name
+        ORDER BY tokensTotal DESC
+    </select>
+
+    <!-- 场景柱状图：按 scene_id 分组聚合，JOIN ai_scene 获取名称 -->
+    <select id="selectSceneBar" resultType="org.seaPack.dto.ai.TokenSceneBarItem">
+        SELECT
+            d.scene_id AS sceneId,
+            s.name AS sceneName,
+            SUM(d.call_count) AS callCount,
+            SUM(d.tokens_total) AS tokensTotal
+        FROM ai_token_usage_daily d
+        LEFT JOIN ai_scene s ON d.scene_id = s.id
+        <where>
+            AND d.stat_date BETWEEN #{startDate} AND #{endDate}
+            AND d.scene_id IS NOT NULL
+            <if test="modelName != null and modelName != ''">AND d.model_name = #{modelName}</if>
+            <if test="moduleKey != null and moduleKey != ''">AND d.module_key = #{moduleKey}</if>
+        </where>
+        GROUP BY d.scene_id, s.name
+        ORDER BY callCount DESC
+    </select>
+
+    <!-- 费用汇总：按 model_name 分组聚合 -->
+    <select id="selectCostSummary" resultType="org.seaPack.dto.ai.TokenCostSummaryItem">
+        SELECT
+            model_name AS modelName,
+            SUM(call_count) AS callCount,
+            SUM(tokens_input) AS tokensInput,
+            SUM(tokens_output) AS tokensOutput,
+            SUM(tokens_total) AS tokensTotal,
+            SUM(total_cost_yuan) AS totalCostYuan,
+            ROUND(SUM(total_duration_ms) / NULLIF(SUM(call_count), 0)) AS avgDurationMs
+        FROM ai_token_usage_daily
+        <where>
+            AND stat_date BETWEEN #{startDate} AND #{endDate}
+            <if test="modelName != null and modelName != ''">AND model_name = #{modelName}</if>
+            <if test="moduleKey != null and moduleKey != ''">AND module_key = #{moduleKey}</if>
+        </where>
+        GROUP BY model_name
+        ORDER BY totalCostYuan DESC
+    </select>
+
+    <insert id="insert" parameterType="org.seaPack.model.ai.TokenUsageDaily"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO ai_token_usage_daily (stat_date, model_name, agent_id, skill_id, scene_id, module_key,
+                                          call_count, success_count, fail_count,
+                                          tokens_input, tokens_output, tokens_total,
+                                          total_duration_ms, total_cost_yuan, created_at, updated_at)
+        VALUES (#{statDate}, #{modelName}, #{agentId}, #{skillId}, #{sceneId}, #{moduleKey},
+                #{callCount}, #{successCount}, #{failCount},
+                #{tokensInput}, #{tokensOutput}, #{tokensTotal},
+                #{totalDurationMs}, #{totalCostYuan}, NOW(), NOW())
+    </insert>
+
+    <update id="updateByUniqueKey" parameterType="org.seaPack.model.ai.TokenUsageDaily">
+        UPDATE ai_token_usage_daily
+        SET call_count = call_count + #{callCount},
+            success_count = success_count + #{successCount},
+            fail_count = fail_count + #{failCount},
+            tokens_input = tokens_input + #{tokensInput},
+            tokens_output = tokens_output + #{tokensOutput},
+            tokens_total = tokens_total + #{tokensTotal},
+            total_duration_ms = total_duration_ms + #{totalDurationMs},
+            total_cost_yuan = total_cost_yuan + #{totalCostYuan},
+            updated_at = NOW()
+        WHERE stat_date = #{statDate}
+          AND model_name = #{modelName}
+          AND IFNULL(agent_id, 0) = IFNULL(#{agentId}, 0)
+          AND IFNULL(skill_id, 0) = IFNULL(#{skillId}, 0)
+          AND IFNULL(scene_id, 0) = IFNULL(#{sceneId}, 0)
+          AND IFNULL(module_key, '') = IFNULL(#{moduleKey}, '')
+    </update>
+
+</mapper>

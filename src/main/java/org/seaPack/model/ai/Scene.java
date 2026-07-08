@@ -8,13 +8,13 @@ import org.hibernate.annotations.Comment;
 import java.util.Date;
 
 /**
- * AI 技能分类实体
- * <p>对应 ai_skill_category 表，如"内容生成"、"数据分析"等技能分组。</p>
+ * AI 场景定义实体
+ * <p>对应 ai_scene 表，定义了一个业务场景，可关联多个 Agent 和知识库。</p>
  */
 @Entity
 @Data
-@Table(name = "ai_skill_category")
-public class SkillCategory {
+@Table(name = "ai_scene")
+public class Scene {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -23,28 +23,44 @@ public class SkillCategory {
     private Long id;
 
     @Column(name = "name")
-    @Comment("分类名称，如内容生成、数据分析")
+    @Comment("场景名称")
     private String name;
 
     @Column(name = "code")
-    @Comment("分类编码，唯一标识，如 content_gen")
+    @Comment("场景编码，唯一标识")
     private String code;
 
     @Column(name = "icon")
-    @Comment("分类图标SVG文件名")
+    @Comment("图标")
     private String icon;
 
+    @Column(name = "cover_color")
+    @Comment("卡片渐变色")
+    private String coverColor;
+
     @Column(name = "description")
-    @Comment("分类描述")
+    @Comment("场景描述")
     private String description;
 
-    @Column(name = "sort_order")
-    @Comment("排序号，越小越靠前")
-    private Integer sortOrder;
+    @Column(name = "module_key")
+    @Comment("关联前端模块")
+    private String moduleKey;
+
+    @Column(name = "is_public")
+    @Comment("1公开 0私有")
+    private Integer isPublic;
 
     @Column(name = "status")
     @Comment("状态：1启用 0禁用")
     private Integer status;
+
+    @Column(name = "sort_order")
+    @Comment("排序号")
+    private Integer sortOrder;
+
+    @Column(name = "use_count")
+    @Comment("使用次数")
+    private Integer useCount;
 
     @Column(name = "created_by")
     @Comment("创建人ID")

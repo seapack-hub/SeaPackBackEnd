@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.ai.SceneKnowledgeMapper">
+
+    <resultMap id="BaseMap" type="org.seaPack.model.ai.SceneKnowledge">
+        <id property="id" column="id"/>
+        <result property="sceneId" column="scene_id"/>
+        <result property="knowledgeId" column="knowledge_id"/>
+        <result property="knowledgeName" column="knowledge_name"/>
+        <result property="enabled" column="enabled"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <select id="selectBySceneId" resultMap="BaseMap">
+        SELECT sk.id, sk.scene_id, sk.knowledge_id, sk.enabled, sk.created_at,
+               kb.name AS knowledge_name
+        FROM ai_scene_knowledge sk
+        LEFT JOIN ai_knowledge_base kb ON sk.knowledge_id = kb.id
+        WHERE sk.scene_id = #{sceneId}
+        ORDER BY sk.created_at ASC
+    </select>
+
+    <select id="selectById" resultMap="BaseMap">
+        SELECT sk.id, sk.scene_id, sk.knowledge_id, sk.enabled, sk.created_at,
+               kb.name AS knowledge_name
+        FROM ai_scene_knowledge sk
+        LEFT JOIN ai_knowledge_base kb ON sk.knowledge_id = kb.id
+        WHERE sk.id = #{id}
+    </select>
+
+    <select id="countBySceneIdAndKnowledgeId" resultType="int">
+        SELECT COUNT(*) FROM ai_scene_knowledge
+        WHERE scene_id = #{sceneId} AND knowledge_id = #{knowledgeId}
+    </select>
+
+    <insert id="insert" parameterType="org.seaPack.model.ai.SceneKnowledge"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO ai_scene_knowledge (scene_id, knowledge_id, enabled, created_at)
+        VALUES (#{sceneId}, #{knowledgeId}, #{enabled}, NOW())
+    </insert>
+
+    <update id="update" parameterType="org.seaPack.model.ai.SceneKnowledge">
+        UPDATE ai_scene_knowledge
+        <set>
+            <if test="knowledgeId != null">knowledge_id = #{knowledgeId},</if>
+            <if test="enabled != null">enabled = #{enabled},</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM ai_scene_knowledge WHERE id = #{id}
+    </delete>
+
+    <delete id="deleteBySceneId">
+        DELETE FROM ai_scene_knowledge WHERE scene_id = #{sceneId}
+    </delete>
+
+</mapper>

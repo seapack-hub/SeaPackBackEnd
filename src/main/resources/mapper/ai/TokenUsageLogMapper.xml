@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.ai.TokenUsageLogMapper">
+
+    <resultMap id="BaseMap" type="org.seaPack.model.ai.TokenUsageLog">
+        <id property="id" column="id"/>
+        <result property="callTime" column="call_time"/>
+        <result property="moduleKey" column="module_key"/>
+        <result property="modelName" column="model_name"/>
+        <result property="agentId" column="agent_id"/>
+        <result property="agentName" column="agent_name"/>
+        <result property="sceneId" column="scene_id"/>
+        <result property="sceneName" column="scene_name"/>
+        <result property="skillId" column="skill_id"/>
+        <result property="tokensInput" column="tokens_input"/>
+        <result property="tokensOutput" column="tokens_output"/>
+        <result property="durationMs" column="duration_ms"/>
+        <result property="costYuan" column="cost_yuan"/>
+        <result property="status" column="status"/>
+        <result property="errorMessage" column="error_message"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <!-- 分页查询调用明细，支持多条件筛选 -->
+    <select id="selectList" resultMap="BaseMap">
+        SELECT l.id, l.call_time, l.module_key, l.model_name,
+               l.agent_id, a.name AS agent_name,
+               l.scene_id, sc.name AS scene_name,
+               l.skill_id, l.tokens_input, l.tokens_output,
+               l.duration_ms, l.cost_yuan, l.status, l.error_message, l.created_at
+        FROM ai_token_usage_log l
+        LEFT JOIN ai_agent a ON l.agent_id = a.id
+        LEFT JOIN ai_scene sc ON l.scene_id = sc.id
+        <where>
+            1 = 1
+            <if test="startDate != null and startDate != ''">AND l.call_time &gt;= #{startDate}</if>
+            <if test="endDate != null and endDate != ''">AND l.call_time &lt;= CONCAT(#{endDate}, ' 23:59:59')</if>
+            <if test="modelName != null and modelName != ''">AND l.model_name = #{modelName}</if>
+            <if test="moduleKey != null and moduleKey != ''">AND l.module_key = #{moduleKey}</if>
+            <if test="status != null and status != ''">AND l.status = #{status}</if>
+        </where>
+        ORDER BY l.call_time DESC
+    </select>
+
+    <insert id="insert" parameterType="org.seaPack.model.ai.TokenUsageLog"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO ai_token_usage_log (call_time, module_key, model_name, agent_id, scene_id, skill_id,
+                                        tokens_input, tokens_output, duration_ms, cost_yuan,
+                                        status, error_message, created_at)
+        VALUES (#{callTime}, #{moduleKey}, #{modelName}, #{agentId}, #{sceneId}, #{skillId},
+                #{tokensInput}, #{tokensOutput}, #{durationMs}, #{costYuan},
+                #{status}, #{errorMessage}, NOW())
+    </insert>
+
+</mapper>
