@@ -1,10 +1,11 @@
 package org.seaPack.service.ai;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 import org.seaPack.config.AIProperties;
-import org.seaPack.dto.ai.AgentChatRequest;
-import org.seaPack.dto.ai.AgentChatResponse;
+import org.seaPack.dto.ai.*;
 import org.seaPack.mapper.ai.*;
 import org.seaPack.model.ai.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,6 +43,11 @@ public class AgentService {
 
     @Autowired
     private AIProperties aiProperties;
+
+    @Autowired
+    private AgentTestSessionMapper testSessionMapper;
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     // ===== Agent CRUD =====
 
@@ -400,5 +406,308 @@ public class AgentService {
         } catch (Exception e) {
             throw new RuntimeException("Agent 对话失败: " + e.getMessage(), e);
         }
+    }
+
+    // ===== 测试对话（含链路追踪） =====
+
+    /**
+     * 执行测试对话（含完整链路追踪）
+     * <p>核心流程：加载 Agent → 提示词组装 → 知识库检索（占位）→ 技能调用（占位）→ LLM 调用 → 保存测试会话。</p>
+     *
+     * @param request 测试对话请求
+     * @param userId  当前用户 ID
+     * @return 测试对话响应（含链路追踪快照）
+     */
+    public AgentTestChatResponse testChat(AgentTestChatRequest request, Long userId) {
+        long totalStart = System.currentTimeMillis();
+        List<AgentTraceStep> steps = new ArrayList<>();
+        int stepIndex = 1;
+
+        // 1. 加载 Agent 并校验状态
+        Agent agent = agentMapper.selectById(request.getAgentId());
+        if (agent == null) {
+            throw new RuntimeException("Agent 不存在: " + request.getAgentId());
+        }
+        if (agent.getStatus() == null || agent.getStatus() != 1) {
+            throw new RuntimeException("Agent 已禁用: " + agent.getName());
+        }
+
+        // ===== Step 1: 提示词组装 =====
+        long stepStart = System.currentTimeMillis();
+        String systemPrompt;
+        try {
+            StringBuilder systemPromptBuilder = new StringBuilder();
+            if (agent.getSystemPrompt() != null && !agent.getSystemPrompt().isBlank()) {
+                systemPromptBuilder.append(agent.getSystemPrompt());
+            }
+
+            List<AgentPrompt> enabledPrompts = agentPromptMapper.selectByAgentId(agent.getId()).stream()
+                    .filter(p -> p.getEnabled() != null && p.getEnabled() == 1)
+                    .sorted(Comparator.comparingInt(p -> p.getSortOrder() != null ? p.getSortOrder() : 0))
+                    .collect(Collectors.toList());
+
+            for (AgentPrompt ap : enabledPrompts) {
+                PromptTemplate template = promptTemplateMapper.selectById(ap.getTemplateId());
+                if (template != null && template.getContent() != null && !template.getContent().isBlank()) {
+                    systemPromptBuilder.append("\n\n").append(template.getContent());
+                }
+            }
+
+            systemPrompt = systemPromptBuilder.toString();
+            if (systemPrompt.isBlank()) {
+                throw new RuntimeException("Agent 系统提示词为空: " + agent.getName());
+            }
+
+            AgentTraceStep step = new AgentTraceStep();
+            step.setStepIndex(stepIndex++);
+            step.setStepType("prompt_assembly");
+            step.setStepName("提示词组装");
+            step.setStatus("success");
+            step.setDurationMs(System.currentTimeMillis() - stepStart);
+            step.setInput(agent.getSystemPrompt());
+            step.setOutput(systemPrompt);
+            Map<String, Object> meta = new HashMap<>();
+            meta.put("templateCount", enabledPrompts.size());
+            step.setMetadata(meta);
+            steps.add(step);
+        } catch (Exception e) {
+            AgentTraceStep step = new AgentTraceStep();
+            step.setStepIndex(stepIndex++);
+            step.setStepType("prompt_assembly");
+            step.setStepName("提示词组装");
+            step.setStatus("fail");
+            step.setDurationMs(System.currentTimeMillis() - stepStart);
+            step.setOutput(e.getMessage());
+            steps.add(step);
+            return buildErrorResponse(agent, request, steps, totalStart, userId, e);
+        }
+
+        // ===== Step 2: 知识库检索（占位 - 标记为 skip） =====
+        AgentTraceStep krStep = new AgentTraceStep();
+        krStep.setStepIndex(stepIndex++);
+        krStep.setStepType("knowledge_retrieval");
+        krStep.setStepName("知识库检索");
+        krStep.setStatus("skip");
+        krStep.setDurationMs(0L);
+        krStep.setOutput("知识库检索功能待实现");
+        krStep.setMetadata(new HashMap<>());
+        steps.add(krStep);
+
+        // ===== Step 3: 技能调用（占位 - 标记为 skip） =====
+        AgentTraceStep seStep = new AgentTraceStep();
+        seStep.setStepIndex(stepIndex++);
+        seStep.setStepType("skill_execution");
+        seStep.setStepName("技能调用");
+        seStep.setStatus("skip");
+        seStep.setDurationMs(0L);
+        seStep.setOutput("技能调用功能待实现");
+        seStep.setMetadata(new HashMap<>());
+        steps.add(seStep);
+
+        // ===== Step 4: LLM 调用 =====
+        long llmStart = System.currentTimeMillis();
+        String modelName = agent.getModelCode() != null ? agent.getModelCode() : aiProperties.getProviders().get(aiProperties.getActiveProvider()).getChatModel();
+
+        // 构建消息列表
+        List<Map<String, String>> messages = new ArrayList<>();
+        Map<String, String> systemMsg = new HashMap<>();
+        systemMsg.put("role", "system");
+        systemMsg.put("content", systemPrompt);
+        messages.add(systemMsg);
+
+        if (agent.getMemoryEnabled() != null && agent.getMemoryEnabled() == 1
+                && request.getHistory() != null && !request.getHistory().isEmpty()) {
+            int window = agent.getMemoryWindow() != null ? agent.getMemoryWindow() : 20;
+            List<Map<String, String>> history = new ArrayList<>(request.getHistory());
+            if (history.size() > window * 2) {
+                history = history.subList(history.size() - window * 2, history.size());
+            }
+            messages.addAll(history);
+        }
+
+        Map<String, String> userMsg = new HashMap<>();
+        userMsg.put("role", "user");
+        userMsg.put("content", request.getMessage());
+        messages.add(userMsg);
+
+        // 获取 AI 配置
+        String providerName = aiProperties.getActiveProvider();
+        AIProperties.ProviderConfig config = aiProperties.getProviders().get(providerName);
+        if (config == null) {
+            throw new RuntimeException("AI 配置错误：未找到提供商 [" + providerName + "]");
+        }
+
+        String url = config.getBaseUrl().replaceAll("/+$", "") + "/chat/completions";
+        Map<String, Object> requestBody = new HashMap<>();
+        requestBody.put("model", modelName);
+        requestBody.put("messages", messages);
+        requestBody.put("stream", false);
+        if (agent.getTemperature() != null) {
+            requestBody.put("temperature", agent.getTemperature());
+        }
+        if (agent.getMaxTokens() != null) {
+            requestBody.put("max_tokens", agent.getMaxTokens());
+        }
+
+        String replyContent = "";
+        int promptTokens = 0;
+        int completionTokens = 0;
+
+        try {
+            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+            headers.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
+            headers.set("Authorization", "Bearer " + config.getApiKey());
+
+            org.springframework.http.HttpEntity<Map<String, Object>> entity =
+                    new org.springframework.http.HttpEntity<>(requestBody, headers);
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> apiResponse = restTemplate.postForObject(url, entity, Map.class);
+
+            if (apiResponse != null) {
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> choices = (List<Map<String, Object>>) apiResponse.get("choices");
+                if (choices != null && !choices.isEmpty()) {
+                    Map<String, Object> choice = choices.get(0);
+                    @SuppressWarnings("unchecked")
+                    Map<String, String> message = (Map<String, String>) choice.get("message");
+                    if (message != null && message.get("content") != null) {
+                        replyContent = message.get("content");
+                    }
+                }
+
+                @SuppressWarnings("unchecked")
+                Map<String, Object> usage = (Map<String, Object>) apiResponse.get("usage");
+                if (usage != null) {
+                    promptTokens = usage.get("prompt_tokens") != null ? (Integer) usage.get("prompt_tokens") : 0;
+                    completionTokens = usage.get("completion_tokens") != null ? (Integer) usage.get("completion_tokens") : 0;
+                }
+            }
+
+            long llmDuration = System.currentTimeMillis() - llmStart;
+            AgentTraceStep llmStep = new AgentTraceStep();
+            llmStep.setStepIndex(stepIndex++);
+            llmStep.setStepType("llm_call");
+            llmStep.setStepName("LLM 调用");
+            llmStep.setStatus("success");
+            llmStep.setDurationMs(llmDuration);
+            llmStep.setInput(systemPrompt);
+            llmStep.setOutput(replyContent);
+            Map<String, Object> llmMeta = new HashMap<>();
+            llmMeta.put("model", modelName);
+            llmMeta.put("tokensPrompt", promptTokens);
+            llmMeta.put("tokensCompletion", completionTokens);
+            llmMeta.put("temperature", agent.getTemperature());
+            llmStep.setMetadata(llmMeta);
+            steps.add(llmStep);
+
+        } catch (Exception e) {
+            long llmDuration = System.currentTimeMillis() - llmStart;
+            AgentTraceStep llmStep = new AgentTraceStep();
+            llmStep.setStepIndex(stepIndex++);
+            llmStep.setStepType("llm_call");
+            llmStep.setStepName("LLM 调用");
+            llmStep.setStatus("fail");
+            llmStep.setDurationMs(llmDuration);
+            llmStep.setOutput(e.getMessage());
+            steps.add(llmStep);
+            return buildErrorResponse(agent, request, steps, totalStart, userId, e);
+        }
+
+        // ===== 组装链路追踪快照 =====
+        long totalDuration = System.currentTimeMillis() - totalStart;
+        AgentTraceSnapshot snapshot = new AgentTraceSnapshot();
+        snapshot.setSteps(steps);
+        snapshot.setTotalDurationMs(totalDuration);
+        AgentTraceSnapshot.TotalTokens tokens = new AgentTraceSnapshot.TotalTokens();
+        tokens.setPrompt(promptTokens);
+        tokens.setCompletion(completionTokens);
+        snapshot.setTotalTokens(tokens);
+
+        // ===== 保存测试会话 =====
+        saveTestSession(agent, request, replyContent, snapshot, (int) totalDuration,
+                promptTokens, completionTokens, modelName, "success", null, userId);
+
+        // 增加使用次数
+        agentMapper.incrementUseCount(agent.getId());
+
+        // 组装响应
+        AgentTestChatResponse response = new AgentTestChatResponse();
+        response.setContent(replyContent);
+        response.setTokensPrompt(promptTokens);
+        response.setTokensCompletion(completionTokens);
+        response.setDurationMs((int) totalDuration);
+        response.setTraceSnapshot(snapshot);
+        return response;
+    }
+
+    /** 保存失败的测试会话 */
+    private AgentTestChatResponse buildErrorResponse(Agent agent, AgentTestChatRequest request,
+                                                     List<AgentTraceStep> steps, long totalStart,
+                                                     Long userId, Exception e) {
+        long totalDuration = System.currentTimeMillis() - totalStart;
+        AgentTraceSnapshot snapshot = new AgentTraceSnapshot();
+        snapshot.setSteps(steps);
+        snapshot.setTotalDurationMs(totalDuration);
+        AgentTraceSnapshot.TotalTokens tokens = new AgentTraceSnapshot.TotalTokens();
+        tokens.setPrompt(0);
+        tokens.setCompletion(0);
+        snapshot.setTotalTokens(tokens);
+
+        saveTestSession(agent, request, null, snapshot, (int) totalDuration,
+                0, 0, null, "fail", e.getMessage(), userId);
+
+        AgentTestChatResponse response = new AgentTestChatResponse();
+        response.setContent("");
+        response.setTokensPrompt(0);
+        response.setTokensCompletion(0);
+        response.setDurationMs((int) totalDuration);
+        response.setTraceSnapshot(snapshot);
+        return response;
+    }
+
+    /** 保存测试会话到数据库 */
+    private void saveTestSession(Agent agent, AgentTestChatRequest request, String reply,
+                                 AgentTraceSnapshot snapshot, int durationMs,
+                                 int promptTokens, int completionTokens, String modelName,
+                                 String status, String errorMessage, Long userId) {
+        AgentTestSession session = new AgentTestSession();
+        session.setAgentId(agent.getId());
+        session.setAgentName(agent.getName());
+        session.setUserMessage(request.getMessage());
+        session.setAgentReply(reply);
+        try {
+            session.setTraceSnapshot(objectMapper.writeValueAsString(snapshot));
+        } catch (JsonProcessingException ex) {
+            session.setTraceSnapshot("{}");
+        }
+        session.setTotalDurationMs(durationMs);
+        session.setTokensPrompt(promptTokens);
+        session.setTokensCompletion(completionTokens);
+        session.setModelName(modelName);
+        session.setStatus(status);
+        session.setErrorMessage(errorMessage);
+        session.setCreatedBy(userId);
+        testSessionMapper.insert(session);
+    }
+
+    // ===== 测试会话查询 =====
+
+    /** 分页查询 Agent 的测试会话列表 */
+    public PageInfo<AgentTestSession> getTestSessions(Long agentId, int pageNum, int pageSize) {
+        PageHelper.startPage(pageNum, pageSize);
+        List<AgentTestSession> list = testSessionMapper.selectByAgentId(agentId);
+        return new PageInfo<>(list);
+    }
+
+    /** 查询测试会话详情 */
+    public AgentTestSession getTestSessionDetail(Long agentId, Long sessionId) {
+        return testSessionMapper.selectById(sessionId);
+    }
+
+    /** 删除测试会话 */
+    @Transactional
+    public int deleteTestSession(Long agentId, Long sessionId) {
+        return testSessionMapper.deleteById(sessionId);
     }
 }

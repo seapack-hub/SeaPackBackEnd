@@ -1,8 +1,7 @@
 package org.seaPack.controller.ai;
 
 import com.github.pagehelper.PageInfo;
-import org.seaPack.dto.ai.AgentChatRequest;
-import org.seaPack.dto.ai.AgentChatResponse;
+import org.seaPack.dto.ai.*;
 import org.seaPack.model.ai.*;
 import org.seaPack.service.ai.AgentService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -232,6 +231,47 @@ public class AgentManageController {
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
+    }
+
+    /** 测试对话（含链路追踪） */
+    @PostMapping("/test-chat")
+    public ResponseEntity<?> testChat(@RequestBody AgentTestChatRequest request) {
+        try {
+            AgentTestChatResponse response = agentService.testChat(request, getCurrentUserId());
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    /** 测试会话历史列表 */
+    @GetMapping("/{agentId}/test-sessions")
+    public PageInfo<AgentTestSession> getTestSessions(
+            @PathVariable Long agentId,
+            @RequestParam(defaultValue = "1") int pageNum,
+            @RequestParam(defaultValue = "10") int pageSize) {
+        return agentService.getTestSessions(agentId, pageNum, pageSize);
+    }
+
+    /** 测试会话详情 */
+    @GetMapping("/{agentId}/test-sessions/{sessionId}")
+    public ResponseEntity<AgentTestSession> getTestSessionDetail(
+            @PathVariable Long agentId,
+            @PathVariable Long sessionId) {
+        AgentTestSession session = agentService.getTestSessionDetail(agentId, sessionId);
+        if (session == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(session);
+    }
+
+    /** 删除测试会话 */
+    @DeleteMapping("/{agentId}/test-sessions/{sessionId}")
+    public ResponseEntity<?> deleteTestSession(
+            @PathVariable Long agentId,
+            @PathVariable Long sessionId) {
+        agentService.deleteTestSession(agentId, sessionId);
+        return ResponseEntity.ok().build();
     }
 
     /**
