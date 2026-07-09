@@ -73,7 +73,7 @@ public class WorkflowService {
     @Transactional
     public int deleteById(Long id) {
         // 删除节点日志（通过实例）
-        List<WorkflowInstance> instances = instanceMapper.selectList(id, null);
+        List<WorkflowInstance> instances = instanceMapper.selectList(id, null, null);
         for (WorkflowInstance inst : instances) {
             nodeLogMapper.deleteByInstanceId(inst.getId());
         }
@@ -102,7 +102,7 @@ public class WorkflowService {
         copy.setNodeConfigs(source.getNodeConfigs());
         copy.setEdgeConfigs(source.getEdgeConfigs());
         copy.setVariables(source.getVariables());
-        copy.setViewport(source.setViewport());
+        copy.setViewport(source.getViewport());
         copy.setCreatedBy(source.getCreatedBy());
 
         definitionMapper.insert(copy);

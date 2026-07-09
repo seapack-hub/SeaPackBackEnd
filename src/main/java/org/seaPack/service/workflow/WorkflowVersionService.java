@@ -44,7 +44,7 @@ public class WorkflowVersionService {
         version.setNodeConfigs(def.getNodeConfigs());
         version.setEdgeConfigs(def.getEdgeConfigs());
         version.setVariables(def.getVariables());
-        version.setViewport(def.setViewport());
+        version.setViewport(def.getViewport());
         version.setChangeLog(changeLog);
         version.setCreatedBy(userId);
 
