@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.workflow.WorkflowCategoryMapper">
+
+    <resultMap id="BaseMap" type="org.seaPack.model.workflow.WorkflowCategory">
+        <id property="id" column="id"/>
+        <result property="name" column="name"/>
+        <result property="code" column="code"/>
+        <result property="description" column="description"/>
+        <result property="sortOrder" column="sort_order"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <select id="selectAll" resultMap="BaseMap">
+        SELECT id, name, code, description, sort_order, created_at
+        FROM workflow_category
+        ORDER BY sort_order ASC, created_at ASC
+    </select>
+
+    <select id="selectById" resultMap="BaseMap">
+        SELECT * FROM workflow_category WHERE id = #{id}
+    </select>
+
+    <select id="countByCode" resultType="int">
+        SELECT COUNT(*) FROM workflow_category WHERE code = #{code}
+        <if test="excludeId != null">AND id != #{excludeId}</if>
+    </select>
+
+    <insert id="insert" parameterType="org.seaPack.model.workflow.WorkflowCategory"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO workflow_category (name, code, description, sort_order, created_at)
+        VALUES (#{name}, #{code}, #{description}, #{sortOrder}, NOW())
+    </insert>
+
+    <update id="update" parameterType="org.seaPack.model.workflow.WorkflowCategory">
+        UPDATE workflow_category
+        <set>
+            <if test="name != null">name = #{name},</if>
+            <if test="code != null">code = #{code},</if>
+            <if test="description != null">description = #{description},</if>
+            <if test="sortOrder != null">sort_order = #{sortOrder},</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM workflow_category WHERE id = #{id}
+    </delete>
+
+</mapper>

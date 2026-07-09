@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.workflow.WorkflowInstanceMapper">
+
+    <resultMap id="BaseMap" type="org.seaPack.model.workflow.WorkflowInstance">
+        <id property="id" column="id"/>
+        <result property="workflowId" column="workflow_id"/>
+        <result property="workflowVersion" column="workflow_version"/>
+        <result property="workflowName" column="workflow_name"/>
+        <result property="definitionSnapshot" column="definition_snapshot"/>
+        <result property="status" column="status"/>
+        <result property="triggerType" column="trigger_type"/>
+        <result property="inputParams" column="input_params"/>
+        <result property="outputResult" column="output_result"/>
+        <result property="currentNodeId" column="current_node_id"/>
+        <result property="completedNodes" column="completed_nodes"/>
+        <result property="totalNodes" column="total_nodes"/>
+        <result property="completedCount" column="completed_count"/>
+        <result property="startedAt" column="started_at"/>
+        <result property="finishedAt" column="finished_at"/>
+        <result property="durationMs" column="duration_ms"/>
+        <result property="errorMessage" column="error_message"/>
+        <result property="errorNodeId" column="error_node_id"/>
+        <result property="createdBy" column="created_by"/>
+        <result property="createdByName" column="created_by_name"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <select id="selectList" resultMap="BaseMap">
+        SELECT id, workflow_id, workflow_version, workflow_name, status, trigger_type,
+               input_params, output_result, current_node_id, completed_nodes,
+               total_nodes, completed_count, started_at, finished_at, duration_ms,
+               error_message, error_node_id, created_by, created_at
+        FROM workflow_instance
+        <where>
+            <if test="workflowId != null">AND workflow_id = #{workflowId}</if>
+            <if test="status != null">AND status = #{status}</if>
+            <if test="keyword != null and keyword != ''">
+                AND workflow_name LIKE CONCAT('%', #{keyword}, '%')
+            </if>
+        </where>
+        ORDER BY created_at DESC
+    </select>
+
+    <select id="selectById" resultMap="BaseMap">
+        SELECT * FROM workflow_instance WHERE id = #{id}
+    </select>
+
+    <insert id="insert" parameterType="org.seaPack.model.workflow.WorkflowInstance"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO workflow_instance (workflow_id, workflow_version, workflow_name, definition_snapshot,
+                                       status, trigger_type, input_params, current_node_id,
+                                       completed_nodes, total_nodes, completed_count,
+                                       created_by, created_at)
+        VALUES (#{workflowId}, #{workflowVersion}, #{workflowName}, #{definitionSnapshot},
+                #{status}, #{triggerType}, #{inputParams}, #{currentNodeId},
+                #{completedNodes}, #{totalNodes}, #{completedCount},
+                #{createdBy}, NOW())
+    </insert>
+
+    <update id="update" parameterType="org.seaPack.model.workflow.WorkflowInstance">
+        UPDATE workflow_instance
+        <set>
+            <if test="status != null">status = #{status},</if>
+            <if test="currentNodeId != null">current_node_id = #{currentNodeId},</if>
+            <if test="completedNodes != null">completed_nodes = #{completedNodes},</if>
+            <if test="completedCount != null">completed_count = #{completedCount},</if>
+            <if test="outputResult != null">output_result = #{outputResult},</if>
+            <if test="errorMessage != null">error_message = #{errorMessage},</if>
+            <if test="errorNodeId != null">error_node_id = #{errorNodeId},</if>
+            <if test="startedAt != null">started_at = #{startedAt},</if>
+            <if test="finishedAt != null">finished_at = #{finishedAt},</if>
+            <if test="durationMs != null">duration_ms = #{durationMs},</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateStatus">
+        UPDATE workflow_instance SET status = #{status} WHERE id = #{id}
+    </update>
+
+    <update id="updateProgress">
+        UPDATE workflow_instance
+        SET current_node_id = #{currentNodeId}, completed_nodes = #{completedNodes},
+            completed_count = #{completedCount}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM workflow_instance WHERE id = #{id}
+    </delete>
+
+    <delete id="deleteByInstanceId">
+        DELETE FROM workflow_instance WHERE workflow_id = #{workflowId}
+    </delete>
+
+</mapper>

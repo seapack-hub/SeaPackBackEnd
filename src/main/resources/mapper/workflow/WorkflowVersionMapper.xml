@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.workflow.WorkflowVersionMapper">
+
+    <resultMap id="BaseMap" type="org.seaPack.model.workflow.WorkflowVersion">
+        <id property="id" column="id"/>
+        <result property="workflowId" column="workflow_id"/>
+        <result property="version" column="version"/>
+        <result property="nodes" column="nodes"/>
+        <result property="edges" column="edges"/>
+        <result property="nodeConfigs" column="node_configs"/>
+        <result property="edgeConfigs" column="edge_configs"/>
+        <result property="variables" column="variables"/>
+        <result property="viewport" column="viewport"/>
+        <result property="changeLog" column="change_log"/>
+        <result property="createdBy" column="created_by"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <!-- 列表查询（仅返回摘要字段，不含画布数据） -->
+    <select id="selectByWorkflowId" resultMap="BaseMap">
+        SELECT id, workflow_id, version, change_log, created_by, created_at
+        FROM workflow_version
+        WHERE workflow_id = #{workflowId}
+        ORDER BY version DESC
+    </select>
+
+    <!-- 版本详情（返回全部字段，含画布数据） -->
+    <select id="selectByVersion" resultMap="BaseMap">
+        SELECT * FROM workflow_version
+        WHERE workflow_id = #{workflowId} AND version = #{version}
+    </select>
+
+    <!-- 查询最新版本 -->
+    <select id="selectLatest" resultMap="BaseMap">
+        SELECT * FROM workflow_version
+        WHERE workflow_id = #{workflowId}
+        ORDER BY version DESC
+        LIMIT 1
+    </select>
+
+    <!-- 新增版本 -->
+    <insert id="insert" parameterType="org.seaPack.model.workflow.WorkflowVersion"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO workflow_version (workflow_id, version, nodes, edges, node_configs, edge_configs,
+                                      variables, viewport, change_log, created_by, created_at)
+        VALUES (#{workflowId}, #{version}, #{nodes}, #{edges}, #{nodeConfigs}, #{edgeConfigs},
+                #{variables}, #{viewport}, #{changeLog}, #{createdBy}, NOW())
+    </insert>
+
+    <!-- 按主键删除 -->
+    <delete id="deleteById">
+        DELETE FROM workflow_version WHERE id = #{id}
+    </delete>
+
+    <!-- 按工作流 ID 删除所有版本 -->
+    <delete id="deleteByWorkflowId">
+        DELETE FROM workflow_version WHERE workflow_id = #{workflowId}
+    </delete>
+
+    <!-- 统计版本数量 -->
+    <select id="countByWorkflowId" resultType="int">
+        SELECT COUNT(*) FROM workflow_version WHERE workflow_id = #{workflowId}
+    </select>
+
+</mapper>

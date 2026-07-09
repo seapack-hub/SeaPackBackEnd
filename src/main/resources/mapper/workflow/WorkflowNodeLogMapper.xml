@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.workflow.WorkflowNodeLogMapper">
+
+    <resultMap id="BaseMap" type="org.seaPack.model.workflow.WorkflowNodeLog">
+        <id property="id" column="id"/>
+        <result property="instanceId" column="instance_id"/>
+        <result property="nodeId" column="node_id"/>
+        <result property="nodeType" column="node_type"/>
+        <result property="nodeName" column="node_name"/>
+        <result property="status" column="status"/>
+        <result property="inputData" column="input_data"/>
+        <result property="outputData" column="output_data"/>
+        <result property="nodeConfigSnapshot" column="node_config_snapshot"/>
+        <result property="retryCount" column="retry_count"/>
+        <result property="maxRetries" column="max_retries"/>
+        <result property="executorType" column="executor_type"/>
+        <result property="executorRef" column="executor_ref"/>
+        <result property="errorMessage" column="error_message"/>
+        <result property="errorStack" column="error_stack"/>
+        <result property="startedAt" column="started_at"/>
+        <result property="completedAt" column="completed_at"/>
+        <result property="durationMs" column="duration_ms"/>
+    </resultMap>
+
+    <select id="selectByInstanceId" resultMap="BaseMap">
+        SELECT id, instance_id, node_id, node_type, node_name, status,
+               input_data, output_data, node_config_snapshot,
+               retry_count, max_retries, executor_type, executor_ref,
+               error_message, error_stack, started_at, completed_at, duration_ms
+        FROM workflow_node_log
+        WHERE instance_id = #{instanceId}
+        ORDER BY id ASC
+    </select>
+
+    <select id="selectById" resultMap="BaseMap">
+        SELECT * FROM workflow_node_log WHERE id = #{id}
+    </select>
+
+    <insert id="insert" parameterType="org.seaPack.model.workflow.WorkflowNodeLog"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO workflow_node_log (instance_id, node_id, node_type, node_name, status,
+                                       input_data, output_data, node_config_snapshot,
+                                       retry_count, max_retries, executor_type, executor_ref,
+                                       error_message, error_stack, started_at, completed_at, duration_ms)
+        VALUES (#{instanceId}, #{nodeId}, #{nodeType}, #{nodeName}, #{status},
+                #{inputData}, #{outputData}, #{nodeConfigSnapshot},
+                #{retryCount}, #{maxRetries}, #{executorType}, #{executorRef},
+                #{errorMessage}, #{errorStack}, #{startedAt}, #{completedAt}, #{durationMs})
+    </insert>
+
+    <update id="update" parameterType="org.seaPack.model.workflow.WorkflowNodeLog">
+        UPDATE workflow_node_log
+        <set>
+            <if test="status != null">status = #{status},</if>
+            <if test="outputData != null">output_data = #{outputData},</if>
+            <if test="errorMessage != null">error_message = #{errorMessage},</if>
+            <if test="errorStack != null">error_stack = #{errorStack},</if>
+            <if test="retryCount != null">retry_count = #{retryCount},</if>
+            <if test="completedAt != null">completed_at = #{completedAt},</if>
+            <if test="durationMs != null">duration_ms = #{durationMs},</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteByInstanceId">
+        DELETE FROM workflow_node_log WHERE instance_id = #{instanceId}
+    </delete>
+
+</mapper>
