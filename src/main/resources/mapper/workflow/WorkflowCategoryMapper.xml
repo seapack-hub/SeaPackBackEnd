@@ -5,44 +5,74 @@
     <resultMap id="BaseMap" type="org.seaPack.model.workflow.WorkflowCategory">
         <id property="id" column="id"/>
         <result property="name" column="name"/>
-        <result property="code" column="code"/>
-        <result property="description" column="description"/>
+        <result property="parentId" column="parent_id"/>
         <result property="sortOrder" column="sort_order"/>
+        <result property="status" column="status"/>
+        <result property="createdBy" column="created_by"/>
         <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+        <result property="childCount" column="child_count"/>
     </resultMap>
 
+    <!-- 查询所有分类（平铺，含子分类数量） -->
     <select id="selectAll" resultMap="BaseMap">
-        SELECT id, name, code, description, sort_order, created_at
-        FROM workflow_category
-        ORDER BY sort_order ASC, created_at ASC
+        SELECT c.id, c.name, c.parent_id, c.sort_order, c.status,
+               c.created_by, c.created_at, c.updated_at,
+               (SELECT COUNT(*) FROM workflow_category sub WHERE sub.parent_id = c.id) AS child_count
+        FROM workflow_category c
+        ORDER BY c.parent_id ASC, c.sort_order ASC, c.created_at ASC
     </select>
 
+    <!-- 按父级ID查询子分类 -->
+    <select id="selectByParentId" resultMap="BaseMap">
+        SELECT c.id, c.name, c.parent_id, c.sort_order, c.status,
+               c.created_by, c.created_at, c.updated_at,
+               (SELECT COUNT(*) FROM workflow_category sub WHERE sub.parent_id = c.id) AS child_count
+        FROM workflow_category c
+        WHERE c.parent_id = #{parentId}
+        ORDER BY c.sort_order ASC, c.created_at ASC
+    </select>
+
+    <!-- 查询分类详情 -->
     <select id="selectById" resultMap="BaseMap">
-        SELECT * FROM workflow_category WHERE id = #{id}
+        SELECT c.id, c.name, c.parent_id, c.sort_order, c.status,
+               c.created_by, c.created_at, c.updated_at,
+               (SELECT COUNT(*) FROM workflow_category sub WHERE sub.parent_id = c.id) AS child_count
+        FROM workflow_category c
+        WHERE c.id = #{id}
     </select>
 
-    <select id="countByCode" resultType="int">
-        SELECT COUNT(*) FROM workflow_category WHERE code = #{code}
-        <if test="excludeId != null">AND id != #{excludeId}</if>
+    <!-- 统计子分类数量 -->
+    <select id="countChildren" resultType="int">
+        SELECT COUNT(*) FROM workflow_category WHERE parent_id = #{parentId}
     </select>
 
+    <!-- 新增分类 -->
     <insert id="insert" parameterType="org.seaPack.model.workflow.WorkflowCategory"
             useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO workflow_category (name, code, description, sort_order, created_at)
-        VALUES (#{name}, #{code}, #{description}, #{sortOrder}, NOW())
+        INSERT INTO workflow_category (name, parent_id, sort_order, status, created_by, created_at, updated_at)
+        VALUES (#{name}, #{parentId}, #{sortOrder}, #{status}, #{createdBy}, NOW(), NOW())
     </insert>
 
+    <!-- 更新分类 -->
     <update id="update" parameterType="org.seaPack.model.workflow.WorkflowCategory">
         UPDATE workflow_category
         <set>
             <if test="name != null">name = #{name},</if>
-            <if test="code != null">code = #{code},</if>
-            <if test="description != null">description = #{description},</if>
+            <if test="parentId != null">parent_id = #{parentId},</if>
             <if test="sortOrder != null">sort_order = #{sortOrder},</if>
+            <if test="status != null">status = #{status},</if>
+            updated_at = NOW()
         </set>
         WHERE id = #{id}
     </update>
 
+    <!-- 更新启停状态 -->
+    <update id="updateStatus">
+        UPDATE workflow_category SET status = #{status}, updated_at = NOW() WHERE id = #{id}
+    </update>
+
+    <!-- 删除分类 -->
     <delete id="deleteById">
         DELETE FROM workflow_category WHERE id = #{id}
     </delete>
