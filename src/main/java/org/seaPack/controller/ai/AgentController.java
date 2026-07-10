@@ -24,7 +24,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @RestController
 @RequestMapping("/agent")
 @Slf4j
-@CrossOrigin(origins = "*")
+@CrossOrigin(origins = "${cors.allowed-origins:*}")
 public class AgentController {
 
     private final Assistant assistant;
@@ -103,7 +103,7 @@ public class AgentController {
                     }
                 }
             } catch (Exception e) { // 捕获所有未处理异常
-                safeSend(emitter, isCompleted, "data: {\"status\": \"error\", \"message\": \"" + e.getMessage() + "\"}\n\n"); // 推送错误信息
+                safeSend(emitter, isCompleted, "data: {\"status\": \"error\", \"message\": \"任务执行失败，请稍后重试\"}\n\n"); // 推送通用错误信息
                 emitter.completeWithError(e); // 以异常状态结束 SSE
             } finally { // 无论成功或异常，最终清理
                 progressService.clearContext(); // 清理进度上下文
@@ -153,7 +153,7 @@ public class AgentController {
             safeSend(emitter, isCompleted, "data: {\"status\": \"complete\", \"message\": \"任务完成\"}\n\n");
             if (!isCompleted.get()) emitter.complete();
         } catch (Exception e) {
-            safeSend(emitter, isCompleted, "data: {\"status\": \"error\", \"message\": \"" + e.getMessage() + "\"}\n\n");
+            safeSend(emitter, isCompleted, "data: {\"status\": \"error\", \"message\": \"处理失败，请稍后重试\"}\n\n");
         }
     }
 
@@ -184,7 +184,7 @@ public class AgentController {
         });
 
         tokenStream.onError(throwable -> {
-            safeSend(emitter, isCompleted, "data: {\"status\": \"error\", \"message\": \"" + throwable.getMessage() + "\"}\n\n");
+            safeSend(emitter, isCompleted, "data: {\"status\": \"error\", \"message\": \"流式处理失败，请稍后重试\"}\n\n");
             if (throwable instanceof CancellationException) {
                 log.info("任务已被用户主动取消/连接已断开");
                 emitter.complete();

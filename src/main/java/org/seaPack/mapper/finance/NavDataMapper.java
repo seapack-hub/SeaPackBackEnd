@@ -1,10 +1,12 @@
 package org.seaPack.mapper.finance;
 
+import org.apache.ibatis.annotations.Mapper;
 import java.util.List;
 import org.apache.ibatis.annotations.Param;
 import org.seaPack.model.finance.NavData;
 import org.seaPack.model.finance.NavDataExample;
 
+@Mapper
 public interface NavDataMapper {
 
     /**

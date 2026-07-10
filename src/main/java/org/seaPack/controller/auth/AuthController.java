@@ -1,6 +1,7 @@
 package org.seaPack.controller.auth;
 
 import org.seaPack.components.RsaUtil;
+import org.seaPack.config.security.SecurityUtils;
 import org.seaPack.dto.auth.LoginResponse;
 import org.seaPack.dto.system.PermissionTreeNode;
 import org.seaPack.dto.system.UserInfoVO;
@@ -10,8 +11,6 @@ import org.seaPack.service.auth.CaptchaService;
 import org.seaPack.service.system.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -41,11 +40,11 @@ public class AuthController {
      * @param username 用户名
      * @param password RSA 加密后的密码
      */
-    @GetMapping("/login")
+    @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(
             @RequestParam String username,
             @RequestParam String password
-    ) throws Exception {
+    ) {
 
         if(username.isEmpty() || password.isEmpty()){
             return ResponseEntity.status(401).body(null);
@@ -68,7 +67,7 @@ public class AuthController {
      */
     @GetMapping("/user-info")
     public ResponseEntity<UserInfoVO> userInfo() {
-        Long userId = getCurrentUserId();
+        Long userId = SecurityUtils.getCurrentUserId();
         if (userId == null) {
             return ResponseEntity.status(401).build();
         }
@@ -87,22 +86,10 @@ public class AuthController {
      */
     @GetMapping("/menus")
     public ResponseEntity<List<PermissionTreeNode>> menus() {
-        Long userId = getCurrentUserId();
+        Long userId = SecurityUtils.getCurrentUserId();
         if (userId == null) {
             return ResponseEntity.status(401).build();
         }
         return ResponseEntity.ok(authService.getUserMenus(userId));
-    }
-
-    /**
-     * 从 SecurityContext 中获取当前登录用户的 userId
-     * <p>由 JwtAuthenticationFilter 在请求拦截时写入。</p>
-     */
-    private Long getCurrentUserId() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth != null && auth.getPrincipal() instanceof Long) {
-            return (Long) auth.getPrincipal();
-        }
-        return null;
     }
 }

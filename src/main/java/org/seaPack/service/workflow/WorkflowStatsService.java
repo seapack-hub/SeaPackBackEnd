@@ -8,7 +8,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.text.SimpleDateFormat;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 /**
@@ -27,8 +29,8 @@ public class WorkflowStatsService {
     @Autowired
     private WorkflowInstanceMapper instanceMapper;
 
-    /** 日期格式：yyyy-MM-dd */
-    private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd");
+    /** 线程安全的日期格式化器 */
+    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     /**
      * 总览统计
@@ -51,7 +53,7 @@ public class WorkflowStatsService {
         long totalDurationMs = 0;
         long durationCount = 0;
 
-        String today = DATE_FORMAT.format(new Date());
+        String today = LocalDate.now().format(DATE_FORMATTER);
 
         for (WorkflowStats stat : allStats) {
             workflowIds.add(stat.getWorkflowId());
@@ -65,7 +67,9 @@ public class WorkflowStatsService {
             }
 
             // 今日统计
-            if (stat.getStatDate() != null && DATE_FORMAT.format(stat.getStatDate()).equals(today)) {
+            if (stat.getStatDate() != null) {
+                String statDateStr = stat.getStatDate().toInstant().atZone(ZoneId.systemDefault()).toLocalDate().format(DATE_FORMATTER);
+                if (statDateStr.equals(today)) {
                 todayInstances += stat.getTotalRuns() != null ? stat.getTotalRuns() : 0;
             }
         }

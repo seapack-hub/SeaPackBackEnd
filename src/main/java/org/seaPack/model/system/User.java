@@ -1,5 +1,6 @@
 package org.seaPack.model.system;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.Comment;
@@ -51,6 +52,7 @@ public class User {
     @Comment("创建时间")
     private String createTime;
 
+    @JsonIgnore
     @Column(name = "password")
     @Comment("密码")
     private String password;

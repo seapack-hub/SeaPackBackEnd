@@ -10,6 +10,7 @@ import dev.langchain4j.store.embedding.EmbeddingMatch;
 import dev.langchain4j.store.embedding.EmbeddingStore;
 import dev.langchain4j.store.embedding.inmemory.InMemoryEmbeddingStore;
 import jakarta.annotation.PostConstruct;
+import lombok.extern.slf4j.Slf4j;
 import org.seaPack.config.AIProperties;
 import org.springframework.stereotype.Service;
 
@@ -23,6 +24,7 @@ import java.util.stream.Collectors;
  * <p>支持多命名空间隔离的知识库，提供文本向量化入库与语义检索能力。
  * 底层使用内存向量存储，适合中小规模知识库场景。</p>
  */
+@Slf4j
 @Service
 public class RagService {
 
@@ -49,7 +51,7 @@ public class RagService {
             throw new RuntimeException("未找到 AI 提供商配置: " + providerName);
         }
 
-        System.out.println("正在初始化 RAG 服务，使用提供商: " + providerName);
+        log.info("正在初始化 RAG 服务，使用提供商: {}", providerName);
 
         this.embeddingModel = OpenAiEmbeddingModel.builder()
                 .apiKey(config.getApiKey())
@@ -57,7 +59,7 @@ public class RagService {
                 .modelName(config.getEmbeddingModel())
                 .build();
 
-        System.out.println("RAG 服务初始化完成。");
+        log.info("RAG 服务初始化完成。");
     }
 
     /**
@@ -75,7 +77,7 @@ public class RagService {
         DocumentByParagraphSplitter splitter = new DocumentByParagraphSplitter(500, 100);
         List<TextSegment> segments = splitter.split(document);
 
-        System.out.println("[RagService] ingestText namespace=" + namespace + ", segments=" + segments.size());
+        log.info("ingestText namespace={}, segments={}", namespace, segments.size());
 
         for (TextSegment segment : segments) {
             Embedding embedding = embeddingModel.embed(segment.text()).content();

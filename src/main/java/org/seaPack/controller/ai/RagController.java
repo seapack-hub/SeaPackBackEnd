@@ -1,5 +1,6 @@
 package org.seaPack.controller.ai;
 
+import lombok.extern.slf4j.Slf4j;
 import org.seaPack.components.FileParserUtil;
 import org.seaPack.config.Result;
 import org.seaPack.dto.ai.IngestRequest;
@@ -14,6 +15,7 @@ import java.util.List;
  * <p>提供知识库命名空间管理、文档导入等功能，
  * 用于将文本/文件内容向量化存储并支持后续检索增强生成。</p>
  */
+@Slf4j
 @RestController
 @RequestMapping("/rag")
 public class RagController {
@@ -54,7 +56,7 @@ public class RagController {
             @RequestParam("namespace") String namespace,
             @RequestParam("file") MultipartFile file) {
 
-        System.out.println(">>> 正在接收文件: " + file.getOriginalFilename() + " 到空间: [" + namespace + "]");
+        log.info("正在接收文件: {} 到空间: [{}]", file.getOriginalFilename(), namespace);
 
         if (file.isEmpty()) {
             return Result.error("文件为空");
@@ -65,7 +67,7 @@ public class RagController {
             ragService.ingestText(namespace, text);
             return Result.success();
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error("文件解析失败: {}", e.getMessage(), e);
             return Result.error("文件解析失败: " + e.getMessage());
         }
     }

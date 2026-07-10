@@ -29,7 +29,10 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 /**
@@ -81,6 +84,9 @@ public class ImageGenerationService {
     /** 异步任务线程池 */
     private ExecutorService executor;
 
+    /** 线程计数器 */
+    private static final AtomicInteger imageGenThreadCounter = new AtomicInteger(0);
+
     /** 图片存储的绝对路径 */
     private Path storagePath;
 
@@ -93,7 +99,16 @@ public class ImageGenerationService {
         } catch (IOException e) {
             log.error("创建图片存储目录失败: {}", storagePath, e);
         }
-        executor = Executors.newCachedThreadPool();
+        executor = new ThreadPoolExecutor(
+                2, 8, 60L, TimeUnit.SECONDS,
+                new LinkedBlockingQueue<>(100),
+                r -> {
+                    Thread t = new Thread(r, "img-gen-" + imageGenThreadCounter.getAndIncrement());
+                    t.setDaemon(true);
+                    return t;
+                },
+                new ThreadPoolExecutor.CallerRunsPolicy()
+        );
     }
 
     @PreDestroy
@@ -190,13 +205,17 @@ public class ImageGenerationService {
         body.put("style", request.getStyle() != null ? request.getStyle() : "vivid");
         body.put("response_format", "url");
 
-        // 构造请求头 —— 复用 DeepSeek 的 API Key
+        // 构造请求头 —— 使用图片生成专用的 API Key
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        AIProperties.ProviderConfig deepseekConfig = aiProperties.getProviders().get("deepseek");
-        String key = (deepseekConfig != null) ? deepseekConfig.getApiKey() : "";
-        if (!key.isEmpty()) {
-            headers.setBearerAuth(key);
+        String imageApiKey = System.getenv("IMAGE_GEN_API_KEY");
+        if (imageApiKey == null || imageApiKey.isEmpty()) {
+            // 回退到 deepseek 配置
+            AIProperties.ProviderConfig deepseekConfig = aiProperties.getProviders().get("deepseek");
+            imageApiKey = (deepseekConfig != null) ? deepseekConfig.getApiKey() : "";
+        }
+        if (!imageApiKey.isEmpty()) {
+            headers.setBearerAuth(imageApiKey);
         }
 
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);

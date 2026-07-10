@@ -28,12 +28,12 @@ import java.util.Map;
 @Slf4j
 @RestController
 @RequestMapping("/chat")
-@CrossOrigin(origins = "*")
+@CrossOrigin(origins = "${cors.allowed-origins:*}")
 @RequiredArgsConstructor
 public class ChatController {
 
     private final AIProperties aiProperties;
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate;
 
     @Autowired
     private RagService ragService;
@@ -89,14 +89,7 @@ public class ChatController {
 
         Map<String, Object> body = new HashMap<>(); // 构造发送给 AI API 的请求体
         body.put("model", config.getChatModel()); // 设置模型名称
-        List<ChatRequest.MessageDTO> messagesBody = new ArrayList<>(); // 合并消息：system prompt + 用户对话
-        if (messagesToSent != null && !messagesToSent.isEmpty()) {
-            messagesBody.addAll(messagesToSent);
-        }
-        if (request.getMessages() != null && !request.getMessages().isEmpty()) { // 再次追加（注意这里会重复，但保留原逻辑）
-            messagesBody.addAll(request.getMessages());
-        }
-        body.put("messages", messagesBody); // 设置消息列表
+        body.put("messages", messagesToSent); // 设置消息列表
         body.put("stream", true); // 开启流式响应
 
         HttpHeaders headers = new HttpHeaders(); // 构造 HTTP 请求头

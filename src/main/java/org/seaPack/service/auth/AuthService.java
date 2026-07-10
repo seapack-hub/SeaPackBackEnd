@@ -12,6 +12,7 @@ import org.seaPack.model.system.User;
 import org.seaPack.model.system.permission.SysPermission;
 import org.seaPack.model.system.permission.SysRole;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -41,13 +42,16 @@ public class AuthService {
     @Autowired
     private JwtUtil jwtUtil;
 
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
     public LoginResponse login(String username, String rawPassword) {
         User user = userMapper.selectUserByName(username);
         if (user == null) {
             throw new RuntimeException("用户名或密码错误");
         }
 
-        if (!rawPassword.equals(user.getPassword())) {
+        if (!passwordEncoder.matches(rawPassword, user.getPassword())) {
             throw new RuntimeException("用户名或密码错误");
         }
 
