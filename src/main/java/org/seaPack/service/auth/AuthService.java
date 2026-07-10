@@ -52,7 +52,13 @@ public class AuthService {
         }
 
         if (!passwordEncoder.matches(rawPassword, user.getPassword())) {
-            throw new RuntimeException("用户名或密码错误");
+            // 兜底：如果密码是明文且直接相等，自动升级为 BCrypt
+            if (rawPassword.equals(user.getPassword())) {
+                user.setPassword(passwordEncoder.encode(rawPassword));
+                userMapper.updateUser(user);
+            } else {
+                throw new RuntimeException("用户名或密码错误");
+            }
         }
 
         String token = jwtUtil.generateToken(user.getId(), user.getUserName());
