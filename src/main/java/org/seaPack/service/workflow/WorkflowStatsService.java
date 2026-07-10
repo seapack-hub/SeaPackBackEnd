@@ -70,7 +70,8 @@ public class WorkflowStatsService {
             if (stat.getStatDate() != null) {
                 String statDateStr = stat.getStatDate().toInstant().atZone(ZoneId.systemDefault()).toLocalDate().format(DATE_FORMATTER);
                 if (statDateStr.equals(today)) {
-                todayInstances += stat.getTotalRuns() != null ? stat.getTotalRuns() : 0;
+                    todayInstances += stat.getTotalRuns() != null ? stat.getTotalRuns() : 0;
+                }
             }
         }
 
@@ -165,7 +166,8 @@ public class WorkflowStatsService {
             return null;
         }
         try {
-            return DATE_FORMAT.parse(dateStr);
+            LocalDate localDate = LocalDate.parse(dateStr, DATE_FORMATTER);
+            return Date.from(localDate.atStartOfDay(ZoneId.systemDefault()).toInstant());
         } catch (Exception e) {
             return null;
         }
