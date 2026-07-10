@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.workflow.FeedbackRecordMapper">
+
+    <resultMap id="BaseMap" type="org.seaPack.model.workflow.FeedbackRecord">
+        <id property="id" column="id"/>
+        <result property="taskId" column="task_id"/>
+        <result property="instanceId" column="instance_id"/>
+        <result property="nodeLogId" column="node_log_id"/>
+        <result property="sessionId" column="session_id"/>
+        <result property="feedbackType" column="feedback_type"/>
+        <result property="originalOutput" column="original_output"/>
+        <result property="correctedOutput" column="corrected_output"/>
+        <result property="reason" column="reason"/>
+        <result property="rating" column="rating"/>
+        <result property="skillId" column="skill_id"/>
+        <result property="modelCode" column="model_code"/>
+        <result property="createdBy" column="created_by"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <!-- 分页查询反馈记录 -->
+    <select id="selectList" resultMap="BaseMap">
+        SELECT f.id, f.task_id, f.instance_id, f.node_log_id, f.session_id,
+               f.feedback_type, f.original_output, f.corrected_output,
+               f.reason, f.rating, f.skill_id, f.model_code,
+               f.created_by, f.created_at
+        FROM feedback_record f
+        <where>
+            <if test="feedbackType != null and feedbackType != ''">AND f.feedback_type = #{feedbackType}</if>
+            <if test="skillId != null">AND f.skill_id = #{skillId}</if>
+        </where>
+        ORDER BY f.created_at DESC
+    </select>
+
+    <!-- 查询反馈详情 -->
+    <select id="selectById" resultMap="BaseMap">
+        SELECT * FROM feedback_record WHERE id = #{id}
+    </select>
+
+    <!-- 新增反馈 -->
+    <insert id="insert" parameterType="org.seaPack.model.workflow.FeedbackRecord"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO feedback_record (task_id, instance_id, node_log_id, session_id,
+                feedback_type, original_output, corrected_output,
+                reason, rating, skill_id, model_code,
+                created_by, created_at)
+        VALUES (#{taskId}, #{instanceId}, #{nodeLogId}, #{sessionId},
+                #{feedbackType}, #{originalOutput}, #{correctedOutput},
+                #{reason}, #{rating}, #{skillId}, #{modelCode},
+                #{createdBy}, NOW())
+    </insert>
+
+    <!-- 删除反馈 -->
+    <delete id="deleteById">
+        DELETE FROM feedback_record WHERE id = #{id}
+    </delete>
+
+</mapper>

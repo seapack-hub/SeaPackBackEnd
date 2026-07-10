@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.workflow.HumanTaskMapper">
+
+    <resultMap id="BaseMap" type="org.seaPack.model.workflow.HumanTask">
+        <id property="id" column="id"/>
+        <result property="instanceId" column="instance_id"/>
+        <result property="nodeId" column="node_id"/>
+        <result property="nodeLogId" column="node_log_id"/>
+        <result property="taskType" column="task_type"/>
+        <result property="assigneeType" column="assignee_type"/>
+        <result property="assigneeIds" column="assignee_ids"/>
+        <result property="assigneeExpression" column="assignee_expression"/>
+        <result property="title" column="title"/>
+        <result property="description" column="description"/>
+        <result property="content" column="content"/>
+        <result property="status" column="status"/>
+        <result property="action" column="action"/>
+        <result property="result" column="result"/>
+        <result property="comment" column="comment"/>
+        <result property="timeoutMinutes" column="timeout_minutes"/>
+        <result property="timeoutAction" column="timeout_action"/>
+        <result property="delegatedTo" column="delegated_to"/>
+        <result property="delegatedAt" column="delegated_at"/>
+        <result property="dueAt" column="due_at"/>
+        <result property="startedAt" column="started_at"/>
+        <result property="completedAt" column="completed_at"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="workflowName" column="workflow_name"/>
+        <result property="workflowId" column="workflow_id"/>
+    </resultMap>
+
+    <!-- 分页查询任务列表 -->
+    <select id="selectList" resultMap="BaseMap">
+        SELECT t.id, t.instance_id, t.node_id, t.node_log_id,
+               t.task_type, t.assignee_type, t.assignee_ids, t.assignee_expression,
+               t.title, t.description, t.content, t.status,
+               t.action, t.result, t.comment,
+               t.timeout_minutes, t.timeout_action,
+               t.delegated_to, t.delegated_at,
+               t.due_at, t.started_at, t.completed_at, t.created_at,
+               d.name AS workflow_name, i.workflow_id
+        FROM human_task t
+        LEFT JOIN workflow_instance i ON t.instance_id = i.id
+        LEFT JOIN workflow_definition d ON i.workflow_id = d.id
+        <where>
+            <if test="taskType != null and taskType != ''">
+                AND t.task_type = #{taskType}
+            </if>
+            <if test="status != null">
+                AND t.status = #{status}
+            </if>
+            <if test="instanceId != null">
+                AND t.instance_id = #{instanceId}
+            </if>
+            <if test="keyword != null and keyword != ''">
+                AND (t.title LIKE CONCAT('%', #{keyword}, '%')
+                     OR t.description LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+        </where>
+        ORDER BY t.created_at DESC
+    </select>
+
+    <!-- 查询任务详情 -->
+    <select id="selectById" resultMap="BaseMap">
+        SELECT t.id, t.instance_id, t.node_id, t.node_log_id,
+               t.task_type, t.assignee_type, t.assignee_ids, t.assignee_expression,
+               t.title, t.description, t.content, t.status,
+               t.action, t.result, t.comment,
+               t.timeout_minutes, t.timeout_action,
+               t.delegated_to, t.delegated_at,
+               t.due_at, t.started_at, t.completed_at, t.created_at,
+               d.name AS workflow_name, i.workflow_id
+        FROM human_task t
+        LEFT JOIN workflow_instance i ON t.instance_id = i.id
+        LEFT JOIN workflow_definition d ON i.workflow_id = d.id
+        WHERE t.id = #{id}
+    </select>
+
+    <!-- 查询当前用户待办任务 -->
+    <select id="selectMyPending" resultMap="BaseMap">
+        SELECT t.id, t.instance_id, t.node_id, t.node_log_id,
+               t.task_type, t.assignee_type, t.assignee_ids, t.assignee_expression,
+               t.title, t.description, t.content, t.status,
+               t.action, t.result, t.comment,
+               t.timeout_minutes, t.timeout_action,
+               t.delegated_to, t.delegated_at,
+               t.due_at, t.started_at, t.completed_at, t.created_at,
+               d.name AS workflow_name, i.workflow_id
+        FROM human_task t
+        LEFT JOIN workflow_instance i ON t.instance_id = i.id
+        LEFT JOIN workflow_definition d ON i.workflow_id = d.id
+        WHERE t.status = #{status}
+          AND (
+            t.assignee_type = 'user' AND JSON_CONTAINS(t.assignee_ids, CAST(#{userId} AS CHAR))
+            OR t.delegated_to = #{userId}
+          )
+        ORDER BY t.created_at DESC
+    </select>
+
+    <!-- 新增任务 -->
+    <insert id="insert" parameterType="org.seaPack.model.workflow.HumanTask"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO human_task (instance_id, node_id, node_log_id,
+                task_type, assignee_type, assignee_ids, assignee_expression,
+                title, description, content, status,
+                timeout_minutes, timeout_action, due_at, created_at)
+        VALUES (#{instanceId}, #{nodeId}, #{nodeLogId},
+                #{taskType}, #{assigneeType}, #{assigneeIds}, #{assigneeExpression},
+                #{title}, #{description}, #{content}, #{status},
+                #{timeoutMinutes}, #{timeoutAction}, #{dueAt}, NOW())
+    </insert>
+
+    <!-- 更新任务 -->
+    <update id="update" parameterType="org.seaPack.model.workflow.HumanTask">
+        UPDATE human_task
+        <set>
+            <if test="action != null">action = #{action},</if>
+            <if test="result != null">result = #{result},</if>
+            <if test="comment != null">comment = #{comment},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="startedAt != null">started_at = #{startedAt},</if>
+            <if test="completedAt != null">completed_at = #{completedAt},</if>
+            <if test="delegatedTo != null">delegated_to = #{delegatedTo},</if>
+            <if test="delegatedAt != null">delegated_at = #{delegatedAt},</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <!-- 更新任务状态 -->
+    <update id="updateStatus">
+        UPDATE human_task SET status = #{status} WHERE id = #{id}
+    </update>
+
+    <!-- 删除任务 -->
+    <delete id="deleteById">
+        DELETE FROM human_task WHERE id = #{id}
+    </delete>
+
+</mapper>

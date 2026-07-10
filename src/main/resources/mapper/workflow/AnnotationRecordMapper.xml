@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.workflow.AnnotationRecordMapper">
+
+    <resultMap id="BaseMap" type="org.seaPack.model.workflow.AnnotationRecord">
+        <id property="id" column="id"/>
+        <result property="taskId" column="task_id"/>
+        <result property="instanceId" column="instance_id"/>
+        <result property="nodeLogId" column="node_log_id"/>
+        <result property="contentId" column="content_id"/>
+        <result property="contentType" column="content_type"/>
+        <result property="annotationType" column="annotation_type"/>
+        <result property="label" column="label"/>
+        <result property="score" column="score"/>
+        <result property="content" column="content"/>
+        <result property="metadata" column="metadata"/>
+        <result property="annotatedBy" column="annotated_by"/>
+        <result property="annotatedAt" column="annotated_at"/>
+    </resultMap>
+
+    <!-- 分页查询标注记录 -->
+    <select id="selectList" resultMap="BaseMap">
+        SELECT a.id, a.task_id, a.instance_id, a.node_log_id,
+               a.content_id, a.content_type, a.annotation_type,
+               a.label, a.score, a.content, a.metadata,
+               a.annotated_by, a.annotated_at
+        FROM annotation_record a
+        <where>
+            <if test="taskId != null">AND a.task_id = #{taskId}</if>
+            <if test="instanceId != null">AND a.instance_id = #{instanceId}</if>
+            <if test="contentType != null and contentType != ''">AND a.content_type = #{contentType}</if>
+        </where>
+        ORDER BY a.annotated_at DESC
+    </select>
+
+    <!-- 查询标注详情 -->
+    <select id="selectById" resultMap="BaseMap">
+        SELECT * FROM annotation_record WHERE id = #{id}
+    </select>
+
+    <!-- 新增标注 -->
+    <insert id="insert" parameterType="org.seaPack.model.workflow.AnnotationRecord"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO annotation_record (task_id, instance_id, node_log_id,
+                content_id, content_type, annotation_type,
+                label, score, content, metadata,
+                annotated_by, annotated_at)
+        VALUES (#{taskId}, #{instanceId}, #{nodeLogId},
+                #{contentId}, #{contentType}, #{annotationType},
+                #{label}, #{score}, #{content}, #{metadata},
+                #{annotatedBy}, NOW())
+    </insert>
+
+    <!-- 删除标注 -->
+    <delete id="deleteById">
+        DELETE FROM annotation_record WHERE id = #{id}
+    </delete>
+
+</mapper>

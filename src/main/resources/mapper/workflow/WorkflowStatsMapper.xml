@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.workflow.WorkflowStatsMapper">
+
+    <resultMap id="BaseMap" type="org.seaPack.model.workflow.WorkflowStats">
+        <id property="id" column="id"/>
+        <result property="workflowId" column="workflow_id"/>
+        <result property="statDate" column="stat_date"/>
+        <result property="totalRuns" column="total_runs"/>
+        <result property="successCount" column="success_count"/>
+        <result property="failedCount" column="failed_count"/>
+        <result property="runningCount" column="running_count"/>
+        <result property="avgDurationMs" column="avg_duration_ms"/>
+        <result property="maxDurationMs" column="max_duration_ms"/>
+        <result property="minDurationMs" column="min_duration_ms"/>
+        <result property="totalTokens" column="total_tokens"/>
+        <result property="humanTasksCount" column="human_tasks_count"/>
+        <result property="humanTasksAvgMinutes" column="human_tasks_avg_minutes"/>
+    </resultMap>
+
+    <!-- 按工作流+日期查询统计 -->
+    <select id="selectByWorkflowAndDate" resultMap="BaseMap">
+        SELECT s.id, s.workflow_id, s.stat_date,
+               s.total_runs, s.success_count, s.failed_count, s.running_count,
+               s.avg_duration_ms, s.max_duration_ms, s.min_duration_ms,
+               s.total_tokens, s.human_tasks_count, s.human_tasks_avg_minutes
+        FROM workflow_stats s
+        WHERE 1 = 1
+            <if test="workflowId != null">AND s.workflow_id = #{workflowId}</if>
+            <if test="startDate != null">AND s.stat_date &gt;= #{startDate}</if>
+            <if test="endDate != null">AND s.stat_date &lt;= #{endDate}</if>
+        ORDER BY s.stat_date DESC
+    </select>
+
+    <!-- 按日期范围查询所有工作流统计 -->
+    <select id="selectByDateRange" resultMap="BaseMap">
+        SELECT s.id, s.workflow_id, s.stat_date,
+               s.total_runs, s.success_count, s.failed_count, s.running_count,
+               s.avg_duration_ms, s.max_duration_ms, s.min_duration_ms,
+               s.total_tokens, s.human_tasks_count, s.human_tasks_avg_minutes,
+               d.name AS workflow_name
+        FROM workflow_stats s
+        LEFT JOIN workflow_definition d ON s.workflow_id = d.id
+        WHERE 1 = 1
+            <if test="startDate != null">AND s.stat_date &gt;= #{startDate}</if>
+            <if test="endDate != null">AND s.stat_date &lt;= #{endDate}</if>
+        ORDER BY s.stat_date DESC
+    </select>
+
+    <!-- 热门工作流排行 -->
+    <select id="selectTopWorkflows" resultType="org.seaPack.model.workflow.WorkflowStats">
+        SELECT s.workflow_id AS workflowId,
+               d.name AS workflowName,
+               SUM(s.total_runs) AS totalRuns,
+               SUM(s.success_count) AS successCount
+        FROM workflow_stats s
+        LEFT JOIN workflow_definition d ON s.workflow_id = d.id
+        GROUP BY s.workflow_id, d.name
+        ORDER BY totalRuns DESC
+        LIMIT #{limit}
+    </select>
+
+    <!-- 新增或更新统计（upsert） -->
+    <insert id="upsert" parameterType="org.seaPack.model.workflow.WorkflowStats">
+        INSERT INTO workflow_stats (workflow_id, stat_date,
+                total_runs, success_count, failed_count, running_count,
+                avg_duration_ms, max_duration_ms, min_duration_ms,
+                total_tokens, human_tasks_count, human_tasks_avg_minutes)
+        VALUES (#{workflowId}, #{statDate},
+                #{totalRuns}, #{successCount}, #{failedCount}, #{runningCount},
+                #{avgDurationMs}, #{maxDurationMs}, #{minDurationMs},
+                #{totalTokens}, #{humanTasksCount}, #{humanTasksAvgMinutes})
+        ON DUPLICATE KEY UPDATE
+            total_runs = #{totalRuns},
+            success_count = #{successCount},
+            failed_count = #{failedCount},
+            running_count = #{runningCount},
+            avg_duration_ms = #{avgDurationMs},
+            max_duration_ms = #{maxDurationMs},
+            min_duration_ms = #{minDurationMs},
+            total_tokens = #{totalTokens},
+            human_tasks_count = #{humanTasksCount},
+            human_tasks_avg_minutes = #{humanTasksAvgMinutes}
+    </insert>
+
+    <!-- 删除指定日期之前的统计数据 -->
+    <delete id="deleteBeforeDate">
+        DELETE FROM workflow_stats WHERE stat_date &lt; #{beforeDate}
+    </delete>
+
+</mapper>
