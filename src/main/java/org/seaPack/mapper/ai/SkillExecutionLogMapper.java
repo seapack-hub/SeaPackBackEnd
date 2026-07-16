@@ -11,7 +11,10 @@ public interface SkillExecutionLogMapper {
 
     List<SkillExecutionLog> selectList(@Param("skillId") Long skillId,
                                         @Param("skillCode") String skillCode,
+                                        @Param("modelName") String modelName,
                                         @Param("moduleKey") String moduleKey,
+                                        @Param("sceneId") Long sceneId,
+                                        @Param("agentId") Long agentId,
                                         @Param("status") String status,
                                         @Param("createdBy") Long createdBy);
 

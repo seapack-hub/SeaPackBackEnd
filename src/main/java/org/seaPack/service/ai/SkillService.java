@@ -21,12 +21,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
+import java.math.BigDecimal;
 import java.util.*;
 
 /**
  * AI 技能核心服务
  * <p>提供技能的 CRUD、AI 执行调用、执行日志查询等功能。
- * 执行时自动替换 prompt_template 中的 {{variable}} 插值并调用 LLM API。</p>
+ * 执行时根据技能类型（tool/rag/hybrid）调用对应的 endpoint 并记录日志。</p>
  */
 @Service
 public class SkillService {
@@ -58,13 +59,13 @@ public class SkillService {
      * 分页查询技能列表
      *
      * @param categoryId 分类 ID（可选）
-     * @param moduleKey  模块标识（可选）
+     * @param skillType  技能类型（可选：tool/rag/hybrid）
      * @param status     状态（可选，1启用 0禁用）
      * @param keyword    名称/编码关键词（可选）
      */
-    public PageInfo<Skill> getList(int pageNum, int pageSize, Long categoryId, String moduleKey, Integer status, String keyword) {
+    public PageInfo<Skill> getList(int pageNum, int pageSize, Long categoryId, String skillType, Integer status, String keyword) {
         PageHelper.startPage(pageNum, pageSize);
-        List<Skill> list = skillMapper.selectList(categoryId, moduleKey, status, keyword);
+        List<Skill> list = skillMapper.selectList(categoryId, skillType, status, keyword);
         return new PageInfo<>(list);
     }
 
@@ -103,7 +104,7 @@ public class SkillService {
 
     /**
      * 执行 AI 技能
-     * <p>核心流程：加载技能 → 替换 prompt 模板变量 → 调用 LLM API → 记录执行日志 → 增加使用次数。</p>
+     * <p>核心流程：加载技能 → 构建请求 → 调用 endpoint → 记录执行日志 → 增加使用次数。</p>
      *
      * @param skillId 技能 ID
      * @param request 执行请求（含参数和用户补充消息）
@@ -122,32 +123,32 @@ public class SkillService {
             throw new RuntimeException("技能已禁用: " + skill.getName());
         }
 
-        // 2. 校验 prompt_template 不为空
-        String promptTemplate = skill.getPromptTemplate();
-        if (promptTemplate == null || promptTemplate.isBlank()) {
-            throw new RuntimeException("技能 prompt_template 为空: " + skill.getName());
+        // 2. 校验 endpoint 不为空
+        String endpoint = skill.getEndpoint();
+        if (endpoint == null || endpoint.isBlank()) {
+            throw new RuntimeException("技能 endpoint 为空: " + skill.getName());
         }
 
-        // 3. 替换模板中的 {{variable}} 占位符
+        // 3. 构建请求参数
         Map<String, Object> params = request.getParams();
         if (params == null) {
             params = new HashMap<>();
         }
-        String filledPrompt = AiExecuteHelper.replacePlaceholders(promptTemplate, params);
-        if (request.getUserMessage() != null && !request.getUserMessage().isBlank()) {
-            filledPrompt += "\n\n用户补充信息：\n" + request.getUserMessage();
-        }
 
         // 4. 调用 LLM API
         AiExecuteResult result;
+        String providerName = aiProperties.getActiveProvider();
+        AIProperties.ProviderConfig config = aiProperties.getProviders().get(providerName);
+        String modelName = config != null ? config.getChatModel() : null;
+
         try {
-            result = AiExecuteHelper.callLLM(filledPrompt, skill.getTemperature(), skill.getMaxTokens(), restTemplate, aiProperties);
+            result = AiExecuteHelper.callLLMWithParams(endpoint, params, request.getUserMessage(), restTemplate, aiProperties);
         } catch (Exception e) {
             // 记录失败执行日志
             SkillExecutionLog failLog = new SkillExecutionLog();
             failLog.setSkillId(skill.getId());
             failLog.setSkillCode(skill.getCode());
-            failLog.setModuleKey(skill.getModuleKey());
+            failLog.setModelName(modelName);
             try {
                 failLog.setInputParams(objectMapper.writeValueAsString(params));
             } catch (Exception jsonEx) {
@@ -160,11 +161,15 @@ public class SkillService {
             throw new RuntimeException("AI 技能执行失败: " + e.getMessage(), e);
         }
 
-        // 5. 记录成功执行日志
+        // 5. 计算总 token 和估算费用
+        int tokensTotal = result.getTokensPrompt() + result.getTokensCompletion();
+        BigDecimal costYuan = calculateCost(tokensTotal);
+
+        // 6. 记录成功执行日志
         SkillExecutionLog log = new SkillExecutionLog();
         log.setSkillId(skill.getId());
         log.setSkillCode(skill.getCode());
-        log.setModuleKey(skill.getModuleKey());
+        log.setModelName(modelName);
         try {
             log.setInputParams(objectMapper.writeValueAsString(params));
         } catch (Exception jsonEx) {
@@ -173,6 +178,8 @@ public class SkillService {
         log.setOutputResult(result.getOutput());
         log.setTokensPrompt(result.getTokensPrompt());
         log.setTokensCompletion(result.getTokensCompletion());
+        log.setTokensTotal(tokensTotal);
+        log.setCostYuan(costYuan);
         log.setDurationMs(result.getDurationMs());
         log.setStatus("success");
         log.setCreatedBy(userId);
@@ -185,18 +192,35 @@ public class SkillService {
     }
 
     /**
-     * 分页查询当前用户的技能执行日志
-     * <p>按创建时间倒序排列，仅返回当前登录用户的日志。</p>
+     * 分页查询技能执行日志
+     * <p>按创建时间倒序排列，支持多条件筛选。</p>
      */
-    public PageInfo<SkillExecutionLog> getLogList(int pageNum, int pageSize, Long skillId, String skillCode, String moduleKey, String status, Long createdBy) {
+    public PageInfo<SkillExecutionLog> getLogList(int pageNum, int pageSize, Long skillId, String skillCode,
+                                                   String modelName, String moduleKey, Long sceneId, Long agentId,
+                                                   String status, Long createdBy) {
         PageHelper.startPage(pageNum, pageSize);
-        List<SkillExecutionLog> list = logMapper.selectList(skillId, skillCode, moduleKey, status, createdBy);
+        List<SkillExecutionLog> list = logMapper.selectList(skillId, skillCode, modelName, moduleKey, sceneId, agentId, status, createdBy);
         return new PageInfo<>(list);
     }
 
     /** 根据日志 ID 查询执行详情 */
     public SkillExecutionLog getLogById(Long id) {
         return logMapper.selectById(id);
+    }
+
+    /**
+     * 根据 token 总数估算费用（元）
+     * <p>按 GPT-4o-mini 价格估算：输入 0.15元/百万token，输出 0.60元/百万token。
+     * 实际费用需根据具体模型和提供商调整。</p>
+     *
+     * @param tokensTotal 总 token 数
+     * @return 估算费用（元），保留4位小数
+     */
+    private BigDecimal calculateCost(int tokensTotal) {
+        // 简化估算：假设输入输出各占50%，按混合价格 0.375元/百万token 计算
+        // 实际应用中应根据具体模型配置不同费率
+        double cost = tokensTotal * 0.375 / 1_000_000.0;
+        return BigDecimal.valueOf(cost).setScale(4, BigDecimal.ROUND_HALF_UP);
     }
 
     // ===== 调试执行（含完整请求/响应记录） =====
@@ -223,20 +247,16 @@ public class SkillService {
             throw new RuntimeException("技能已禁用: " + skill.getName());
         }
 
-        // 2. 校验 prompt_template 不为空
-        String rawPromptTemplate = skill.getPromptTemplate();
-        if (rawPromptTemplate == null || rawPromptTemplate.isBlank()) {
-            throw new RuntimeException("技能 prompt_template 为空: " + skill.getName());
+        // 2. 校验 endpoint 不为空
+        String endpoint = skill.getEndpoint();
+        if (endpoint == null || endpoint.isBlank()) {
+            throw new RuntimeException("技能 endpoint 为空: " + skill.getName());
         }
 
-        // 3. 替换模板中的 {{variable}} 占位符
+        // 3. 构建请求参数
         Map<String, Object> params = request.getParams();
         if (params == null) {
             params = new HashMap<>();
-        }
-        String renderedPrompt = AiExecuteHelper.replacePlaceholders(rawPromptTemplate, params);
-        if (request.getUserMessage() != null && !request.getUserMessage().isBlank()) {
-            renderedPrompt += "\n\n用户补充信息：\n" + request.getUserMessage();
         }
 
         // 4. 获取 AI 配置并构建请求体
@@ -253,18 +273,21 @@ public class SkillService {
         llmRequestBody.put("model", llmModel);
 
         List<Map<String, String>> messages = new ArrayList<>();
-        Map<String, String> systemMsg = new HashMap<>();
-        systemMsg.put("role", "system");
-        systemMsg.put("content", renderedPrompt);
-        messages.add(systemMsg);
+        Map<String, String> userMsg = new HashMap<>();
+        userMsg.put("role", "user");
+
+        // 构建用户消息内容
+        StringBuilder contentBuilder = new StringBuilder();
+        for (Map.Entry<String, Object> entry : params.entrySet()) {
+            contentBuilder.append(entry.getKey()).append(": ").append(entry.getValue()).append("\n");
+        }
+        if (request.getUserMessage() != null && !request.getUserMessage().isBlank()) {
+            contentBuilder.append(request.getUserMessage());
+        }
+        userMsg.put("content", contentBuilder.toString().trim());
+        messages.add(userMsg);
         llmRequestBody.put("messages", messages);
         llmRequestBody.put("stream", false);
-        if (skill.getTemperature() != null) {
-            llmRequestBody.put("temperature", skill.getTemperature());
-        }
-        if (skill.getMaxTokens() != null) {
-            llmRequestBody.put("max_tokens", skill.getMaxTokens());
-        }
 
         // 5. 发送 LLM 请求
         String output = "";
@@ -310,8 +333,9 @@ public class SkillService {
             long totalDuration = System.currentTimeMillis() - totalStart;
 
             // 保存失败调试日志
-            SkillDebugLog failLog = buildDebugLog(skill, request, userId, rawPromptTemplate, renderedPrompt,
-                    llmRequestBody, null, llmModel, promptTokens, completionTokens,
+            SkillDebugLog failLog = buildDebugLog(skill, request, userId,
+                    contentBuilder.toString(), llmRequestBody, null, llmModel,
+                    promptTokens, completionTokens,
                     (int) totalDuration, (int) llmDuration, null, "fail", e.getMessage());
             debugLogMapper.insert(failLog);
 
@@ -321,8 +345,9 @@ public class SkillService {
         long totalDuration = System.currentTimeMillis() - totalStart;
 
         // 6. 保存成功调试日志
-        SkillDebugLog debugLog = buildDebugLog(skill, request, userId, rawPromptTemplate, renderedPrompt,
-                llmRequestBody, llmResponseBody, llmModel, promptTokens, completionTokens,
+        SkillDebugLog debugLog = buildDebugLog(skill, request, userId,
+                contentBuilder.toString(), llmRequestBody, llmResponseBody, llmModel,
+                promptTokens, completionTokens,
                 (int) totalDuration, (int) llmDuration, output, "success", null);
         debugLogMapper.insert(debugLog);
 
@@ -332,8 +357,8 @@ public class SkillService {
         // 8. 组装响应
         SkillDebugResponse response = new SkillDebugResponse();
         response.setOutput(output);
-        response.setRenderedPrompt(renderedPrompt);
-        response.setRawPromptTemplate(rawPromptTemplate);
+        response.setRenderedPrompt(contentBuilder.toString());
+        response.setRawPromptTemplate(null);
         response.setLlmRequestBody(llmRequestBody);
         response.setLlmResponseBody(llmResponseBody);
         response.setLlmModel(llmModel);
@@ -347,7 +372,7 @@ public class SkillService {
 
     /** 构建调试日志实体 */
     private SkillDebugLog buildDebugLog(Skill skill, SkillDebugRequest request, Long userId,
-                                        String rawPromptTemplate, String renderedPrompt,
+                                        String renderedPrompt,
                                         Map<String, Object> llmRequestBody, Map<String, Object> llmResponseBody,
                                         String llmModel, int promptTokens, int completionTokens,
                                         int durationMs, int durationLlmMs, String output,
@@ -362,7 +387,7 @@ public class SkillService {
             log.setInputParams(request.getParams() != null ? request.getParams().toString() : "{}");
         }
         log.setUserMessage(request.getUserMessage());
-        log.setRawPromptTemplate(rawPromptTemplate);
+        log.setRawPromptTemplate(null);
         log.setRenderedPrompt(renderedPrompt);
         try {
             log.setLlmRequestBody(objectMapper.writeValueAsString(llmRequestBody));

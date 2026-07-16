@@ -1,6 +1,7 @@
 package org.seaPack.controller.ai;
 
 import com.github.pagehelper.PageInfo;
+import org.seaPack.config.security.SecurityUtils;
 import org.seaPack.dto.ai.AiExecuteResult;
 import org.seaPack.dto.ai.SkillBindingVO;
 import org.seaPack.dto.ai.SkillDebugRequest;
@@ -16,8 +17,6 @@ import org.seaPack.service.ai.SkillParamService;
 import org.seaPack.service.ai.SkillService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -43,7 +42,7 @@ public class SkillController {
      * 分页查询技能列表
      *
      * @param categoryId 分类 ID（可选）
-     * @param moduleKey  模块标识（可选）
+     * @param skillType  技能类型（可选：tool/rag/hybrid）
      * @param status     状态（可选，1启用 0禁用）
      * @param keyword    名称/编码关键词（可选）
      */
@@ -52,10 +51,10 @@ public class SkillController {
             @RequestParam(defaultValue = "1") int pageNum,
             @RequestParam(defaultValue = "10") int pageSize,
             @RequestParam(required = false) Long categoryId,
-            @RequestParam(required = false) String moduleKey,
+            @RequestParam(required = false) String skillType,
             @RequestParam(required = false) Integer status,
             @RequestParam(required = false) String keyword) {
-        return skillService.getList(pageNum, pageSize, categoryId, moduleKey, status, keyword);
+        return skillService.getList(pageNum, pageSize, categoryId, skillType, status, keyword);
     }
 
     /** 查询技能详情 */
@@ -77,7 +76,7 @@ public class SkillController {
         if (skillService.isCodeDuplicate(skill.getCode(), null)) {
             return ResponseEntity.badRequest().body("技能编码已存在: " + skill.getCode());
         }
-        skill.setCreatedBy(getCurrentUserId());
+        skill.setCreatedBy(SecurityUtils.getCurrentUserId());
         skillService.insert(skill);
         return ResponseEntity.ok(skill);
     }
@@ -110,7 +109,7 @@ public class SkillController {
     @PostMapping("/{id}/execute")
     public ResponseEntity<?> execute(@PathVariable Long id, @RequestBody SkillExecuteRequest request) {
         try {
-            AiExecuteResult result = skillService.execute(id, request, getCurrentUserId());
+            AiExecuteResult result = skillService.execute(id, request, SecurityUtils.getCurrentUserId());
             return ResponseEntity.ok(result);
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
@@ -147,16 +146,19 @@ public class SkillController {
         return ResponseEntity.ok().build();
     }
 
-    /** 分页查询当前用户的技能执行日志 */
+    /** 分页查询技能执行日志 */
     @GetMapping("/logs")
     public PageInfo<SkillExecutionLog> listLogs(
             @RequestParam(defaultValue = "1") int pageNum,
             @RequestParam(defaultValue = "10") int pageSize,
             @RequestParam(required = false) Long skillId,
             @RequestParam(required = false) String skillCode,
+            @RequestParam(required = false) String modelName,
             @RequestParam(required = false) String moduleKey,
+            @RequestParam(required = false) Long sceneId,
+            @RequestParam(required = false) Long agentId,
             @RequestParam(required = false) String status) {
-        return skillService.getLogList(pageNum, pageSize, skillId, skillCode, moduleKey, status, getCurrentUserId());
+        return skillService.getLogList(pageNum, pageSize, skillId, skillCode, modelName, moduleKey, sceneId, agentId, status, SecurityUtils.getCurrentUserId());
     }
 
     /** 查询某条执行日志的详情 */
@@ -214,7 +216,7 @@ public class SkillController {
     @PostMapping("/{id}/debug")
     public ResponseEntity<?> debug(@PathVariable Long id, @RequestBody SkillDebugRequest request) {
         try {
-            SkillDebugResponse response = skillService.debug(id, request, getCurrentUserId());
+            SkillDebugResponse response = skillService.debug(id, request, SecurityUtils.getCurrentUserId());
             return ResponseEntity.ok(response);
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
@@ -246,17 +248,5 @@ public class SkillController {
     public ResponseEntity<?> deleteDebugLog(@PathVariable Long id) {
         skillService.deleteDebugLog(id);
         return ResponseEntity.ok().build();
-    }
-
-    /**
-     * 从 SecurityContext 中获取当前登录用户 ID
-     * <p>由 JwtAuthenticationFilter 在请求拦截时写入。</p>
-     */
-    private Long getCurrentUserId() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth != null && auth.getPrincipal() instanceof Long) {
-            return (Long) auth.getPrincipal();
-        }
-        return null;
     }
 }

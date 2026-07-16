@@ -9,12 +9,10 @@
         <result property="code" column="code"/>
         <result property="icon" column="icon"/>
         <result property="description" column="description"/>
-        <result property="promptTemplate" column="prompt_template"/>
-        <result property="temperature" column="temperature"/>
-        <result property="maxTokens" column="max_tokens"/>
+        <result property="skillType" column="skill_type"/>
+        <result property="endpoint" column="endpoint"/>
+        <result property="timeoutMs" column="timeout_ms"/>
         <result property="inputSchema" column="input_schema"/>
-        <result property="outputFormat" column="output_format"/>
-        <result property="moduleKey" column="module_key"/>
         <result property="status" column="status"/>
         <result property="sortOrder" column="sort_order"/>
         <result property="useCount" column="use_count"/>
@@ -25,16 +23,20 @@
         <result property="updatedAt" column="updated_at"/>
     </resultMap>
 
+    <sql id="BaseColumns">
+        s.id, s.category_id, s.name, s.code, s.icon, s.description,
+        s.skill_type, s.endpoint, s.timeout_ms, s.input_schema,
+        s.status, s.sort_order, s.use_count, s.version,
+        s.created_by, s.created_at, s.updated_at
+    </sql>
+
     <select id="selectList" resultMap="BaseMap">
-        SELECT s.id, s.category_id, s.name, s.code, s.icon, s.description, s.prompt_template,
-               s.temperature, s.max_tokens, s.input_schema, s.output_format, s.module_key,
-               s.status, s.sort_order, s.use_count, s.version, s.created_by, s.created_at, s.updated_at,
-               c.name AS category_name
+        SELECT <include refid="BaseColumns"/>, c.name AS category_name
         FROM ai_skill s
         LEFT JOIN ai_skill_category c ON s.category_id = c.id
         <where>
             <if test="categoryId != null">AND s.category_id = #{categoryId}</if>
-            <if test="moduleKey != null and moduleKey != ''">AND s.module_key = #{moduleKey}</if>
+            <if test="skillType != null and skillType != ''">AND s.skill_type = #{skillType}</if>
             <if test="status != null">AND s.status = #{status}</if>
             <if test="keyword != null and keyword != ''">
                 AND (s.name LIKE CONCAT('%', #{keyword}, '%') OR s.code LIKE CONCAT('%', #{keyword}, '%'))
@@ -68,11 +70,11 @@
 
     <insert id="insert" parameterType="org.seaPack.model.ai.Skill"
             useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO ai_skill (category_id, name, code, icon, description, prompt_template,
-                               temperature, max_tokens, input_schema, output_format, module_key,
+        INSERT INTO ai_skill (category_id, name, code, icon, description,
+                               skill_type, endpoint, timeout_ms, input_schema,
                                status, sort_order, use_count, version, created_by, created_at)
-        VALUES (#{categoryId}, #{name}, #{code}, #{icon}, #{description}, #{promptTemplate},
-                #{temperature}, #{maxTokens}, #{inputSchema}, #{outputFormat}, #{moduleKey},
+        VALUES (#{categoryId}, #{name}, #{code}, #{icon}, #{description},
+                #{skillType}, #{endpoint}, #{timeoutMs}, #{inputSchema},
                 #{status}, #{sortOrder}, 0, #{version}, #{createdBy}, NOW())
     </insert>
 
@@ -84,12 +86,10 @@
             <if test="code != null">code = #{code},</if>
             <if test="icon != null">icon = #{icon},</if>
             <if test="description != null">description = #{description},</if>
-            <if test="promptTemplate != null">prompt_template = #{promptTemplate},</if>
-            <if test="temperature != null">temperature = #{temperature},</if>
-            <if test="maxTokens != null">max_tokens = #{maxTokens},</if>
+            <if test="skillType != null">skill_type = #{skillType},</if>
+            <if test="endpoint != null">endpoint = #{endpoint},</if>
+            <if test="timeoutMs != null">timeout_ms = #{timeoutMs},</if>
             <if test="inputSchema != null">input_schema = #{inputSchema},</if>
-            <if test="outputFormat != null">output_format = #{outputFormat},</if>
-            <if test="moduleKey != null">module_key = #{moduleKey},</if>
             <if test="status != null">status = #{status},</if>
             <if test="sortOrder != null">sort_order = #{sortOrder},</if>
             <if test="version != null">version = #{version},</if>
