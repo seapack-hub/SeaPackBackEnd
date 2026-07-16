@@ -14,13 +14,13 @@ public class SkillBindingVO {
 
     private String skillCode;
 
-    private String promptTemplate;
+    private String skillType;
 
-    private String outputFormat;
+    private String endpoint;
+
+    private Integer timeoutMs;
 
     private String inputSchema;
-
-    private Integer maxTokens;
 
     private String moduleKey;
 

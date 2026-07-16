@@ -59,10 +59,10 @@
         <id property="skillId" column="skill_id"/>
         <result property="skillName" column="skill_name"/>
         <result property="skillCode" column="skill_code"/>
-        <result property="promptTemplate" column="prompt_template"/>
-        <result property="outputFormat" column="output_format"/>
+        <result property="skillType" column="skill_type"/>
+        <result property="endpoint" column="endpoint"/>
+        <result property="timeoutMs" column="timeout_ms"/>
         <result property="inputSchema" column="input_schema"/>
-        <result property="maxTokens" column="max_tokens"/>
         <result property="moduleKey" column="module_key"/>
         <result property="position" column="position"/>
         <result property="status" column="status"/>
@@ -86,10 +86,10 @@
                b.config,
                s.name AS skill_name,
                s.code AS skill_code,
-               s.prompt_template,
-               s.output_format,
+               s.skill_type,
+               s.endpoint,
+               s.timeout_ms,
                s.input_schema,
-               s.max_tokens,
                p.param_name,
                p.label,
                p.param_type,

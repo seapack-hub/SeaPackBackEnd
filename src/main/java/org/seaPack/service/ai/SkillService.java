@@ -82,12 +82,18 @@ public class SkillService {
     /** 新增技能 */
     @Transactional
     public int insert(Skill skill) {
+        if (skill.getInputSchema() != null && skill.getInputSchema().isEmpty()) {
+            skill.setInputSchema(null);
+        }
         return skillMapper.insert(skill);
     }
 
     /** 更新技能 */
     @Transactional
     public int update(Skill skill) {
+        if (skill.getInputSchema() != null && skill.getInputSchema().isEmpty()) {
+            skill.setInputSchema(null);
+        }
         return skillMapper.update(skill);
     }
 
