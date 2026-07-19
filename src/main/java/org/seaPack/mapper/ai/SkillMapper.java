@@ -14,6 +14,8 @@ public interface SkillMapper {
                             @Param("status") Integer status,
                             @Param("keyword") String keyword);
 
+    List<Skill> selectAll(@Param("status") Integer status);
+
     Skill selectById(@Param("id") Long id);
 
     Skill selectByCode(@Param("code") String code);

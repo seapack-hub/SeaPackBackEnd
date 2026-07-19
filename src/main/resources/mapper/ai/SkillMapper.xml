@@ -45,6 +45,16 @@
         ORDER BY sort_order ASC, created_at DESC
     </select>
 
+    <select id="selectAll" resultMap="BaseMap">
+        SELECT <include refid="BaseColumns"/>, c.name AS category_name
+        FROM ai_skill s
+        LEFT JOIN ai_skill_category c ON s.category_id = c.id
+        <where>
+            <if test="status != null">AND s.status = #{status}</if>
+        </where>
+        ORDER BY sort_order ASC, created_at DESC
+    </select>
+
     <select id="selectById" resultMap="BaseMap">
         SELECT s.*, c.name AS category_name
         FROM ai_skill s
