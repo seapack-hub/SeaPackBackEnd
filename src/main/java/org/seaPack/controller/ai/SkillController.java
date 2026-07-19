@@ -14,7 +14,7 @@ import java.util.List;
 
 /**
  * AI 技能控制器
- * <p>提供技能的完整 CRUD 和参数管理接口。</p>
+ * <p>提供技能的完整 CRUD 和参数管理接口，仅使用 GET/POST 两种请求方式。</p>
  */
 @RestController
 @RequestMapping("/ai/skills")
@@ -33,7 +33,7 @@ public class SkillController {
     }
 
     /** 分页查询技能列表 */
-    @GetMapping
+    @GetMapping("/page/list")
     public PageInfo<Skill> list(
             @RequestParam(defaultValue = "1") int pageNum,
             @RequestParam(defaultValue = "10") int pageSize,
@@ -45,7 +45,7 @@ public class SkillController {
     }
 
     /** 查询技能详情 */
-    @GetMapping("/{id}")
+    @GetMapping("/detail/{id}")
     public ResponseEntity<Skill> detail(@PathVariable Long id) {
         Skill skill = skillService.getById(id);
         if (skill == null) {
@@ -55,7 +55,7 @@ public class SkillController {
     }
 
     /** 新增技能 */
-    @PostMapping
+    @PostMapping("/insert")
     public ResponseEntity<?> insert(@RequestBody Skill skill) {
         if (skillService.isCodeDuplicate(skill.getCode(), null)) {
             return ResponseEntity.badRequest().body("技能编码已存在: " + skill.getCode());
@@ -66,53 +66,57 @@ public class SkillController {
     }
 
     /** 更新技能 */
-    @PutMapping("/{id}")
-    public ResponseEntity<?> update(@PathVariable Long id, @RequestBody Skill skill) {
-        if (skill.getCode() != null && skillService.isCodeDuplicate(skill.getCode(), id)) {
+    @PostMapping("/update")
+    public ResponseEntity<?> update(@RequestBody Skill skill) {
+        if (skill.getId() == null) {
+            return ResponseEntity.badRequest().body("技能 ID 不能为空");
+        }
+        if (skill.getCode() != null && skillService.isCodeDuplicate(skill.getCode(), skill.getId())) {
             return ResponseEntity.badRequest().body("技能编码已存在: " + skill.getCode());
         }
-        skill.setId(id);
         skillService.update(skill);
         return ResponseEntity.ok(skill);
     }
 
     /** 删除技能（级联删除参数） */
-    @DeleteMapping("/{id}")
+    @PostMapping("/delete/{id}")
     public ResponseEntity<?> delete(@PathVariable Long id) {
         skillService.deleteById(id);
-        return ResponseEntity.ok(id);
+        return ResponseEntity.ok("删除成功");
     }
 
     // ===== 参数管理 =====
 
     /** 获取技能的所有参数定义 */
-    @GetMapping("/{id}/params")
-    public List<SkillParam> getParams(@PathVariable Long id) {
-        return paramService.getBySkillId(id);
+    @GetMapping("/{skillId}/params")
+    public List<SkillParam> getParams(@PathVariable Long skillId) {
+        return paramService.getBySkillId(skillId);
     }
 
     /** 为技能新增一个参数定义 */
-    @PostMapping("/{id}/params")
-    public ResponseEntity<?> addParam(@PathVariable Long id, @RequestBody SkillParam param) {
-        param.setSkillId(id);
+    @PostMapping("/{skillId}/add-param")
+    public ResponseEntity<?> addParam(@PathVariable Long skillId, @RequestBody SkillParam param) {
+        param.setSkillId(skillId);
         paramService.insert(param);
         return ResponseEntity.ok(param);
     }
 
     /** 更新技能的某个参数定义 */
-    @PutMapping("/{skillId}/params/{paramId}")
-    public ResponseEntity<?> updateParam(@PathVariable Long skillId, @PathVariable Long paramId, @RequestBody SkillParam param) {
-        param.setId(paramId);
+    @PostMapping("/{skillId}/update-param")
+    public ResponseEntity<?> updateParam(@PathVariable Long skillId, @RequestBody SkillParam param) {
+        if (param.getId() == null) {
+            return ResponseEntity.badRequest().body("参数 ID 不能为空");
+        }
         param.setSkillId(skillId);
         paramService.update(param);
         return ResponseEntity.ok(param);
     }
 
     /** 删除技能的某个参数定义 */
-    @DeleteMapping("/{skillId}/params/{paramId}")
+    @PostMapping("/{skillId}/delete-param/{paramId}")
     public ResponseEntity<?> deleteParam(@PathVariable Long skillId, @PathVariable Long paramId) {
         paramService.deleteById(paramId);
-        return ResponseEntity.ok(paramId);
+        return ResponseEntity.ok("删除成功");
     }
 
 }
