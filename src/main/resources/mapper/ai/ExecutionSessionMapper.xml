@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.ai.ExecutionSessionMapper">
+
+    <resultMap id="BaseMap" type="org.seaPack.model.ai.ExecutionSession">
+        <id property="id" column="id"/>
+        <result property="bizType" column="biz_type"/>
+        <result property="bizId" column="biz_id"/>
+        <result property="bizName" column="biz_name"/>
+        <result property="sessionId" column="session_id"/>
+        <result property="requestId" column="request_id"/>
+        <result property="retryCount" column="retry_count"/>
+        <result property="userMessage" column="user_message"/>
+        <result property="historyMessages" column="history_messages"/>
+        <result property="outputResult" column="output_result"/>
+        <result property="traceSnapshot" column="trace_snapshot"/>
+        <result property="totalDurationMs" column="total_duration_ms"/>
+        <result property="tokensPrompt" column="tokens_prompt"/>
+        <result property="tokensCompletion" column="tokens_completion"/>
+        <result property="tokensTotal" column="tokens_total"/>
+        <result property="modelName" column="model_name"/>
+        <result property="status" column="status"/>
+        <result property="isDeleted" column="is_deleted"/>
+        <result property="errorMessage" column="error_message"/>
+        <result property="createdBy" column="created_by"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <sql id="BaseColumns">
+        id, biz_type, biz_id, biz_name, session_id, request_id, retry_count,
+        user_message, history_messages, output_result, trace_snapshot,
+        total_duration_ms, tokens_prompt, tokens_completion, tokens_total,
+        model_name, status, is_deleted, error_message, created_by, created_at
+    </sql>
+
+    <select id="selectList" resultMap="BaseMap">
+        SELECT <include refid="BaseColumns"/>
+        FROM ai_execution_session
+        <where>
+            is_deleted = 0
+            <if test="bizType != null and bizType != ''">AND biz_type = #{bizType}</if>
+            <if test="bizId != null">AND biz_id = #{bizId}</if>
+            <if test="sessionId != null and sessionId != ''">AND session_id = #{sessionId}</if>
+            <if test="createdBy != null">AND created_by = #{createdBy}</if>
+            <if test="status != null and status != ''">AND status = #{status}</if>
+        </where>
+        ORDER BY created_at DESC
+    </select>
+
+    <select id="selectById" resultMap="BaseMap">
+        SELECT <include refid="BaseColumns"/>
+        FROM ai_execution_session
+        WHERE id = #{id} AND is_deleted = 0
+    </select>
+
+    <select id="selectByRequestId" resultMap="BaseMap">
+        SELECT <include refid="BaseColumns"/>
+        FROM ai_execution_session
+        WHERE request_id = #{requestId} AND is_deleted = 0
+    </select>
+
+    <insert id="insert" parameterType="org.seaPack.model.ai.ExecutionSession"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO ai_execution_session (biz_type, biz_id, biz_name, session_id, request_id,
+                                           retry_count, user_message, history_messages, output_result,
+                                           trace_snapshot, total_duration_ms, tokens_prompt, tokens_completion,
+                                           tokens_total, model_name, status, is_deleted, error_message,
+                                           created_by, created_at)
+        VALUES (#{bizType}, #{bizId}, #{bizName}, #{sessionId}, #{requestId},
+                #{retryCount}, #{userMessage}, #{historyMessages}, #{outputResult},
+                #{traceSnapshot}, #{totalDurationMs}, #{tokensPrompt}, #{tokensCompletion},
+                #{tokensTotal}, #{modelName}, #{status}, 0, #{errorMessage},
+                #{createdBy}, NOW())
+    </insert>
+
+    <update id="update" parameterType="org.seaPack.model.ai.ExecutionSession">
+        UPDATE ai_execution_session
+        <set>
+            <if test="bizName != null">biz_name = #{bizName},</if>
+            <if test="sessionId != null">session_id = #{sessionId},</if>
+            <if test="retryCount != null">retry_count = #{retryCount},</if>
+            <if test="userMessage != null">user_message = #{userMessage},</if>
+            <if test="historyMessages != null">history_messages = #{historyMessages},</if>
+            <if test="outputResult != null">output_result = #{outputResult},</if>
+            <if test="traceSnapshot != null">trace_snapshot = #{traceSnapshot},</if>
+            <if test="totalDurationMs != null">total_duration_ms = #{totalDurationMs},</if>
+            <if test="tokensPrompt != null">tokens_prompt = #{tokensPrompt},</if>
+            <if test="tokensCompletion != null">tokens_completion = #{tokensCompletion},</if>
+            <if test="tokensTotal != null">tokens_total = #{tokensTotal},</if>
+            <if test="modelName != null">model_name = #{modelName},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="errorMessage != null">error_message = #{errorMessage},</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <update id="logicalDelete">
+        UPDATE ai_execution_session SET is_deleted = 1 WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM ai_execution_session WHERE id = #{id}
+    </delete>
+
+    <update id="batchLogicalDelete">
+        UPDATE ai_execution_session SET is_deleted = 1 WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </update>
+
+</mapper>

@@ -246,7 +246,7 @@ public class AgentManageController {
 
     /** 测试会话历史列表 */
     @GetMapping("/{agentId}/test-sessions")
-    public PageInfo<AgentTestSession> getTestSessions(
+    public PageInfo<ExecutionSession> getTestSessions(
             @PathVariable Long agentId,
             @RequestParam(defaultValue = "1") int pageNum,
             @RequestParam(defaultValue = "10") int pageSize) {
@@ -255,10 +255,10 @@ public class AgentManageController {
 
     /** 测试会话详情 */
     @GetMapping("/{agentId}/test-sessions/{sessionId}")
-    public ResponseEntity<AgentTestSession> getTestSessionDetail(
+    public ResponseEntity<ExecutionSession> getTestSessionDetail(
             @PathVariable Long agentId,
             @PathVariable Long sessionId) {
-        AgentTestSession session = agentService.getTestSessionDetail(agentId, sessionId);
+        ExecutionSession session = agentService.getTestSessionDetail(agentId, sessionId);
         if (session == null) {
             return ResponseEntity.notFound().build();
         }
@@ -266,12 +266,12 @@ public class AgentManageController {
     }
 
     /** 删除测试会话 */
-    @DeleteMapping("/{agentId}/test-sessions/{sessionId}")
+    @PostMapping("/{agentId}/test-sessions/delete/{sessionId}")
     public ResponseEntity<?> deleteTestSession(
             @PathVariable Long agentId,
             @PathVariable Long sessionId) {
         agentService.deleteTestSession(agentId, sessionId);
-        return ResponseEntity.ok().build();
+        return ResponseEntity.ok("删除成功");
     }
 
     /**

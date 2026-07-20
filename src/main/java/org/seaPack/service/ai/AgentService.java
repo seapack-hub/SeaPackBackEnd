@@ -45,7 +45,7 @@ public class AgentService {
     private AIProperties aiProperties;
 
     @Autowired
-    private AgentTestSessionMapper testSessionMapper;
+    private ExecutionSessionMapper executionSessionMapper;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -671,11 +671,12 @@ public class AgentService {
                                  AgentTraceSnapshot snapshot, int durationMs,
                                  int promptTokens, int completionTokens, String modelName,
                                  String status, String errorMessage, Long userId) {
-        AgentTestSession session = new AgentTestSession();
-        session.setAgentId(agent.getId());
-        session.setAgentName(agent.getName());
+        ExecutionSession session = new ExecutionSession();
+        session.setBizType("agent");
+        session.setBizId(agent.getId());
+        session.setBizName(agent.getName());
         session.setUserMessage(request.getMessage());
-        session.setAgentReply(reply);
+        session.setOutputResult(reply);
         try {
             session.setTraceSnapshot(objectMapper.writeValueAsString(snapshot));
         } catch (JsonProcessingException ex) {
@@ -684,30 +685,31 @@ public class AgentService {
         session.setTotalDurationMs(durationMs);
         session.setTokensPrompt(promptTokens);
         session.setTokensCompletion(completionTokens);
+        session.setTokensTotal(promptTokens + completionTokens);
         session.setModelName(modelName);
         session.setStatus(status);
         session.setErrorMessage(errorMessage);
         session.setCreatedBy(userId);
-        testSessionMapper.insert(session);
+        executionSessionMapper.insert(session);
     }
 
     // ===== 测试会话查询 =====
 
     /** 分页查询 Agent 的测试会话列表 */
-    public PageInfo<AgentTestSession> getTestSessions(Long agentId, int pageNum, int pageSize) {
+    public PageInfo<ExecutionSession> getTestSessions(Long agentId, int pageNum, int pageSize) {
         PageHelper.startPage(pageNum, pageSize);
-        List<AgentTestSession> list = testSessionMapper.selectByAgentId(agentId);
+        List<ExecutionSession> list = executionSessionMapper.selectList("agent", agentId, null, null, null);
         return new PageInfo<>(list);
     }
 
     /** 查询测试会话详情 */
-    public AgentTestSession getTestSessionDetail(Long agentId, Long sessionId) {
-        return testSessionMapper.selectById(sessionId);
+    public ExecutionSession getTestSessionDetail(Long agentId, Long sessionId) {
+        return executionSessionMapper.selectById(sessionId);
     }
 
-    /** 删除测试会话 */
+    /** 删除测试会话（逻辑删除） */
     @Transactional
     public int deleteTestSession(Long agentId, Long sessionId) {
-        return testSessionMapper.deleteById(sessionId);
+        return executionSessionMapper.logicalDelete(sessionId);
     }
 }
