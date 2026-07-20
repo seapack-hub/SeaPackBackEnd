@@ -9,6 +9,7 @@ import org.seaPack.dto.ai.*;
 import org.seaPack.mapper.ai.*;
 import org.seaPack.model.ai.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
@@ -39,6 +40,12 @@ public class AgentService {
     private PromptTemplateMapper promptTemplateMapper;
 
     @Autowired
+    private SkillMapper skillMapper;
+
+    @Autowired
+    private KnowledgeBaseService knowledgeBaseService;
+
+    @Autowired
     private RestTemplate restTemplate;
 
     @Autowired
@@ -46,6 +53,9 @@ public class AgentService {
 
     @Autowired
     private ExecutionSessionMapper executionSessionMapper;
+
+    @Value("${server.port:8080}")
+    private int serverPort;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -412,12 +422,13 @@ public class AgentService {
 
     /**
      * 执行测试对话（含完整链路追踪）
-     * <p>核心流程：加载 Agent → 提示词组装 → 知识库检索（占位）→ 技能调用（占位）→ LLM 调用 → 保存测试会话。</p>
+     * <p>核心流程：加载 Agent → 提示词组装 → 知识库检索 → 技能调用 → LLM 调用 → 保存测试会话。</p>
      *
      * @param request 测试对话请求
      * @param userId  当前用户 ID
      * @return 测试对话响应（含链路追踪快照）
      */
+    @Transactional
     public AgentTestChatResponse testChat(AgentTestChatRequest request, Long userId) {
         long totalStart = System.currentTimeMillis();
         List<AgentTraceStep> steps = new ArrayList<>();
@@ -433,80 +444,411 @@ public class AgentService {
         }
 
         // ===== Step 1: 提示词组装 =====
-        long stepStart = System.currentTimeMillis();
         String systemPrompt;
         try {
-            StringBuilder systemPromptBuilder = new StringBuilder();
-            if (agent.getSystemPrompt() != null && !agent.getSystemPrompt().isBlank()) {
-                systemPromptBuilder.append(agent.getSystemPrompt());
-            }
-
-            List<AgentPrompt> enabledPrompts = agentPromptMapper.selectByAgentId(agent.getId()).stream()
-                    .filter(p -> p.getEnabled() != null && p.getEnabled() == 1)
-                    .sorted(Comparator.comparingInt(p -> p.getSortOrder() != null ? p.getSortOrder() : 0))
-                    .collect(Collectors.toList());
-
-            for (AgentPrompt ap : enabledPrompts) {
-                PromptTemplate template = promptTemplateMapper.selectById(ap.getTemplateId());
-                if (template != null && template.getContent() != null && !template.getContent().isBlank()) {
-                    systemPromptBuilder.append("\n\n").append(template.getContent());
-                }
-            }
-
-            systemPrompt = systemPromptBuilder.toString();
-            if (systemPrompt.isBlank()) {
-                throw new RuntimeException("Agent 系统提示词为空: " + agent.getName());
-            }
-
-            AgentTraceStep step = new AgentTraceStep();
-            step.setStepIndex(stepIndex++);
-            step.setStepType("prompt_assembly");
-            step.setStepName("提示词组装");
-            step.setStatus("success");
-            step.setDurationMs(System.currentTimeMillis() - stepStart);
-            step.setInput(agent.getSystemPrompt());
-            step.setOutput(systemPrompt);
-            Map<String, Object> meta = new HashMap<>();
-            meta.put("templateCount", enabledPrompts.size());
-            step.setMetadata(meta);
-            steps.add(step);
+            AgentTraceStepResult stepResult = assemblePrompt(agent, stepIndex);
+            systemPrompt = stepResult.output;
+            stepIndex = stepResult.nextStepIndex;
+            steps.add(stepResult.step);
         } catch (Exception e) {
-            AgentTraceStep step = new AgentTraceStep();
-            step.setStepIndex(stepIndex++);
-            step.setStepType("prompt_assembly");
-            step.setStepName("提示词组装");
-            step.setStatus("fail");
-            step.setDurationMs(System.currentTimeMillis() - stepStart);
-            step.setOutput(e.getMessage());
-            steps.add(step);
+            steps.add(buildFailStep(stepIndex++, "prompt_assembly", "提示词组装", e.getMessage()));
             return buildErrorResponse(agent, request, steps, totalStart, userId, e);
         }
 
-        // ===== Step 2: 知识库检索（占位 - 标记为 skip） =====
-        AgentTraceStep krStep = new AgentTraceStep();
-        krStep.setStepIndex(stepIndex++);
-        krStep.setStepType("knowledge_retrieval");
-        krStep.setStepName("知识库检索");
-        krStep.setStatus("skip");
-        krStep.setDurationMs(0L);
-        krStep.setOutput("知识库检索功能待实现");
-        krStep.setMetadata(new HashMap<>());
-        steps.add(krStep);
+        // ===== Step 2: 知识库检索 =====
+        String knowledgeContext = "";
+        try {
+            AgentTraceStepResult stepResult = retrieveKnowledge(agent, request.getMessage(), stepIndex);
+            knowledgeContext = stepResult.output;
+            stepIndex = stepResult.nextStepIndex;
+            steps.add(stepResult.step);
 
-        // ===== Step 3: 技能调用（占位 - 标记为 skip） =====
-        AgentTraceStep seStep = new AgentTraceStep();
-        seStep.setStepIndex(stepIndex++);
-        seStep.setStepType("skill_execution");
-        seStep.setStepName("技能调用");
-        seStep.setStatus("skip");
-        seStep.setDurationMs(0L);
-        seStep.setOutput("技能调用功能待实现");
-        seStep.setMetadata(new HashMap<>());
-        steps.add(seStep);
+            // 将检索结果注入系统提示词
+            if (knowledgeContext != null && !knowledgeContext.isBlank()) {
+                systemPrompt += "\n\n【参考知识】\n" + knowledgeContext;
+            }
+        } catch (Exception e) {
+            steps.add(buildFailStep(stepIndex++, "knowledge_retrieval", "知识库检索", e.getMessage()));
+            // 知识库检索失败不中断流程，继续执行
+        }
+
+        // ===== Step 3: 技能调用 =====
+        String skillContext = "";
+        try {
+            AgentTraceStepResult stepResult = executeSkill(agent, request.getMessage(), stepIndex);
+            skillContext = stepResult.output;
+            stepIndex = stepResult.nextStepIndex;
+            steps.add(stepResult.step);
+
+            // 将技能执行结果注入系统提示词
+            if (skillContext != null && !skillContext.isBlank()) {
+                systemPrompt += "\n\n【技能执行结果】\n" + skillContext;
+            }
+        } catch (Exception e) {
+            steps.add(buildFailStep(stepIndex++, "skill_execution", "技能调用", e.getMessage()));
+            // 技能调用失败不中断流程，继续执行
+        }
 
         // ===== Step 4: LLM 调用 =====
+        String replyContent;
+        int promptTokens;
+        int completionTokens;
+        String modelName;
+        try {
+            AgentTraceStepResult stepResult = callLLM(agent, systemPrompt, request, stepIndex);
+            replyContent = stepResult.output;
+            promptTokens = stepResult.tokensPrompt;
+            completionTokens = stepResult.tokensCompletion;
+            modelName = stepResult.modelName;
+            stepIndex = stepResult.nextStepIndex;
+            steps.add(stepResult.step);
+        } catch (Exception e) {
+            steps.add(buildFailStep(stepIndex++, "llm_call", "LLM 调用", e.getMessage()));
+            return buildErrorResponse(agent, request, steps, totalStart, userId, e);
+        }
+
+        // ===== 组装链路追踪快照 =====
+        long totalDuration = System.currentTimeMillis() - totalStart;
+        AgentTraceSnapshot snapshot = buildTraceSnapshot(steps, totalDuration, promptTokens, completionTokens);
+
+        // ===== 保存测试会话 =====
+        saveTestSession(agent, request, replyContent, snapshot, (int) totalDuration,
+                promptTokens, completionTokens, modelName, "success", null, userId);
+
+        // 增加使用次数
+        agentMapper.incrementUseCount(agent.getId());
+
+        // 组装响应
+        AgentTestChatResponse response = new AgentTestChatResponse();
+        response.setContent(replyContent);
+        response.setTokensPrompt(promptTokens);
+        response.setTokensCompletion(completionTokens);
+        response.setDurationMs((int) totalDuration);
+        response.setTraceSnapshot(snapshot);
+        return response;
+    }
+
+    // ===== Step 1: 提示词组装 =====
+
+    /**
+     * 组装系统提示词
+     * <p>将 Agent 基础提示词与关联的提示词模板按顺序拼接。</p>
+     */
+    private AgentTraceStepResult assemblePrompt(Agent agent, int stepIndex) {
+        long stepStart = System.currentTimeMillis();
+        StringBuilder systemPromptBuilder = new StringBuilder();
+
+        if (agent.getSystemPrompt() != null && !agent.getSystemPrompt().isBlank()) {
+            systemPromptBuilder.append(agent.getSystemPrompt());
+        }
+
+        List<AgentPrompt> enabledPrompts = agentPromptMapper.selectByAgentId(agent.getId()).stream()
+                .filter(p -> p.getEnabled() != null && p.getEnabled() == 1)
+                .sorted(Comparator.comparingInt(p -> p.getSortOrder() != null ? p.getSortOrder() : 0))
+                .collect(Collectors.toList());
+
+        for (AgentPrompt ap : enabledPrompts) {
+            PromptTemplate template = promptTemplateMapper.selectById(ap.getTemplateId());
+            if (template != null && template.getContent() != null && !template.getContent().isBlank()) {
+                systemPromptBuilder.append("\n\n").append(template.getContent());
+            }
+        }
+
+        String systemPrompt = systemPromptBuilder.toString();
+        if (systemPrompt.isBlank()) {
+            throw new RuntimeException("Agent 系统提示词为空: " + agent.getName());
+        }
+
+        AgentTraceStep step = new AgentTraceStep();
+        step.setStepIndex(stepIndex);
+        step.setStepType("prompt_assembly");
+        step.setStepName("提示词组装");
+        step.setStatus("success");
+        step.setDurationMs(System.currentTimeMillis() - stepStart);
+        step.setInput(agent.getSystemPrompt());
+        step.setOutput(systemPrompt);
+        Map<String, Object> meta = new HashMap<>();
+        meta.put("templateCount", enabledPrompts.size());
+        step.setMetadata(meta);
+
+        AgentTraceStepResult result = new AgentTraceStepResult();
+        result.step = step;
+        result.output = systemPrompt;
+        result.nextStepIndex = stepIndex + 1;
+        return result;
+    }
+
+    // ===== Step 2: 知识库检索 =====
+
+    /**
+     * 从 Agent 关联的知识库中检索相关内容
+     * <p>遍历 Agent 关联的已启用知识库，对每个知识库执行检索，汇总结果。</p>
+     */
+    private AgentTraceStepResult retrieveKnowledge(Agent agent, String query, int stepIndex) {
+        long stepStart = System.currentTimeMillis();
+        StringBuilder knowledgeBuilder = new StringBuilder();
+        int totalChunks = 0;
+
+        // 获取 Agent 关联的已启用知识库
+        List<AgentKnowledge> enabledKnowledge = agentKnowledgeMapper.selectByAgentId(agent.getId()).stream()
+                .filter(k -> k.getEnabled() != null && k.getEnabled() == 1)
+                .sorted(Comparator.comparingInt(k -> k.getSortOrder() != null ? k.getSortOrder() : 0))
+                .collect(Collectors.toList());
+
+        for (AgentKnowledge ak : enabledKnowledge) {
+            int topK = ak.getRetrievalCount() != null ? ak.getRetrievalCount() : 3;
+            List<RetrievalResult> results = knowledgeBaseService.retrieve(ak.getKnowledgeId(), query, topK);
+
+            if (!results.isEmpty()) {
+                knowledgeBuilder.append("【").append(ak.getKnowledgeName() != null ? ak.getKnowledgeName() : "知识库").append("】\n");
+                for (RetrievalResult r : results) {
+                    knowledgeBuilder.append("- ").append(r.getContent()).append("\n");
+                    totalChunks++;
+                }
+                knowledgeBuilder.append("\n");
+            }
+        }
+
+        AgentTraceStep step = new AgentTraceStep();
+        step.setStepIndex(stepIndex);
+        step.setStepType("knowledge_retrieval");
+        step.setStepName("知识库检索");
+        step.setStatus(totalChunks > 0 ? "success" : "skip");
+        step.setDurationMs(System.currentTimeMillis() - stepStart);
+        step.setOutput(knowledgeBuilder.toString());
+        Map<String, Object> meta = new HashMap<>();
+        meta.put("knowledgeCount", enabledKnowledge.size());
+        meta.put("chunkCount", totalChunks);
+        step.setMetadata(meta);
+
+        AgentTraceStepResult result = new AgentTraceStepResult();
+        result.step = step;
+        result.output = knowledgeBuilder.toString();
+        result.nextStepIndex = stepIndex + 1;
+        return result;
+    }
+
+    // ===== Step 3: 技能调用 =====
+
+    /**
+     * 执行 Agent 关联的技能
+     * <p>流程：遍历技能 → LLM 提取参数 → 调用 endpoint → 返回结果。</p>
+     */
+    private AgentTraceStepResult executeSkill(Agent agent, String userMessage, int stepIndex) {
+        long stepStart = System.currentTimeMillis();
+        StringBuilder skillBuilder = new StringBuilder();
+        int executedCount = 0;
+
+        // 获取 Agent 关联的已启用技能
+        List<AgentSkill> enabledSkills = agentSkillMapper.selectByAgentId(agent.getId()).stream()
+                .filter(s -> s.getEnabled() != null && s.getEnabled() == 1)
+                .sorted(Comparator.comparingInt(s -> s.getSortOrder() != null ? s.getSortOrder() : 0))
+                .collect(Collectors.toList());
+
+        for (AgentSkill as : enabledSkills) {
+            Skill skill = skillMapper.selectById(as.getSkillId());
+            if (skill == null || skill.getStatus() == null || skill.getStatus() != 1) {
+                continue;
+            }
+            if (skill.getEndpoint() == null || skill.getEndpoint().isBlank()) {
+                continue;
+            }
+
+            try {
+                // 1. 获取 AI 配置
+                String providerName = aiProperties.getActiveProvider();
+                AIProperties.ProviderConfig config = aiProperties.getProviders().get(providerName);
+                if (config == null) {
+                    continue;
+                }
+
+                // 2. LLM 提取参数
+                String inputSchema = skill.getInputSchema();
+                Map<String, Object> extractedParams = extractParamsByLLM(userMessage, inputSchema, config);
+
+                // 3. 处理 URL
+                String url = skill.getEndpoint();
+                boolean isInternalCall = url.startsWith("/");
+                if (isInternalCall) {
+                    url = "http://localhost:" + serverPort + url;
+                    // 分页参数拼接到 URL
+                    if (!url.contains("?")) {
+                        url += "?pageNum=1&pageSize=10";
+                    }
+                }
+
+                // 4. 构建请求体
+                Map<String, Object> requestBody;
+                if (isInternalCall) {
+                    // 内部接口：直接使用提取的参数作为请求体
+                    requestBody = extractedParams != null ? extractedParams : new HashMap<>();
+                } else {
+                    // 外部 API：使用通用格式
+                    requestBody = new HashMap<>();
+                    requestBody.put("model", config.getChatModel());
+                    requestBody.put("query", userMessage);
+                    requestBody.put("params", extractedParams);
+                }
+
+                // 5. 构建 Headers
+                org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+                headers.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
+                if (!isInternalCall) {
+                    headers.set("Authorization", "Bearer " + config.getApiKey());
+                }
+
+                org.springframework.http.HttpEntity<Map<String, Object>> entity =
+                        new org.springframework.http.HttpEntity<>(requestBody, headers);
+
+                // 6. 调用 endpoint
+                @SuppressWarnings("unchecked")
+                Map<String, Object> response = restTemplate.postForObject(url, entity, Map.class);
+
+                // 7. 解析响应
+                if (response != null) {
+                    Object resultData = extractResponseData(response);
+
+                    if (resultData != null) {
+                        skillBuilder.append("【").append(skill.getName()).append("】\n");
+                        skillBuilder.append(objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(resultData)).append("\n\n");
+                        executedCount++;
+                    }
+                }
+            } catch (Exception e) {
+                skillBuilder.append("【").append(skill.getName()).append("】执行失败: ").append(e.getMessage()).append("\n\n");
+            }
+        }
+
+        AgentTraceStep step = new AgentTraceStep();
+        step.setStepIndex(stepIndex);
+        step.setStepType("skill_execution");
+        step.setStepName("技能调用");
+        step.setStatus(executedCount > 0 ? "success" : "skip");
+        step.setDurationMs(System.currentTimeMillis() - stepStart);
+        step.setOutput(skillBuilder.toString());
+        Map<String, Object> meta = new HashMap<>();
+        meta.put("skillCount", enabledSkills.size());
+        meta.put("executedCount", executedCount);
+        step.setMetadata(meta);
+
+        AgentTraceStepResult result = new AgentTraceStepResult();
+        result.step = step;
+        result.output = skillBuilder.toString();
+        result.nextStepIndex = stepIndex + 1;
+        return result;
+    }
+
+    /**
+     * LLM 提取技能参数
+     * <p>根据 input_schema 和用户消息，调用 LLM 提取结构化参数。
+     * 轻量级调用，仅要求返回 JSON 对象。</p>
+     *
+     * @param userMessage 用户原始消息
+     * @param inputSchema 技能的输入参数 JSON Schema
+     * @param config      AI 提供商配置
+     * @return 提取的参数键值对，提取失败返回空 Map
+     */
+    private Map<String, Object> extractParamsByLLM(String userMessage, String inputSchema,
+                                                    AIProperties.ProviderConfig config) {
+        if (inputSchema == null || inputSchema.isBlank()) {
+            // 没有 schema，返回关键词兜底
+            Map<String, Object> fallback = new HashMap<>();
+            fallback.put("keywords", userMessage);
+            return fallback;
+        }
+
+        String url = config.getBaseUrl().replaceAll("/+$", "") + "/chat/completions";
+
+        // 构建参数提取的 Prompt
+        String systemPrompt = "你是一个参数提取器。根据以下 JSON Schema 定义的参数结构，从用户消息中提取对应的参数值。\n" +
+                "规则：\n" +
+                "1. 只返回一个 JSON 对象，不要返回任何其他文字、解释或 markdown 标记\n" +
+                "2. 如果用户消息中没有提到某个参数，不要包含该字段\n" +
+                "3. 参数类型必须与 Schema 定义一致（字符串、整数等）\n" +
+                "4. 如果无法从用户消息中提取任何参数，返回空对象 {}\n\n" +
+                "Schema 定义：\n" + inputSchema;
+
+        List<Map<String, String>> messages = new ArrayList<>();
+        Map<String, String> sysMsg = new HashMap<>();
+        sysMsg.put("role", "system");
+        sysMsg.put("content", systemPrompt);
+        messages.add(sysMsg);
+
+        Map<String, String> usrMsg = new HashMap<>();
+        usrMsg.put("role", "user");
+        usrMsg.put("content", userMessage);
+        messages.add(usrMsg);
+
+        Map<String, Object> requestBody = new HashMap<>();
+        requestBody.put("model", config.getChatModel());
+        requestBody.put("messages", messages);
+        requestBody.put("stream", false);
+        requestBody.put("temperature", 0);
+
+        try {
+            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+            headers.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
+            headers.set("Authorization", "Bearer " + config.getApiKey());
+
+            org.springframework.http.HttpEntity<Map<String, Object>> entity =
+                    new org.springframework.http.HttpEntity<>(requestBody, headers);
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> apiResponse = restTemplate.postForObject(url, entity, Map.class);
+
+            if (apiResponse != null) {
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> choices = (List<Map<String, Object>>) apiResponse.get("choices");
+                if (choices != null && !choices.isEmpty()) {
+                    Map<String, Object> choice = choices.get(0);
+                    @SuppressWarnings("unchecked")
+                    Map<String, String> message = (Map<String, String>) choice.get("message");
+                    if (message != null && message.get("content") != null) {
+                        String content = message.get("content").trim();
+                        // 去除可能的 markdown 代码块标记
+                        if (content.startsWith("```")) {
+                            content = content.replaceAll("^```(json)?\\s*", "").replaceAll("\\s*```$", "");
+                        }
+                        // 解析 JSON
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> extracted = objectMapper.readValue(content, Map.class);
+                        return extracted;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // 参数提取失败，返回兜底参数
+        }
+
+        // 兜底：返回关键词搜索
+        Map<String, Object> fallback = new HashMap<>();
+        fallback.put("keywords", userMessage);
+        return fallback;
+    }
+
+    /**
+     * 从响应中提取结果数据
+     * <p>适配多种返回格式：result / data / list / records</p>
+     */
+    private Object extractResponseData(Map<String, Object> response) {
+        Object data = response.get("result");
+        if (data == null) data = response.get("data");
+        if (data == null) data = response.get("list");
+        if (data == null) data = response.get("records");
+        return data;
+    }
+
+    // ===== Step 4: LLM 调用 =====
+
+    /**
+     * 调用 LLM API
+     * <p>构建消息列表并调用 LLM，返回响应内容和 Token 统计。</p>
+     */
+    private AgentTraceStepResult callLLM(Agent agent, String systemPrompt,
+                                          AgentTestChatRequest request, int stepIndex) {
         long llmStart = System.currentTimeMillis();
-        String modelName = agent.getModelCode() != null ? agent.getModelCode() : aiProperties.getProviders().get(aiProperties.getActiveProvider()).getChatModel();
+        String modelName = agent.getModelCode() != null ? agent.getModelCode() :
+                aiProperties.getProviders().get(aiProperties.getActiveProvider()).getChatModel();
 
         // 构建消息列表
         List<Map<String, String>> messages = new ArrayList<>();
@@ -515,6 +857,7 @@ public class AgentService {
         systemMsg.put("content", systemPrompt);
         messages.add(systemMsg);
 
+        // 添加历史消息（如果启用记忆）
         if (agent.getMemoryEnabled() != null && agent.getMemoryEnabled() == 1
                 && request.getHistory() != null && !request.getHistory().isEmpty()) {
             int window = agent.getMemoryWindow() != null ? agent.getMemoryWindow() : 20;
@@ -549,73 +892,85 @@ public class AgentService {
             requestBody.put("max_tokens", agent.getMaxTokens());
         }
 
+        // 发送请求
+        org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+        headers.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
+        headers.set("Authorization", "Bearer " + config.getApiKey());
+
+        org.springframework.http.HttpEntity<Map<String, Object>> entity =
+                new org.springframework.http.HttpEntity<>(requestBody, headers);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> apiResponse = restTemplate.postForObject(url, entity, Map.class);
+
         String replyContent = "";
         int promptTokens = 0;
         int completionTokens = 0;
 
-        try {
-            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
-            headers.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
-            headers.set("Authorization", "Bearer " + config.getApiKey());
-
-            org.springframework.http.HttpEntity<Map<String, Object>> entity =
-                    new org.springframework.http.HttpEntity<>(requestBody, headers);
-
+        if (apiResponse != null) {
             @SuppressWarnings("unchecked")
-            Map<String, Object> apiResponse = restTemplate.postForObject(url, entity, Map.class);
-
-            if (apiResponse != null) {
+            List<Map<String, Object>> choices = (List<Map<String, Object>>) apiResponse.get("choices");
+            if (choices != null && !choices.isEmpty()) {
+                Map<String, Object> choice = choices.get(0);
                 @SuppressWarnings("unchecked")
-                List<Map<String, Object>> choices = (List<Map<String, Object>>) apiResponse.get("choices");
-                if (choices != null && !choices.isEmpty()) {
-                    Map<String, Object> choice = choices.get(0);
-                    @SuppressWarnings("unchecked")
-                    Map<String, String> message = (Map<String, String>) choice.get("message");
-                    if (message != null && message.get("content") != null) {
-                        replyContent = message.get("content");
-                    }
-                }
-
-                @SuppressWarnings("unchecked")
-                Map<String, Object> usage = (Map<String, Object>) apiResponse.get("usage");
-                if (usage != null) {
-                    promptTokens = usage.get("prompt_tokens") != null ? (Integer) usage.get("prompt_tokens") : 0;
-                    completionTokens = usage.get("completion_tokens") != null ? (Integer) usage.get("completion_tokens") : 0;
+                Map<String, String> message = (Map<String, String>) choice.get("message");
+                if (message != null && message.get("content") != null) {
+                    replyContent = message.get("content");
                 }
             }
 
-            long llmDuration = System.currentTimeMillis() - llmStart;
-            AgentTraceStep llmStep = new AgentTraceStep();
-            llmStep.setStepIndex(stepIndex++);
-            llmStep.setStepType("llm_call");
-            llmStep.setStepName("LLM 调用");
-            llmStep.setStatus("success");
-            llmStep.setDurationMs(llmDuration);
-            llmStep.setInput(systemPrompt);
-            llmStep.setOutput(replyContent);
-            Map<String, Object> llmMeta = new HashMap<>();
-            llmMeta.put("model", modelName);
-            llmMeta.put("tokensPrompt", promptTokens);
-            llmMeta.put("tokensCompletion", completionTokens);
-            llmMeta.put("temperature", agent.getTemperature());
-            llmStep.setMetadata(llmMeta);
-            steps.add(llmStep);
-
-        } catch (Exception e) {
-            long llmDuration = System.currentTimeMillis() - llmStart;
-            AgentTraceStep llmStep = new AgentTraceStep();
-            llmStep.setStepIndex(stepIndex++);
-            llmStep.setStepType("llm_call");
-            llmStep.setStepName("LLM 调用");
-            llmStep.setStatus("fail");
-            llmStep.setDurationMs(llmDuration);
-            llmStep.setOutput(e.getMessage());
-            steps.add(llmStep);
-            return buildErrorResponse(agent, request, steps, totalStart, userId, e);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> usage = (Map<String, Object>) apiResponse.get("usage");
+            if (usage != null) {
+                promptTokens = usage.get("prompt_tokens") != null ? (Integer) usage.get("prompt_tokens") : 0;
+                completionTokens = usage.get("completion_tokens") != null ? (Integer) usage.get("completion_tokens") : 0;
+            }
         }
 
-        // ===== 组装链路追踪快照 =====
-        long totalDuration = System.currentTimeMillis() - totalStart;
+        long llmDuration = System.currentTimeMillis() - llmStart;
+        AgentTraceStep step = new AgentTraceStep();
+        step.setStepIndex(stepIndex);
+        step.setStepType("llm_call");
+        step.setStepName("LLM 调用");
+        step.setStatus("success");
+        step.setDurationMs(llmDuration);
+        step.setInput(systemPrompt);
+        step.setOutput(replyContent);
+        Map<String, Object> llmMeta = new HashMap<>();
+        llmMeta.put("model", modelName);
+        llmMeta.put("tokensPrompt", promptTokens);
+        llmMeta.put("tokensCompletion", completionTokens);
+        llmMeta.put("temperature", agent.getTemperature());
+        step.setMetadata(llmMeta);
+
+        AgentTraceStepResult result = new AgentTraceStepResult();
+        result.step = step;
+        result.output = replyContent;
+        result.tokensPrompt = promptTokens;
+        result.tokensCompletion = completionTokens;
+        result.modelName = modelName;
+        result.nextStepIndex = stepIndex + 1;
+        return result;
+    }
+
+    // ===== 辅助方法 =====
+
+    /** 构建失败步骤 */
+    private AgentTraceStep buildFailStep(int stepIndex, String stepType, String stepName, String errorMessage) {
+        AgentTraceStep step = new AgentTraceStep();
+        step.setStepIndex(stepIndex);
+        step.setStepType(stepType);
+        step.setStepName(stepName);
+        step.setStatus("fail");
+        step.setDurationMs(0L);
+        step.setOutput(errorMessage);
+        step.setMetadata(new HashMap<>());
+        return step;
+    }
+
+    /** 构建链路追踪快照 */
+    private AgentTraceSnapshot buildTraceSnapshot(List<AgentTraceStep> steps, long totalDuration,
+                                                   int promptTokens, int completionTokens) {
         AgentTraceSnapshot snapshot = new AgentTraceSnapshot();
         snapshot.setSteps(steps);
         snapshot.setTotalDurationMs(totalDuration);
@@ -623,22 +978,17 @@ public class AgentService {
         tokens.setPrompt(promptTokens);
         tokens.setCompletion(completionTokens);
         snapshot.setTotalTokens(tokens);
+        return snapshot;
+    }
 
-        // ===== 保存测试会话 =====
-        saveTestSession(agent, request, replyContent, snapshot, (int) totalDuration,
-                promptTokens, completionTokens, modelName, "success", null, userId);
-
-        // 增加使用次数
-        agentMapper.incrementUseCount(agent.getId());
-
-        // 组装响应
-        AgentTestChatResponse response = new AgentTestChatResponse();
-        response.setContent(replyContent);
-        response.setTokensPrompt(promptTokens);
-        response.setTokensCompletion(completionTokens);
-        response.setDurationMs((int) totalDuration);
-        response.setTraceSnapshot(snapshot);
-        return response;
+    /** Step 结果内部类 */
+    private static class AgentTraceStepResult {
+        AgentTraceStep step;
+        String output;
+        int nextStepIndex;
+        int tokensPrompt;
+        int tokensCompletion;
+        String modelName;
     }
 
     /** 保存失败的测试会话 */

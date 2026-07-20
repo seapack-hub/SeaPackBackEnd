@@ -46,7 +46,10 @@ public class SecurityConfig {
                         "/rsa/**",
                         "/hello",
                         "/hello",
-                        "/images/**"
+                        "/images/**",
+                        // 内部 API 接口（技能调用等）
+                        "/stockInfo/**",
+                        "/ai/skills/execute/**"
                     ).permitAll()
                     // 其余接口 —— 需携带有效 token
                     .anyRequest().authenticated()
