@@ -1,6 +1,9 @@
 package org.seaPack.config;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -66,6 +69,13 @@ public class GlobalExceptionHandler {
      * @param e 未处理异常
      * @return 标准错误响应
      */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<Result<Void>> handleHttpRequestMethodNotSupported(HttpRequestMethodNotSupportedException e) {
+        log.warn("不支持的请求方法 [{}]: {}", e.getMethod(), e.getMessage());
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
+                .body(Result.error(405, "不支持的请求方法: " + e.getMethod()));
+    }
+
     @ExceptionHandler(Exception.class)
     @ResponseBody
     public Result<Void> handleException(Exception e) {

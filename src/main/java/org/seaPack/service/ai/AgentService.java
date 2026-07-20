@@ -8,11 +8,17 @@ import org.seaPack.config.AIProperties;
 import org.seaPack.dto.ai.*;
 import org.seaPack.mapper.ai.*;
 import org.seaPack.model.ai.*;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -645,6 +651,15 @@ public class AgentService {
                 .sorted(Comparator.comparingInt(s -> s.getSortOrder() != null ? s.getSortOrder() : 0))
                 .collect(Collectors.toList());
 
+        // 获取 AI 配置（用于 LLM 智能选择技能）
+        String providerName = aiProperties.getActiveProvider();
+        AIProperties.ProviderConfig config = aiProperties.getProviders().get(providerName);
+
+        // LLM 智能选择最匹配的技能，避免全部执行
+        if (config != null) {
+            enabledSkills = selectSkillsByLLM(userMessage, enabledSkills, config);
+        }
+
         for (AgentSkill as : enabledSkills) {
             Skill skill = skillMapper.selectById(as.getSkillId());
             if (skill == null || skill.getStatus() == null || skill.getStatus() != 1) {
@@ -655,9 +670,7 @@ public class AgentService {
             }
 
             try {
-                // 1. 获取 AI 配置
-                String providerName = aiProperties.getActiveProvider();
-                AIProperties.ProviderConfig config = aiProperties.getProviders().get(providerName);
+                // 1. 检查 AI 配置
                 if (config == null) {
                     continue;
                 }
@@ -693,16 +706,49 @@ public class AgentService {
                 // 5. 构建 Headers
                 org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
                 headers.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
-                if (!isInternalCall) {
+                if (isInternalCall) {
+                    // 内部调用：转发当前请求的 JWT token，跳过安全检查
+                    ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+                    if (attrs != null) {
+                        String authHeader = attrs.getRequest().getHeader("Authorization");
+                        if (authHeader != null) {
+                            headers.set("Authorization", authHeader);
+                        }
+                    }
+                } else {
                     headers.set("Authorization", "Bearer " + config.getApiKey());
                 }
 
                 org.springframework.http.HttpEntity<Map<String, Object>> entity =
                         new org.springframework.http.HttpEntity<>(requestBody, headers);
 
-                // 6. 调用 endpoint
-                @SuppressWarnings("unchecked")
-                Map<String, Object> response = restTemplate.postForObject(url, entity, Map.class);
+                // 6. 创建不抛异常的 RestTemplate 用于内部调用
+                RestTemplate silentRt = new RestTemplate();
+                silentRt.setRequestFactory(restTemplate.getRequestFactory());
+                silentRt.setErrorHandler(new org.springframework.web.client.ResponseErrorHandler() {
+                    public boolean hasError(org.springframework.http.client.ClientHttpResponse resp) { return false; }
+                    public void handleError(org.springframework.http.client.ClientHttpResponse resp) {}
+                });
+                // 6a. 先试 POST（兼容 POST-only 接口如 /stockMarketQuote/page）
+                ResponseEntity<Map> responseEntity = silentRt.exchange(url, HttpMethod.POST, entity, Map.class);
+                // 6b. POST 失败（如 405/400）则用 GET 重试（兼容 GET-only 接口如 /stockDividend/list）
+                if (responseEntity.getStatusCode().isError()) {
+                    StringBuilder fullUrl = new StringBuilder(url);
+                    try {
+                        for (Map.Entry<String, Object> entry : requestBody.entrySet()) {
+                            if (entry.getValue() != null) {
+                                fullUrl.append(fullUrl.indexOf("?") > -1 ? "&" : "?")
+                                      .append(entry.getKey()).append("=")
+                                      .append(java.net.URLEncoder.encode(entry.getValue().toString(), "UTF-8"));
+                            }
+                        }
+                    } catch (java.io.UnsupportedEncodingException ignored) {
+                    }
+                    org.springframework.http.HttpEntity<Void> getEntity =
+                            new org.springframework.http.HttpEntity<>(null, headers);
+                    responseEntity = silentRt.exchange(fullUrl.toString(), HttpMethod.GET, getEntity, Map.class);
+                }
+                Map<String, Object> response = responseEntity.getBody();
 
                 // 7. 解析响应
                 if (response != null) {
@@ -824,6 +870,116 @@ public class AgentService {
         Map<String, Object> fallback = new HashMap<>();
         fallback.put("keywords", userMessage);
         return fallback;
+    }
+
+    /**
+     * LLM 智能选择技能
+     * <p>根据用户消息和技能列表，调用 LLM 选出最匹配的技能，避免全部执行。</p>
+     *
+     * @param userMessage    用户原始消息
+     * @param enabledSkills  Agent 关联的已启用技能列表
+     * @param config         AI 提供商配置
+     * @return 过滤后的技能列表（仅包含 LLM 选中的技能）
+     */
+    private List<AgentSkill> selectSkillsByLLM(String userMessage, List<AgentSkill> enabledSkills,
+                                                 AIProperties.ProviderConfig config) {
+        if (enabledSkills == null || enabledSkills.isEmpty()) {
+            return enabledSkills;
+        }
+
+        // 如果只有一个技能，直接返回，无需 LLM 选择
+        if (enabledSkills.size() == 1) {
+            return enabledSkills;
+        }
+
+        // 构建技能列表描述
+        StringBuilder skillListDesc = new StringBuilder("[");
+        for (int i = 0; i < enabledSkills.size(); i++) {
+            AgentSkill as = enabledSkills.get(i);
+            Skill skill = skillMapper.selectById(as.getSkillId());
+            if (skill == null) {
+                continue;
+            }
+            if (i > 0) {
+                skillListDesc.append(", ");
+            }
+            skillListDesc.append("{\"code\":\"").append(skill.getCode())
+                    .append("\",\"name\":\"").append(skill.getName())
+                    .append("\",\"description\":\"")
+                    .append(skill.getDescription() != null ? skill.getDescription() : "")
+                    .append("\"}");
+        }
+        skillListDesc.append("]");
+
+        String systemPrompt = "你是一个技能选择器。根据用户消息，从技能列表中选出最匹配的技能。\n\n" +
+                "可用技能：\n" + skillListDesc + "\n\n" +
+                "规则：\n" +
+                "1. 只返回 JSON 数组，包含选中技能的 code，如 [\"stock_market_quote\"]\n" +
+                "2. 根据用户意图选择最相关的技能，可以选多个\n" +
+                "3. 如果用户意图不明确或与所有技能无关，返回空数组 []\n" +
+                "4. 不要返回任何解释文字、markdown 标记或其他内容\n\n" +
+                "用户消息：" + userMessage;
+
+        List<Map<String, String>> messages = new ArrayList<>();
+        Map<String, String> sysMsg = new HashMap<>();
+        sysMsg.put("role", "system");
+        sysMsg.put("content", systemPrompt);
+        messages.add(sysMsg);
+
+        Map<String, Object> requestBody = new HashMap<>();
+        requestBody.put("model", config.getChatModel());
+        requestBody.put("messages", messages);
+        requestBody.put("stream", false);
+        requestBody.put("temperature", 0);
+
+        try {
+            String url = config.getBaseUrl().replaceAll("/+$", "") + "/chat/completions";
+            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+            headers.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
+            headers.set("Authorization", "Bearer " + config.getApiKey());
+
+            org.springframework.http.HttpEntity<Map<String, Object>> entity =
+                    new org.springframework.http.HttpEntity<>(requestBody, headers);
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> apiResponse = restTemplate.postForObject(url, entity, Map.class);
+
+            if (apiResponse != null) {
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> choices = (List<Map<String, Object>>) apiResponse.get("choices");
+                if (choices != null && !choices.isEmpty()) {
+                    Map<String, Object> choice = choices.get(0);
+                    @SuppressWarnings("unchecked")
+                    Map<String, String> message = (Map<String, String>) choice.get("message");
+                    if (message != null && message.get("content") != null) {
+                        String content = message.get("content").trim();
+                        // 去除可能的 markdown 代码块标记
+                        if (content.startsWith("```")) {
+                            content = content.replaceAll("^```(json)?\\s*", "").replaceAll("\\s*```$", "");
+                        }
+                        // 解析 JSON 数组
+                        @SuppressWarnings("unchecked")
+                        List<String> selectedCodes = objectMapper.readValue(content, List.class);
+                        if (selectedCodes != null && !selectedCodes.isEmpty()) {
+                            // 过滤出选中的技能
+                            Set<String> codeSet = new HashSet<>(selectedCodes);
+                            return enabledSkills.stream()
+                                    .filter(as -> {
+                                        Skill skill = skillMapper.selectById(as.getSkillId());
+                                        return skill != null && codeSet.contains(skill.getCode());
+                                    })
+                                    .collect(Collectors.toList());
+                        }
+                        // LLM 返回空数组，不执行任何技能
+                        return new ArrayList<>();
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // 选择失败，降级为执行所有技能
+        }
+
+        return enabledSkills;
     }
 
     /**
