@@ -3,7 +3,10 @@ package org.seaPack.controller.ai;
 import com.github.pagehelper.PageInfo;
 import org.seaPack.dto.ai.*;
 import org.seaPack.model.ai.*;
+import org.seaPack.service.ai.AgentChatService;
 import org.seaPack.service.ai.AgentService;
+import org.seaPack.service.ai.AgentTestChatService;
+import org.seaPack.service.ai.AgentTestSessionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -23,6 +26,15 @@ public class AgentManageController {
 
     @Autowired
     private AgentService agentService;
+
+    @Autowired
+    private AgentChatService agentChatService;
+
+    @Autowired
+    private AgentTestChatService agentTestChatService;
+
+    @Autowired
+    private AgentTestSessionService agentTestSessionService;
 
     // ===== Agent 主体 CRUD =====
 
@@ -226,7 +238,7 @@ public class AgentManageController {
     @PostMapping("/chat")
     public ResponseEntity<?> chat(@RequestBody AgentChatRequest request) {
         try {
-            AgentChatResponse response = agentService.chat(request);
+            AgentChatResponse response = agentChatService.chat(request);
             return ResponseEntity.ok(response);
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
@@ -237,7 +249,7 @@ public class AgentManageController {
     @PostMapping("/test-chat")
     public ResponseEntity<?> testChat(@RequestBody AgentTestChatRequest request) {
         try {
-            AgentTestChatResponse response = agentService.testChat(request, getCurrentUserId());
+            AgentTestChatResponse response = agentTestChatService.testChat(request, getCurrentUserId());
             return ResponseEntity.ok(response);
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
@@ -250,7 +262,7 @@ public class AgentManageController {
             @PathVariable Long agentId,
             @RequestParam(defaultValue = "1") int pageNum,
             @RequestParam(defaultValue = "10") int pageSize) {
-        return agentService.getTestSessions(agentId, pageNum, pageSize);
+        return agentTestSessionService.getTestSessions(agentId, pageNum, pageSize);
     }
 
     /** 测试会话详情 */
@@ -258,7 +270,7 @@ public class AgentManageController {
     public ResponseEntity<ExecutionSession> getTestSessionDetail(
             @PathVariable Long agentId,
             @PathVariable Long sessionId) {
-        ExecutionSession session = agentService.getTestSessionDetail(agentId, sessionId);
+        ExecutionSession session = agentTestSessionService.getTestSessionDetail(agentId, sessionId);
         if (session == null) {
             return ResponseEntity.notFound().build();
         }
@@ -270,7 +282,7 @@ public class AgentManageController {
     public ResponseEntity<?> deleteTestSession(
             @PathVariable Long agentId,
             @PathVariable Long sessionId) {
-        agentService.deleteTestSession(agentId, sessionId);
+        agentTestSessionService.deleteTestSession(agentId, sessionId);
         return ResponseEntity.ok("删除成功");
     }
 

@@ -4,7 +4,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.seaPack.components.Assistant;
 import org.seaPack.dto.ai.AgentContext;
-import org.seaPack.service.ai.AgentService;
+import org.seaPack.service.ai.AgentAsyncService;
 import org.seaPack.service.common.ProgressService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -25,13 +25,13 @@ public class AgentController {
 
     private final Assistant assistant;
     private final ProgressService progressService;
-    private final AgentService agentService;
+    private final AgentAsyncService agentAsyncService;
 
     @Autowired
-    public AgentController(Assistant assistant, ProgressService progressService, AgentService agentService) {
+    public AgentController(Assistant assistant, ProgressService progressService, AgentAsyncService agentAsyncService) {
         this.assistant = assistant;
         this.progressService = progressService;
-        this.agentService = agentService;
+        this.agentAsyncService = agentAsyncService;
     }
 
     /**
@@ -71,7 +71,7 @@ public class AgentController {
         });
 
         // 使用 Spring @Async 替代原始 Thread，由线程池管理
-        agentService.executeAgentTaskAsync(task, assistant, emitter, isCompleted, progressService);
+        agentAsyncService.executeAgentTaskAsync(task, assistant, emitter, isCompleted, progressService);
         return emitter; // 返回 SSE 发射器给客户端
     }
 }
