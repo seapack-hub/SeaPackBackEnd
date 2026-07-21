@@ -57,6 +57,19 @@ public class AgentSkillExecutor {
      * @return 技能执行结果（含输出文本和统计元数据）
      */
     public SkillExecuteResult executeSkills(Long agentId, String userMessage) {
+        return executeSkills(agentId, userMessage, null);
+    }
+
+    /**
+     * 执行 Agent 关联的技能（可传入认证 Token）
+     * <p>流程：获取已启用技能 → LLM 智能选择 → 逐个提取参数并调用 endpoint → 返回汇总结果。</p>
+     *
+     * @param agentId     Agent ID
+     * @param userMessage 用户原始消息
+     * @param authToken   Bearer Token（用于内部API调用的认证，SSE 异步线程中需手动传入）
+     * @return 技能执行结果（含输出文本和统计元数据）
+     */
+    public SkillExecuteResult executeSkills(Long agentId, String userMessage, String authToken) {
         long start = System.currentTimeMillis();
         StringBuilder skillBuilder = new StringBuilder();
         int executedCount = 0;
@@ -68,22 +81,36 @@ public class AgentSkillExecutor {
                 .filter(s -> s.getEnabled() != null && s.getEnabled() == 1)
                 .sorted(Comparator.comparingInt(s -> s.getSortOrder() != null ? s.getSortOrder() : 0))
                 .collect(Collectors.toList());
+        log.info("[技能调用] AgentId={}, 从DB查到已启用技能数={}", agentId, enabledSkills.size());
+        if (!enabledSkills.isEmpty()) {
+            for (AgentSkill as : enabledSkills) {
+                log.info("[技能调用]   技能关联记录: skillId={}, skillName={}, sortOrder={}",
+                        as.getSkillId(), as.getSkillName(), as.getSortOrder());
+            }
+        }
 
         // 获取 AI 配置（用于 LLM 智能选择技能）
         String providerName = aiProperties.getActiveProvider();
         AIProperties.ProviderConfig config = aiProperties.getProviders().get(providerName);
+        log.info("[技能调用] activeProvider={}, config是否为null={}", providerName, config == null);
 
         // LLM 智能选择最匹配的技能，避免全部执行
         if (config != null) {
+            int beforeSelectCount = enabledSkills.size();
             enabledSkills = selectSkillsByLLM(userMessage, enabledSkills, config);
+            log.info("[技能调用] LLM选择后: 技能数从{}变为{}", beforeSelectCount, enabledSkills.size());
+        } else {
+            log.warn("[技能调用] config为null, 跳过LLM选择, 将直接执行{}个技能(但循环内还会再次判断config)", enabledSkills.size());
         }
 
         for (AgentSkill as : enabledSkills) {
             Skill skill = skillMapper.selectById(as.getSkillId());
             if (skill == null || skill.getStatus() == null || skill.getStatus() != 1) {
+                log.warn("[技能调用] 技能skillId={} 无效: skill={}, status={}", as.getSkillId(), skill, skill != null ? skill.getStatus() : "N/A");
                 continue;
             }
             if (skill.getEndpoint() == null || skill.getEndpoint().isBlank()) {
+                log.warn("[技能调用] 技能[{}] endpoint为空, 跳过", skill.getName());
                 continue;
             }
 
@@ -91,6 +118,7 @@ public class AgentSkillExecutor {
 
             try {
                 if (config == null) {
+                    log.warn("[技能调用] 技能[{}] 因config为null被跳过(activeProvider={}获取不到配置)", skill.getName(), providerName);
                     continue;
                 }
 
@@ -124,13 +152,18 @@ public class AgentSkillExecutor {
                 HttpHeaders headers = new HttpHeaders();
                 headers.setContentType(MediaType.APPLICATION_JSON);
                 if (isInternalCall) {
-                    org.springframework.web.context.request.ServletRequestAttributes attrs =
-                            (org.springframework.web.context.request.ServletRequestAttributes)
-                                    org.springframework.web.context.request.RequestContextHolder.getRequestAttributes();
-                    if (attrs != null) {
-                        String authHeader = attrs.getRequest().getHeader("Authorization");
-                        if (authHeader != null) {
-                            headers.set("Authorization", authHeader);
+                    // 优先使用传入的 authToken，其次从请求上下文中获取
+                    if (authToken != null && !authToken.isBlank()) {
+                        headers.set("Authorization", authToken);
+                    } else {
+                        org.springframework.web.context.request.ServletRequestAttributes attrs =
+                                (org.springframework.web.context.request.ServletRequestAttributes)
+                                        org.springframework.web.context.request.RequestContextHolder.getRequestAttributes();
+                        if (attrs != null) {
+                            String authHeader = attrs.getRequest().getHeader("Authorization");
+                            if (authHeader != null) {
+                                headers.set("Authorization", authHeader);
+                            }
                         }
                     }
                 } else {
@@ -180,6 +213,7 @@ public class AgentSkillExecutor {
                 // 解析响应
                 if (response != null) {
                     Object resultData = extractResponseData(response);
+                    log.info("[技能调用] 技能[{}] extractResponseData结果是否为null={}", skill.getName(), resultData == null);
 
                     if (resultData != null) {
                         String httpMethod = isGetRequest ? "GET" : "POST";
@@ -201,6 +235,7 @@ public class AgentSkillExecutor {
                 }
             } catch (Exception e) {
                 failedCount++;
+                log.error("[技能调用] 技能[{}] 执行异常: {}", skill.getName(), e.getMessage(), e);
                 skillBuilder.append("【").append(skill.getName()).append("】执行失败: ").append(e.getMessage()).append("\n\n");
             }
         }
@@ -213,6 +248,8 @@ public class AgentSkillExecutor {
         result.setFailedCount(failedCount);
         result.setSkillNames(skillNames);
         result.setDurationMs(System.currentTimeMillis() - start);
+        log.info("[技能调用] 执行完毕: totalSkillCount={}, executedCount={}, failedCount={}, skillNames={}",
+                enabledSkills.size(), executedCount, failedCount, skillNames);
         return result;
     }
 
@@ -300,11 +337,14 @@ public class AgentSkillExecutor {
     private List<AgentSkill> selectSkillsByLLM(String userMessage, List<AgentSkill> enabledSkills,
                                                 AIProperties.ProviderConfig config) {
         if (enabledSkills == null || enabledSkills.isEmpty()) {
+            log.info("[LLM技能选择] enabledSkills为空或null, 直接返回");
             return enabledSkills;
         }
         if (enabledSkills.size() == 1) {
+            log.info("[LLM技能选择] 仅1个技能, 跳过LLM选择直接返回: skillId={}", enabledSkills.get(0).getSkillId());
             return enabledSkills;
         }
+        log.info("[LLM技能选择] 开始LLM选择, 共{}个技能", enabledSkills.size());
 
         StringBuilder skillListDesc = new StringBuilder("[");
         for (int i = 0; i < enabledSkills.size(); i++) {
@@ -357,6 +397,7 @@ public class AgentSkillExecutor {
             Map<String, Object> apiResponse = restTemplate.postForObject(url, entity, Map.class);
 
             if (apiResponse != null) {
+                log.debug("[LLM技能选择] LLM原始响应: {}", objectMapper.writeValueAsString(apiResponse));
                 @SuppressWarnings("unchecked")
                 List<Map<String, Object>> choices = (List<Map<String, Object>>) apiResponse.get("choices");
                 if (choices != null && !choices.isEmpty()) {
@@ -365,12 +406,14 @@ public class AgentSkillExecutor {
                     Map<String, String> message = (Map<String, String>) choice.get("message");
                     if (message != null && message.get("content") != null) {
                         String content = message.get("content").trim();
+                        log.info("[LLM技能选择] LLM返回内容: {}", content);
                         if (content.startsWith("```")) {
                             content = content.replaceAll("^```(json)?\\s*", "").replaceAll("\\s*```$", "");
                         }
                         @SuppressWarnings("unchecked")
                         List<String> selectedCodes = objectMapper.readValue(content, List.class);
                         if (selectedCodes != null && !selectedCodes.isEmpty()) {
+                            log.info("[LLM技能选择] LLM选中技能codes: {}", selectedCodes);
                             Set<String> codeSet = new HashSet<>(selectedCodes);
                             return enabledSkills.stream()
                                     .filter(as -> {
@@ -379,14 +422,17 @@ public class AgentSkillExecutor {
                                     })
                                     .collect(Collectors.toList());
                         }
+                        log.warn("[LLM技能选择] LLM返回空数组或解析后selectedCodes为空, 返回空列表");
                         return new ArrayList<>();
                     }
                 }
+                log.warn("[LLM技能选择] LLM响应中无有效content: choices={}", choices);
             }
         } catch (Exception e) {
-            // 选择失败，降级为执行所有技能
+            log.warn("[LLM技能选择] 调用异常, 降级为执行所有技能: {}", e.getMessage(), e);
         }
 
+        log.info("[LLM技能选择] 降级返回全部{}个技能", enabledSkills.size());
         return enabledSkills;
     }
 

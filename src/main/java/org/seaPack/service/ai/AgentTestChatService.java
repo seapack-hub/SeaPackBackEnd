@@ -9,11 +9,20 @@ import org.seaPack.dto.ai.SkillExecuteResult;
 import org.seaPack.mapper.ai.*;
 import org.seaPack.model.ai.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URI;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 /**
@@ -465,6 +474,377 @@ public class AgentTestChatService {
         session.setErrorMessage(errorMessage);
         session.setCreatedBy(userId);
         executionSessionMapper.insert(session);
+    }
+
+    /**
+     * 执行测试对话（SSE 流式返回）
+     * <p>核心流程：加载 Agent → 提示词组装 → 知识库检索 → 技能调用 → LLM 流式调用 → 保存测试会话。</p>
+     *
+     * @param request 测试对话请求
+     * @param userId  当前用户 ID
+     * @param emitter SSE 发射器
+     */
+    public void testChatStream(AgentTestChatRequest request, Long userId, SseEmitter emitter, String authToken) {
+        long totalStart = System.currentTimeMillis();
+        List<AgentTraceStep> steps = new ArrayList<>();
+        int stepIndex = 1;
+        AtomicBoolean isCompleted = new AtomicBoolean(false);
+
+        // 1. 加载 Agent 并校验状态
+        Agent agent = agentMapper.selectById(request.getAgentId());
+        if (agent == null) {
+            sendSseError(emitter, "Agent 不存在: " + request.getAgentId());
+            return;
+        }
+        if (agent.getStatus() == null || agent.getStatus() != 1) {
+            sendSseError(emitter, "Agent 已禁用: " + agent.getName());
+            return;
+        }
+
+        // ===== Step 1: 提示词组装 =====
+        String systemPrompt;
+        try {
+            sendSseEvent(emitter, "step_start", Map.of(
+                    "stepIndex", stepIndex,
+                    "stepType", "prompt_assembly",
+                    "stepName", "提示词组装"
+            ));
+
+            AgentTraceStepResult stepResult = assemblePrompt(agent, stepIndex);
+            systemPrompt = stepResult.output;
+            stepIndex = stepResult.nextStepIndex;
+            steps.add(stepResult.step);
+
+            sendSseEvent(emitter, "step_done", Map.of(
+                    "stepIndex", stepResult.step.getStepIndex(),
+                    "stepType", "prompt_assembly",
+                    "stepName", "提示词组装",
+                    "status", "success",
+                    "durationMs", stepResult.step.getDurationMs()
+            ));
+        } catch (Exception e) {
+            steps.add(buildFailStep(stepIndex++, "prompt_assembly", "提示词组装", e.getMessage()));
+            sendSseError(emitter, "提示词组装失败: " + e.getMessage());
+            return;
+        }
+
+        // ===== Step 2: 知识库检索 =====
+        String knowledgeContext = "";
+        try {
+            sendSseEvent(emitter, "step_start", Map.of(
+                    "stepIndex", stepIndex,
+                    "stepType", "knowledge_retrieval",
+                    "stepName", "知识库检索"
+            ));
+
+            AgentTraceStepResult stepResult = retrieveKnowledge(agent, request.getMessage(), stepIndex);
+            knowledgeContext = stepResult.output;
+            stepIndex = stepResult.nextStepIndex;
+            steps.add(stepResult.step);
+
+            if (knowledgeContext != null && !knowledgeContext.isBlank()) {
+                systemPrompt += "\n\n【参考知识】\n" + knowledgeContext;
+            }
+
+            sendSseEvent(emitter, "step_done", Map.of(
+                    "stepIndex", stepResult.step.getStepIndex(),
+                    "stepType", "knowledge_retrieval",
+                    "stepName", "知识库检索",
+                    "status", stepResult.step.getStatus(),
+                    "durationMs", stepResult.step.getDurationMs()
+            ));
+        } catch (Exception e) {
+            steps.add(buildFailStep(stepIndex++, "knowledge_retrieval", "知识库检索", e.getMessage()));
+            log.warn("知识库检索失败，继续执行: {}", e.getMessage());
+        }
+
+        // ===== Step 3: 技能调用 =====
+        String skillContext = "";
+        try {
+            sendSseEvent(emitter, "step_start", Map.of(
+                    "stepIndex", stepIndex,
+                    "stepType", "skill_execution",
+                    "stepName", "技能调用"
+            ));
+
+            SkillExecuteResult skillResult = skillExecutor.executeSkills(agent.getId(), request.getMessage(), authToken);
+            skillContext = skillResult.getOutput();
+
+            AgentTraceStep step = new AgentTraceStep();
+            step.setStepIndex(stepIndex++);
+            step.setStepType("skill_execution");
+            step.setStepName("技能调用");
+            step.setStatus(skillResult.getExecutedCount() > 0 ? "success" : "skip");
+            step.setDurationMs(skillResult.getDurationMs());
+            step.setOutput(skillContext);
+
+            // 填充 metadata
+            Map<String, Object> skillMeta = new HashMap<>();
+            skillMeta.put("totalSkillCount", skillResult.getTotalSkillCount());
+            skillMeta.put("executedCount", skillResult.getExecutedCount());
+            skillMeta.put("failedCount", skillResult.getFailedCount());
+            skillMeta.put("skillNames", skillResult.getSkillNames());
+            step.setMetadata(skillMeta);
+
+            steps.add(step);
+
+            if (skillContext != null && !skillContext.isBlank()) {
+                systemPrompt += "\n\n【技能执行结果】\n" + skillContext;
+            }
+
+            sendSseEvent(emitter, "step_done", Map.of(
+                    "stepIndex", step.getStepIndex(),
+                    "stepType", "skill_execution",
+                    "stepName", "技能调用",
+                    "status", step.getStatus(),
+                    "durationMs", step.getDurationMs()
+            ));
+        } catch (Exception e) {
+            steps.add(buildFailStep(stepIndex++, "skill_execution", "技能调用", e.getMessage()));
+            log.warn("技能调用失败，继续执行: {}", e.getMessage());
+        }
+
+        // ===== Step 4: LLM 流式调用 =====
+        sendSseEvent(emitter, "step_start", Map.of(
+                "stepIndex", stepIndex,
+                "stepType", "llm_call",
+                "stepName", "LLM 调用"
+        ));
+
+        String replyContent;
+        int promptTokens;
+        int completionTokens;
+        String modelName;
+        try {
+            AgentTraceStepResult stepResult = callLLMStream(agent, systemPrompt, request, stepIndex, emitter, isCompleted);
+            replyContent = stepResult.output;
+            promptTokens = stepResult.tokensPrompt;
+            completionTokens = stepResult.tokensCompletion;
+            modelName = stepResult.modelName;
+            stepIndex = stepResult.nextStepIndex;
+            steps.add(stepResult.step);
+        } catch (Exception e) {
+            steps.add(buildFailStep(stepIndex++, "llm_call", "LLM 调用", e.getMessage()));
+            sendSseError(emitter, "LLM 调用失败: " + e.getMessage());
+            return;
+        }
+
+        // ===== 组装链路追踪快照 =====
+        long totalDuration = System.currentTimeMillis() - totalStart;
+        AgentTraceSnapshot snapshot = buildTraceSnapshot(steps, totalDuration, promptTokens, completionTokens);
+
+        // ===== 保存测试会话 =====
+        saveTestSession(agent, request, replyContent, snapshot, (int) totalDuration,
+                promptTokens, completionTokens, modelName, "success", null, userId);
+
+        agentMapper.incrementUseCount(agent.getId());
+
+        // ===== 发送完成事件 =====
+        Map<String, Object> doneData = new HashMap<>();
+        doneData.put("traceSnapshot", snapshot);
+        doneData.put("tokens", Map.of(
+                "prompt", promptTokens,
+                "completion", completionTokens
+        ));
+        doneData.put("durationMs", totalDuration);
+        sendSseEvent(emitter, "done", doneData);
+
+        emitter.complete();
+    }
+
+    /**
+     * 流式调用 LLM API
+     * <p>构建消息列表并调用 LLM，逐 token 发送 SSE 事件。</p>
+     */
+    private AgentTraceStepResult callLLMStream(Agent agent, String systemPrompt,
+                                                AgentTestChatRequest request, int stepIndex,
+                                                SseEmitter emitter, AtomicBoolean isCompleted) {
+        long llmStart = System.currentTimeMillis();
+        String modelName = agent.getModelCode() != null ? agent.getModelCode() :
+                aiProperties.getProviders().get(aiProperties.getActiveProvider()).getChatModel();
+
+        List<Map<String, String>> messages = new ArrayList<>();
+        Map<String, String> systemMsg = new HashMap<>();
+        systemMsg.put("role", "system");
+        systemMsg.put("content", systemPrompt);
+        messages.add(systemMsg);
+
+        // 添加历史消息（如果启用记忆）
+        if (agent.getMemoryEnabled() != null && agent.getMemoryEnabled() == 1
+                && request.getHistory() != null && !request.getHistory().isEmpty()) {
+            int window = agent.getMemoryWindow() != null ? agent.getMemoryWindow() : 20;
+            List<Map<String, String>> history = new ArrayList<>(request.getHistory());
+            if (history.size() > window * 2) {
+                history = history.subList(history.size() - window * 2, history.size());
+            }
+            messages.addAll(history);
+        }
+
+        Map<String, String> userMsg = new HashMap<>();
+        userMsg.put("role", "user");
+        userMsg.put("content", request.getMessage());
+        messages.add(userMsg);
+
+        String providerName = aiProperties.getActiveProvider();
+        AIProperties.ProviderConfig config = aiProperties.getProviders().get(providerName);
+        if (config == null) {
+            throw new RuntimeException("AI 配置错误：未找到提供商 [" + providerName + "]");
+        }
+
+        String url = config.getBaseUrl().replaceAll("/+$", "") + "/chat/completions";
+        Map<String, Object> requestBody = new HashMap<>();
+        requestBody.put("model", modelName);
+        requestBody.put("messages", messages);
+        requestBody.put("stream", true); // 启用流式输出
+        if (agent.getTemperature() != null) {
+            requestBody.put("temperature", agent.getTemperature());
+        }
+        if (agent.getMaxTokens() != null) {
+            requestBody.put("max_tokens", agent.getMaxTokens());
+        }
+
+        StringBuilder replyContentBuilder = new StringBuilder();
+        int[] tokenUsage = {0, 0}; // [promptTokens, completionTokens]
+
+        try {
+            // 使用 HTTPURLConnection 实现流式请求
+            HttpURLConnection connection = createStreamingConnection(url, config.getApiKey(), requestBody);
+            connection.setConnectTimeout(30000);
+            connection.setReadTimeout(300000); // 5 分钟读取超时
+
+            try (BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    // 检查客户端是否断开连接
+                    if (isCompleted.get()) {
+                        log.info("客户端连接已断开，取消 LLM 流式调用");
+                        break;
+                    }
+
+                    // 解析 SSE 格式的响应
+                    if (line.startsWith("data: ")) {
+                        String data = line.substring(6).trim();
+                        if ("[DONE]".equals(data)) {
+                            break;
+                        }
+
+                        try {
+                            @SuppressWarnings("unchecked")
+                            Map<String, Object> chunk = objectMapper.readValue(data, Map.class);
+
+                            // 提取 delta 内容
+                            @SuppressWarnings("unchecked")
+                            List<Map<String, Object>> choices = (List<Map<String, Object>>) chunk.get("choices");
+                            if (choices != null && !choices.isEmpty()) {
+                                Map<String, Object> choice = choices.get(0);
+                                @SuppressWarnings("unchecked")
+                                Map<String, Object> delta = (Map<String, Object>) choice.get("delta");
+                                if (delta != null && delta.get("content") != null) {
+                                    String content = delta.get("content").toString();
+                                    replyContentBuilder.append(content);
+
+                                    // 发送 content 事件
+                                    sendSseEvent(emitter, "content", Map.of("text", content));
+                                }
+                            }
+
+                            // 提取 usage 信息（最后一个 chunk）
+                            @SuppressWarnings("unchecked")
+                            Map<String, Object> usage = (Map<String, Object>) chunk.get("usage");
+                            if (usage != null) {
+                                tokenUsage[0] = usage.get("prompt_tokens") != null ? (Integer) usage.get("prompt_tokens") : 0;
+                                tokenUsage[1] = usage.get("completion_tokens") != null ? (Integer) usage.get("completion_tokens") : 0;
+                            }
+                        } catch (Exception e) {
+                            log.warn("解析 LLM 响应块失败: {}", e.getMessage());
+                        }
+                    }
+                }
+            }
+
+            connection.disconnect();
+
+        } catch (Exception e) {
+            throw new RuntimeException("LLM 流式调用失败: " + e.getMessage(), e);
+        }
+
+        long llmDuration = System.currentTimeMillis() - llmStart;
+        AgentTraceStep step = new AgentTraceStep();
+        step.setStepIndex(stepIndex);
+        step.setStepType("llm_call");
+        step.setStepName("LLM 调用");
+        step.setStatus("success");
+        step.setDurationMs(llmDuration);
+        step.setInput(systemPrompt);
+        step.setOutput(replyContentBuilder.toString());
+        Map<String, Object> llmMeta = new HashMap<>();
+        llmMeta.put("model", modelName);
+        llmMeta.put("tokensPrompt", tokenUsage[0]);
+        llmMeta.put("tokensCompletion", tokenUsage[1]);
+        llmMeta.put("temperature", agent.getTemperature());
+        step.setMetadata(llmMeta);
+
+        AgentTraceStepResult result = new AgentTraceStepResult();
+        result.step = step;
+        result.output = replyContentBuilder.toString();
+        result.tokensPrompt = tokenUsage[0];
+        result.tokensCompletion = tokenUsage[1];
+        result.modelName = modelName;
+        result.nextStepIndex = stepIndex + 1;
+        return result;
+    }
+
+    /**
+     * 创建流式 HTTP 连接
+     */
+    private HttpURLConnection createStreamingConnection(String url, String apiKey, Map<String, Object> requestBody) throws Exception {
+        HttpURLConnection connection = (HttpURLConnection) URI.create(url).toURL().openConnection();
+        connection.setRequestMethod("POST");
+        connection.setRequestProperty("Content-Type", "application/json");
+        connection.setRequestProperty("Authorization", "Bearer " + apiKey);
+        connection.setDoOutput(true);
+
+        // 写入请求体
+        byte[] body = objectMapper.writeValueAsBytes(requestBody);
+        connection.getOutputStream().write(body);
+        connection.getOutputStream().flush();
+
+        return connection;
+    }
+
+    /**
+     * 发送 SSE 事件
+     */
+    private void sendSseEvent(SseEmitter emitter, String type, Map<String, Object> data) {
+        try {
+            Map<String, Object> event = new HashMap<>(data);
+            event.put("type", type);
+            emitter.send(SseEmitter.event()
+                    .name("message")
+                    .data(objectMapper.writeValueAsString(event), MediaType.APPLICATION_JSON));
+        } catch (Exception e) {
+            log.warn("发送 SSE 事件失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 发送 SSE 错误事件
+     */
+    private void sendSseError(SseEmitter emitter, String message) {
+        try {
+            Map<String, Object> event = Map.of(
+                    "type", "error",
+                    "message", message
+            );
+            emitter.send(SseEmitter.event()
+                    .name("message")
+                    .data(objectMapper.writeValueAsString(event), MediaType.APPLICATION_JSON));
+            emitter.complete();
+        } catch (Exception e) {
+            log.warn("发送 SSE 错误事件失败: {}", e.getMessage());
+            emitter.complete();
+        }
     }
 
     /** Step 结果内部类 */

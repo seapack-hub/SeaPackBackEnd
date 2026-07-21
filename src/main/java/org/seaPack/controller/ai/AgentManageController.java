@@ -1,6 +1,7 @@
 package org.seaPack.controller.ai;
 
 import com.github.pagehelper.PageInfo;
+import jakarta.servlet.http.HttpServletResponse;
 import org.seaPack.dto.ai.*;
 import org.seaPack.model.ai.*;
 import org.seaPack.service.ai.AgentChatService;
@@ -8,18 +9,25 @@ import org.seaPack.service.ai.AgentService;
 import org.seaPack.service.ai.AgentTestChatService;
 import org.seaPack.service.ai.AgentTestSessionService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * AI Agent 管理控制器
  * <p>提供 Agent 的增删改查、复制、启停管理、关联管理（提示词模板/技能/知识库）及对话接口。</p>
  */
+@Slf4j
 @RestController
 @RequestMapping("/ai/agents")
 public class AgentManageController {
@@ -245,15 +253,53 @@ public class AgentManageController {
         }
     }
 
-    /** 测试对话（含链路追踪） */
+    /** 测试对话（SSE 流式返回，含链路追踪） */
     @PostMapping("/test-chat")
-    public ResponseEntity<?> testChat(@RequestBody AgentTestChatRequest request) {
-        try {
-            AgentTestChatResponse response = agentTestChatService.testChat(request, getCurrentUserId());
-            return ResponseEntity.ok(response);
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+    public SseEmitter testChat(@RequestBody AgentTestChatRequest request,
+                                @RequestHeader("Authorization") String authHeader,
+                                HttpServletResponse response) {
+        // 设置 SSE 响应头
+        response.setContentType(MediaType.TEXT_EVENT_STREAM_VALUE);
+        response.setCharacterEncoding("UTF-8");
+        response.setHeader("Cache-Control", "no-cache");
+        response.setHeader("Connection", "keep-alive");
+
+        // 创建 SSE 发射器，超时时间 10 分钟
+        SseEmitter emitter = new SseEmitter(600000L);
+
+        // 获取当前用户 ID
+        Long userId = getCurrentUserId();
+
+        // 使用线程池异步执行，避免阻塞 Servlet 线程
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        executor.execute(() -> {
+            try {
+                agentTestChatService.testChatStream(request, userId, emitter, authHeader);
+            } catch (Exception e) {
+                try {
+                    emitter.completeWithError(e);
+                } catch (Exception ignored) {
+                }
+            } finally {
+                executor.shutdown();
+            }
+        });
+
+        // 注册回调：客户端断开连接时
+        emitter.onCompletion(() -> {
+            log.info("SSE 连接正常关闭");
+        });
+
+        emitter.onTimeout(() -> {
+            log.warn("SSE 连接超时");
+            emitter.complete();
+        });
+
+        emitter.onError((e) -> {
+            log.error("SSE 连接发生错误", e);
+        });
+
+        return emitter;
     }
 
     /** 测试会话历史列表 */
