@@ -32,6 +32,7 @@ public class StockDividendService {
      * @param keyword 关键字（可选）
      * @return 分页结果
      */
+    @Transactional(readOnly = true)
     public PageInfo<StockDividend> getList(int pageNum, int pageSize, String stockCode,
                                            Integer year, String dividendType,
                                            String status, String keyword) {
@@ -44,6 +45,7 @@ public class StockDividendService {
      * @param id 记录 ID
      * @return 分红详情
      */
+    @Transactional(readOnly = true)
     public StockDividend getById(Long id) {
         return stockDividendMapper.selectById(id); // 调用 Mapper 查询
     }

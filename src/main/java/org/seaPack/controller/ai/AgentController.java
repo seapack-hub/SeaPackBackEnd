@@ -1,19 +1,15 @@
 package org.seaPack.controller.ai;
 
-import dev.langchain4j.rag.content.Content;
-import dev.langchain4j.service.TokenStream;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.seaPack.components.Assistant;
 import org.seaPack.dto.ai.AgentContext;
+import org.seaPack.service.ai.AgentService;
 import org.seaPack.service.common.ProgressService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
 
-import java.io.IOException;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -29,11 +25,13 @@ public class AgentController {
 
     private final Assistant assistant;
     private final ProgressService progressService;
+    private final AgentService agentService;
 
     @Autowired
-    public AgentController(Assistant assistant, ProgressService progressService) {
+    public AgentController(Assistant assistant, ProgressService progressService, AgentService agentService) {
         this.assistant = assistant;
         this.progressService = progressService;
+        this.agentService = agentService;
     }
 
     /**
@@ -72,129 +70,8 @@ public class AgentController {
             log.error("SSE 连接发生错误", e);
         });
 
-        new Thread(() -> { // 异步线程执行 AI 任务，不阻塞 HTTP 请求线程
-            try{
-                safeSend(emitter, isCompleted, "data: {\"status\": \"start\", \"message\": \"事件: 任务开始...\"}\n\n"); // 推送任务开始事件
-                safeSend(emitter, isCompleted, "data: {\"status\": \"start\", \"message\": \"状态: 正在理解需求...\"}\n\n"); // 推送需求理解状态
-
-                boolean needTool = task.contains("生成") // 判断任务是否需要调用工具
-                        || task.contains("文件") // 包含"文件"关键词
-                        || task.contains("报告") // 包含"报告"关键词
-                        || task.contains("写") // 包含"写"关键词
-                        || task.contains("表格") // 包含"表格"关键词
-                        || task.contains("Excel") // 包含"Excel"关键词
-                        || task.contains("PDF") // 包含"PDF"关键词
-                        || task.contains("整理") // 包含"整理"关键词
-                        || task.contains("文档"); // 包含"文档"关键词
-
-                if (needTool) { // 需要工具调用时走非流式模式
-                    handleNonStreaming(task, emitter, isCompleted);
-                }else{ // 纯对话走流式模式
-                    try {
-                        handleStreaming(task, emitter, isCompleted);
-                    } catch (IllegalArgumentException e) { // 捕获流式不支持工具的异常
-                        if (e.getMessage() != null && e.getMessage().contains("Tools are currently not supported")) { // 确认为工具不支持
-                            log.warn("检测到不支持流式工具，自动降级为非流式模式...");
-                            safeSend(emitter, isCompleted, "data: {\"type\": \"content\", \"message\": \"当前模型不支持流式生成，已自动切换为普通模式...\"}\n\n"); // 通知客户端降级
-                            handleNonStreaming(task, emitter, isCompleted); // 降级为非流式模式
-                        } else { // 其他异常则向上抛出
-                            throw e;
-                        }
-                    }
-                }
-            } catch (Exception e) { // 捕获所有未处理异常
-                safeSend(emitter, isCompleted, "data: {\"status\": \"error\", \"message\": \"任务执行失败，请稍后重试\"}\n\n"); // 推送通用错误信息
-                emitter.completeWithError(e); // 以异常状态结束 SSE
-            } finally { // 无论成功或异常，最终清理
-                progressService.clearContext(); // 清理进度上下文
-                if (!isCompleted.get()) { // 如果尚未标记完成
-                    emitter.complete(); // 正常结束 SSE 连接
-                }
-            };
-        }).start(); // 启动异步线程
+        // 使用 Spring @Async 替代原始 Thread，由线程池管理
+        agentService.executeAgentTaskAsync(task, assistant, emitter, isCompleted, progressService);
         return emitter; // 返回 SSE 发射器给客户端
-    }
-
-    /**
-     * 安全发送 SSE 数据，连接断开时自动取消
-     */
-    private void safeSend(ResponseBodyEmitter emitter, AtomicBoolean isCompleted, String data) {
-        if (isCompleted.get()) {
-            throw new CancellationException("客户端连接已断开");
-        }
-        try {
-            emitter.send(data, MediaType.TEXT_EVENT_STREAM);
-        } catch (IOException e) {
-            log.warn("客户端连接已断开，停止发送数据: {}", e.getMessage());
-            isCompleted.set(true);
-            throw new CancellationException("客户端连接已断开");
-        }
-    }
-
-    /**
-     * 转义 JSON 特殊字符
-     */
-    private String escapeJson(String s) {
-        if (s == null) return "";
-        return s.replace("\\", "\\\\")
-                .replace("\"", "\\\"")
-                .replace("\n", "\\n")
-                .replace("\r", "\\r");
-    }
-
-    /**
-     * 非流式模式：调用带工具的 AI Agent，等待完整结果后一次性返回
-     */
-    private void handleNonStreaming(String task, ResponseBodyEmitter emitter, AtomicBoolean isCompleted) {
-        try {
-            safeSend(emitter, isCompleted, "data: {\"type\": \"content\", \"message\": \"正在调用工具处理...\"}\n\n");
-            String finalResult = assistant.chat(task);
-            safeSend(emitter, isCompleted, "data: {\"type\": \"content\", \"message\": \"" + escapeJson(finalResult) + "\"}\n\n");
-            safeSend(emitter, isCompleted, "data: {\"status\": \"complete\", \"message\": \"任务完成\"}\n\n");
-            if (!isCompleted.get()) emitter.complete();
-        } catch (Exception e) {
-            safeSend(emitter, isCompleted, "data: {\"status\": \"error\", \"message\": \"处理失败，请稍后重试\"}\n\n");
-        }
-    }
-
-    /**
-     * 流式模式：逐 token 推送 AI 回复，同时推送检索到的知识库内容
-     */
-    private void handleStreaming(String task, ResponseBodyEmitter emitter, AtomicBoolean isCompleted) {
-        TokenStream tokenStream = assistant.chatStream(task);
-
-        tokenStream.onNext(token -> {
-            if (token != null && !token.trim().isEmpty()) {
-                safeSend(emitter, isCompleted, "data: {\"type\": \"content\", \"text\": \"" + escapeJson(token) + "\"}\n\n");
-            }
-        });
-
-        tokenStream.onRetrieved(contents -> {
-            StringBuilder sb = new StringBuilder();
-            for (Content content : contents) {
-                sb.append(content.textSegment().text());
-            }
-            safeSend(emitter, isCompleted, "data: {\"type\": \"content\", \"text\": \"资料搜索中...\"}\n\n");
-            safeSend(emitter, isCompleted, "data: {\"type\": \"content\", \"text\": \"" + sb.toString() + "\"}\n\n");
-        });
-
-        tokenStream.onComplete(response -> {
-            safeSend(emitter, isCompleted, "data: {\"status\": \"complete\", \"message\": \"任务完成\"}\n\n");
-            if (!isCompleted.get()) emitter.complete();
-        });
-
-        tokenStream.onError(throwable -> {
-            safeSend(emitter, isCompleted, "data: {\"status\": \"error\", \"message\": \"流式处理失败，请稍后重试\"}\n\n");
-            if (throwable instanceof CancellationException) {
-                log.info("任务已被用户主动取消/连接已断开");
-                emitter.complete();
-                return;
-            }
-            if (!isCompleted.get()) {
-                emitter.completeWithError(throwable);
-            }
-        });
-
-        tokenStream.start();
     }
 }

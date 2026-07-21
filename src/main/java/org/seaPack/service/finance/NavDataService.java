@@ -32,6 +32,7 @@ public class NavDataService {
      * @param example 查询条件
      * @return 分页结果
      */
+    @Transactional(readOnly = true)
     public PageInfo<NavData> getNavDataList(int pageNum, int pageSize, NavDataExample example) {
         PageHelper.startPage(pageNum, pageSize);
         List<NavData> list = navDataMapper.selectByExample(example);
@@ -43,6 +44,7 @@ public class NavDataService {
      * @param fundCode 基金代码
      * @return 净值列表
      */
+    @Transactional(readOnly = true)
     public List<NavData> getNavDataByFundCode(String fundCode) {
         NavDataExample example = new NavDataExample();
         example.createCriteria().andFundCodeEqualTo(fundCode);
@@ -55,6 +57,7 @@ public class NavDataService {
      * @param id 主键ID
      * @return 净值信息
      */
+    @Transactional(readOnly = true)
     public NavData getNavDataById(Integer id) {
         return navDataMapper.selectByPrimaryKey(id);
     }

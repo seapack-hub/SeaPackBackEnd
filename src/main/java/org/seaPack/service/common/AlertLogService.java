@@ -26,6 +26,7 @@ public class AlertLogService {
     /**
      * 分页查询告警日志（按 sent_time 降序）
      */
+    @Transactional(readOnly = true)
     public PageInfo<AlertLog> getLogsByUserId(int pageNum, int pageSize, Long userId, String stockCode, String startTime, String endTime) {
         PageHelper.startPage(pageNum, pageSize);
         List<AlertLog> list = alertLogMapper.selectLogsByUserId(userId, stockCode, startTime, endTime);

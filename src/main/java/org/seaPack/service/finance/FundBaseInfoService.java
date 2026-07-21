@@ -33,6 +33,7 @@ public class FundBaseInfoService {
      * @param example 查询条件
      * @return 分页结果（含成立时长）
      */
+    @Transactional(readOnly = true)
     public PageInfo<FundBaseInfo> getFundBaseInfoList(int pageNum, int pageSize, FundBaseInfo example) {
         PageHelper.startPage(pageNum, pageSize); // 启动分页
         List<FundBaseInfo> fundBaseInfoList = fundBaseInfoMapper.selectFundsList(example); // 查询基金列表
@@ -86,6 +87,7 @@ public class FundBaseInfoService {
      * @param fundCode 基金代码
      * @return 基金详情
      */
+    @Transactional(readOnly = true)
     public FundBaseInfo getFundBaseInfoByCode(String fundCode) {
         return fundBaseInfoMapper.selectFundDetailByCode(fundCode); // 查询基金详情
     }

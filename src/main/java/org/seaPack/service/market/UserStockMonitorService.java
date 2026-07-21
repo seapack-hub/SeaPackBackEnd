@@ -38,6 +38,7 @@ public class UserStockMonitorService {
     /**
      * 分页条件查询监控列表（含阈值 JSON）
      */
+    @Transactional(readOnly = true)
     public PageInfo<UserStockMonitorVO> pageMonitorList(UserStockMonitorQuery query) {
         PageHelper.startPage(query.getPageNum(), query.getPageSize());
         List<Map<String, Object>> rows = monitorMapper.selectMonitorList(query);
@@ -130,6 +131,7 @@ public class UserStockMonitorService {
     /**
      * 查询指定监控记录的所有阈值
      */
+    @Transactional(readOnly = true)
     public List<MonitorThresholdConfig> getThresholdList(Long monitorId) {
         return thresholdMapper.selectByMonitorId(monitorId);
     }

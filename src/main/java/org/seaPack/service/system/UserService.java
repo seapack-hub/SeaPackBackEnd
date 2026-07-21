@@ -26,6 +26,7 @@ public class UserService {
     /**
      * 分页查询用户列表
      */
+    @Transactional(readOnly = true)
     public PageInfo<User> getUserList(int pageNum, int pageSize, String keywords, String status, Long deptId, String startTime, String endTime) {
         PageHelper.startPage(pageNum, pageSize);
         List<User> list = userMapper.selectUserList(keywords, status, deptId, startTime, endTime);
@@ -35,6 +36,7 @@ public class UserService {
     /**
      * 根据 ID 查询用户
      */
+    @Transactional(readOnly = true)
     public User getUserById(Long id) {
         return userMapper.selectUserById(id);
     }
@@ -42,6 +44,7 @@ public class UserService {
     /**
      * 根据用户名查询用户
      */
+    @Transactional(readOnly = true)
     public User selectUserByName(String userName) {
         return userMapper.selectUserByName(userName);
     }

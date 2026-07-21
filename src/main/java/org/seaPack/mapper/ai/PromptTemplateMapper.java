@@ -20,6 +20,8 @@ public interface PromptTemplateMapper {
 
     PromptTemplate selectById(@Param("id") Long id);
 
+    List<PromptTemplate> selectByIds(@Param("ids") List<Long> ids);
+
     PromptTemplate selectByCode(@Param("code") String code);
 
     int countByCode(@Param("code") String code, @Param("excludeId") Long excludeId);

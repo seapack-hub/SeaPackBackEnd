@@ -9,6 +9,7 @@ import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.annotation.EnableAsync;
 
 /**
  * AI 模型配置
@@ -16,6 +17,7 @@ import org.springframework.context.annotation.Configuration;
  * 供 @AiService（Assistant 接口）自动装配。</p>
  */
 @Configuration
+@EnableAsync
 public class AiConfig {
 
     @Autowired

@@ -20,6 +20,7 @@ public class DictService {
     /**
      * 分页查询字典列表
      */
+    @Transactional(readOnly = true)
     public PageInfo<Dict> getList(int pageNum, int pageSize, String dictType, String keyword, String status) {
         PageHelper.startPage(pageNum, pageSize);
         return new PageInfo<>(dictMapper.selectList(dictType, keyword, status));
@@ -28,6 +29,7 @@ public class DictService {
     /**
      * 根据 ID 查询字典详情
      */
+    @Transactional(readOnly = true)
     public Dict getById(Long id) {
         return dictMapper.selectById(id);
     }

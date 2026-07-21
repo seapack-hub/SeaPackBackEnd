@@ -28,6 +28,7 @@ public class StockInfoService {
     /**
      * 分页查询股票列表（支持行业递归筛选）
      */
+    @Transactional(readOnly = true)
     public PageInfo<StockInfo> getStockList(int pageNum, int pageSize, StockInfo param) {
         expandIndustryIds(param);
         PageHelper.startPage(pageNum, pageSize);
@@ -62,6 +63,7 @@ public class StockInfoService {
     /**
      * 查询全部股票列表（不分页）
      */
+    @Transactional(readOnly = true)
     public List<StockInfo> getStockListAll(StockInfo param) {
         expandIndustryIds(param);
         return stockInfoMapper.selectStockList(param);
@@ -70,6 +72,7 @@ public class StockInfoService {
     /**
      * 根据 ID 查询股票详情
      */
+    @Transactional(readOnly = true)
     public StockInfo getStockById(Long stockId) {
         return stockInfoMapper.selectStockById(stockId);
     }
@@ -77,6 +80,7 @@ public class StockInfoService {
     /**
      * 根据股票代码查询
      */
+    @Transactional(readOnly = true)
     public StockInfo getStockByCode(String stockCode) {
         return stockInfoMapper.selectStockByCode(stockCode);
     }

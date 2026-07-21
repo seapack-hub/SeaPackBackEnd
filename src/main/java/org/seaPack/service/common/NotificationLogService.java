@@ -24,6 +24,7 @@ public class NotificationLogService {
     /**
      * 根据股票 ID 查询通知日志
      */
+    @Transactional(readOnly = true)
     public List<NotificationLog> getLogsByStockId(Long stockId) {
         return notificationLogMapper.selectLogsByStockId(stockId);
     }
@@ -31,6 +32,7 @@ public class NotificationLogService {
     /**
      * 根据用户 ID 查询通知日志
      */
+    @Transactional(readOnly = true)
     public List<NotificationLog> getLogsByUserId(Long userId) {
         return notificationLogMapper.selectLogsByUserId(userId);
     }

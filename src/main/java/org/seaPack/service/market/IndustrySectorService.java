@@ -24,6 +24,7 @@ public class IndustrySectorService {
     /**
      * 分页查询行业板块列表
      */
+    @Transactional(readOnly = true)
     public PageInfo<IndustrySector> getList(int pageNum, int pageSize, String keyword, Integer nodeLevel, Long parentId) {
         PageHelper.startPage(pageNum, pageSize);
         List<IndustrySector> list = industrySectorMapper.selectList(keyword, nodeLevel, parentId);
@@ -33,6 +34,7 @@ public class IndustrySectorService {
     /**
      * 根据 ID 查询行业板块
      */
+    @Transactional(readOnly = true)
     public IndustrySector getById(Long id) {
         return industrySectorMapper.selectById(id);
     }
@@ -40,6 +42,7 @@ public class IndustrySectorService {
     /**
      * 获取行业板块树（根节点递归构建，按 sortOrder 排序）
      */
+    @Transactional(readOnly = true)
     public List<IndustrySector> getTree() {
         List<IndustrySector> all = industrySectorMapper.selectList(null, null, null);
         List<IndustrySector> roots = all.stream()
@@ -71,6 +74,7 @@ public class IndustrySectorService {
     /**
      * 获取指定父节点下的直接子节点
      */
+    @Transactional(readOnly = true)
     public List<IndustrySector> getChildren(Long parentId) {
         return industrySectorMapper.selectByParentId(parentId);
     }

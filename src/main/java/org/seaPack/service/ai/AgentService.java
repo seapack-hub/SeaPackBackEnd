@@ -4,14 +4,19 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
+import dev.langchain4j.service.TokenStream;
+import org.seaPack.components.Assistant;
 import org.seaPack.config.AIProperties;
 import org.seaPack.dto.ai.*;
+import org.seaPack.service.common.ProgressService;
 import org.seaPack.mapper.ai.*;
 import org.seaPack.model.ai.*;
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
@@ -19,14 +24,18 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
+import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
 
 import java.util.*;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 /**
  * AI Agent/助手核心服务
  * <p>提供 Agent 的 CRUD、关联管理（提示词模板、技能、知识库）及对话执行功能。</p>
  */
+@Slf4j
 @Service
 public class AgentService {
 
@@ -308,10 +317,19 @@ public class AgentService {
                 .sorted(Comparator.comparingInt(p -> p.getSortOrder() != null ? p.getSortOrder() : 0))
                 .collect(Collectors.toList());
 
-        for (AgentPrompt ap : enabledPrompts) {
-            PromptTemplate template = promptTemplateMapper.selectById(ap.getTemplateId());
-            if (template != null && template.getContent() != null && !template.getContent().isBlank()) {
-                systemPromptBuilder.append("\n\n").append(template.getContent());
+        // 批量查询模板，避免 N+1 查询
+        List<Long> templateIds = enabledPrompts.stream()
+                .map(AgentPrompt::getTemplateId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        if (!templateIds.isEmpty()) {
+            Map<Long, PromptTemplate> templateMap = promptTemplateMapper.selectByIds(templateIds).stream()
+                    .collect(Collectors.toMap(PromptTemplate::getId, t -> t, (a, b) -> a));
+            for (AgentPrompt ap : enabledPrompts) {
+                PromptTemplate template = templateMap.get(ap.getTemplateId());
+                if (template != null && template.getContent() != null && !template.getContent().isBlank()) {
+                    systemPromptBuilder.append("\n\n").append(template.getContent());
+                }
             }
         }
 
@@ -553,10 +571,19 @@ public class AgentService {
                 .sorted(Comparator.comparingInt(p -> p.getSortOrder() != null ? p.getSortOrder() : 0))
                 .collect(Collectors.toList());
 
-        for (AgentPrompt ap : enabledPrompts) {
-            PromptTemplate template = promptTemplateMapper.selectById(ap.getTemplateId());
-            if (template != null && template.getContent() != null && !template.getContent().isBlank()) {
-                systemPromptBuilder.append("\n\n").append(template.getContent());
+        // 批量查询模板，避免 N+1 查询
+        List<Long> templateIds = enabledPrompts.stream()
+                .map(AgentPrompt::getTemplateId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        if (!templateIds.isEmpty()) {
+            Map<Long, PromptTemplate> templateMap = promptTemplateMapper.selectByIds(templateIds).stream()
+                    .collect(Collectors.toMap(PromptTemplate::getId, t -> t, (a, b) -> a));
+            for (AgentPrompt ap : enabledPrompts) {
+                PromptTemplate template = templateMap.get(ap.getTemplateId());
+                if (template != null && template.getContent() != null && !template.getContent().isBlank()) {
+                    systemPromptBuilder.append("\n\n").append(template.getContent());
+                }
             }
         }
 
@@ -684,17 +711,15 @@ public class AgentService {
                 boolean isInternalCall = url.startsWith("/");
                 if (isInternalCall) {
                     url = "http://localhost:" + serverPort + url;
-                    // 分页参数拼接到 URL
-                    if (!url.contains("?")) {
-                        url += "?pageNum=1&pageSize=10";
-                    }
                 }
 
                 // 4. 构建请求体
                 Map<String, Object> requestBody;
+                boolean isGetRequest = false;
                 if (isInternalCall) {
-                    // 内部接口：直接使用提取的参数作为请求体
-                    requestBody = extractedParams != null ? extractedParams : new HashMap<>();
+                    // 内部接口：展平 query 嵌套，适配后端 @RequestBody 期望的平铺结构
+                    requestBody = flattenParams(extractedParams);
+                    log.info("技能[{}] 请求体: {}", skill.getName(), objectMapper.writeValueAsString(requestBody));
                 } else {
                     // 外部 API：使用通用格式
                     requestBody = new HashMap<>();
@@ -719,9 +744,6 @@ public class AgentService {
                     headers.set("Authorization", "Bearer " + config.getApiKey());
                 }
 
-                org.springframework.http.HttpEntity<Map<String, Object>> entity =
-                        new org.springframework.http.HttpEntity<>(requestBody, headers);
-
                 // 6. 创建不抛异常的 RestTemplate 用于内部调用
                 RestTemplate silentRt = new RestTemplate();
                 silentRt.setRequestFactory(restTemplate.getRequestFactory());
@@ -729,24 +751,32 @@ public class AgentService {
                     public boolean hasError(org.springframework.http.client.ClientHttpResponse resp) { return false; }
                     public void handleError(org.springframework.http.client.ClientHttpResponse resp) {}
                 });
-                // 6a. 先试 POST（兼容 POST-only 接口如 /stockMarketQuote/page）
-                ResponseEntity<Map> responseEntity = silentRt.exchange(url, HttpMethod.POST, entity, Map.class);
-                // 6b. POST 失败（如 405/400）则用 GET 重试（兼容 GET-only 接口如 /stockDividend/list）
-                if (responseEntity.getStatusCode().isError()) {
-                    StringBuilder fullUrl = new StringBuilder(url);
-                    try {
-                        for (Map.Entry<String, Object> entry : requestBody.entrySet()) {
-                            if (entry.getValue() != null) {
-                                fullUrl.append(fullUrl.indexOf("?") > -1 ? "&" : "?")
-                                      .append(entry.getKey()).append("=")
-                                      .append(java.net.URLEncoder.encode(entry.getValue().toString(), "UTF-8"));
-                            }
+
+                // 6a. 将参数拼接到 URL 上，兼容 GET 接口（如 /stockDividend/list）
+                StringBuilder paramUrl = new StringBuilder(url);
+                try {
+                    for (Map.Entry<String, Object> entry : requestBody.entrySet()) {
+                        if (entry.getValue() != null) {
+                            paramUrl.append(paramUrl.indexOf("?") > -1 ? "&" : "?")
+                                    .append(entry.getKey()).append("=")
+                                    .append(java.net.URLEncoder.encode(entry.getValue().toString(), "UTF-8"));
                         }
-                    } catch (java.io.UnsupportedEncodingException ignored) {
                     }
+                } catch (java.io.UnsupportedEncodingException ignored) {
+                }
+
+                // 6b. 先试 POST（兼容 POST-only 接口如 /stockMarketQuote/page）
+                org.springframework.http.HttpEntity<Map<String, Object>> entity =
+                        new org.springframework.http.HttpEntity<>(requestBody, headers);
+                ResponseEntity<Map> responseEntity = silentRt.exchange(url, HttpMethod.POST, entity, Map.class);
+
+                // 6c. POST 失败（如 405/400）则用 GET 重试（兼容 GET-only 接口如 /stockDividend/list）
+                if (responseEntity.getStatusCode().isError()) {
+                    isGetRequest = true;
+                    log.info("POST 失败(status={})，降级为 GET 请求: {}", responseEntity.getStatusCode(), paramUrl);
                     org.springframework.http.HttpEntity<Void> getEntity =
                             new org.springframework.http.HttpEntity<>(null, headers);
-                    responseEntity = silentRt.exchange(fullUrl.toString(), HttpMethod.GET, getEntity, Map.class);
+                    responseEntity = silentRt.exchange(paramUrl.toString(), HttpMethod.GET, getEntity, Map.class);
                 }
                 Map<String, Object> response = responseEntity.getBody();
 
@@ -755,7 +785,20 @@ public class AgentService {
                     Object resultData = extractResponseData(response);
 
                     if (resultData != null) {
+                        // 记录调用路径和参数
+                        String httpMethod = isGetRequest ? "GET" : "POST";
+                        String displayUrl = skill.getEndpoint();
+                        if (isInternalCall) {
+                            if (isGetRequest) {
+                                displayUrl = paramUrl.toString().replace("http://localhost:" + serverPort, "");
+                            } else if (url.contains("?")) {
+                                displayUrl = displayUrl + url.substring(url.indexOf("?"));
+                            }
+                        }
                         skillBuilder.append("【").append(skill.getName()).append("】\n");
+                        skillBuilder.append("调用路径: ").append(httpMethod).append(" ").append(displayUrl).append("\n");
+                        skillBuilder.append("调用参数: ").append(objectMapper.writeValueAsString(extractedParams)).append("\n");
+                        skillBuilder.append("--- 返回结果 ---\n");
                         skillBuilder.append(objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(resultData)).append("\n\n");
                         executedCount++;
                     }
@@ -858,6 +901,7 @@ public class AgentService {
                         // 解析 JSON
                         @SuppressWarnings("unchecked")
                         Map<String, Object> extracted = objectMapper.readValue(content, Map.class);
+                        log.info("LLM 提取参数: {}", objectMapper.writeValueAsString(extracted));
                         return extracted;
                     }
                 }
@@ -992,6 +1036,40 @@ public class AgentService {
         if (data == null) data = response.get("list");
         if (data == null) data = response.get("records");
         return data;
+    }
+
+    /**
+     * 展平参数：将嵌套的 query 对象展开为平铺结构
+     * <p>处理 input_schema 中定义了嵌套 query 结构的情况，
+     * 如 {"query": {"stockName": "茅台"}, "pageNum": 1}
+     * 展平为 {"stockName": "茅台", "pageNum": 1}。</p>
+     *
+     * @param params LLM 提取的原始参数
+     * @return 展平后的参数
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> flattenParams(Map<String, Object> params) {
+        if (params == null || params.isEmpty()) {
+            return new HashMap<>();
+        }
+
+        // 检查是否存在 query 嵌套
+        Object queryObj = params.get("query");
+        if (queryObj instanceof Map) {
+            Map<String, Object> flattened = new HashMap<>();
+            // 先放入 query 内部的字段
+            flattened.putAll((Map<String, Object>) queryObj);
+            // 再放入顶层非 query 的字段（如 pageNum、pageSize），query 内的同名字段优先
+            for (Map.Entry<String, Object> entry : params.entrySet()) {
+                if (!"query".equals(entry.getKey()) && !flattened.containsKey(entry.getKey())) {
+                    flattened.put(entry.getKey(), entry.getValue());
+                }
+            }
+            return flattened;
+        }
+
+        // 无嵌套，直接返回
+        return params;
     }
 
     // ===== Step 4: LLM 调用 =====
@@ -1217,5 +1295,123 @@ public class AgentService {
     @Transactional
     public int deleteTestSession(Long agentId, Long sessionId) {
         return executionSessionMapper.logicalDelete(sessionId);
+    }
+
+    // ===== 异步 Agent 任务执行 =====
+
+    /**
+     * 异步执行 Agent 任务（SSE 流式）
+     * <p>供 AgentController 调用，替代原始 Thread 创建，由 Spring 线程池管理。</p>
+     */
+    @Async
+    public void executeAgentTaskAsync(String task, Assistant assistant,
+                                       ResponseBodyEmitter emitter, AtomicBoolean isCompleted,
+                                       ProgressService progressService) {
+        try {
+            safeSend(emitter, isCompleted, "data: {\"status\": \"start\", \"message\": \"事件: 任务开始...\"}\n\n");
+            safeSend(emitter, isCompleted, "data: {\"status\": \"start\", \"message\": \"状态: 正在理解需求...\"}\n\n");
+
+            boolean needTool = task.contains("生成")
+                    || task.contains("文件")
+                    || task.contains("报告")
+                    || task.contains("写")
+                    || task.contains("表格")
+                    || task.contains("Excel")
+                    || task.contains("PDF")
+                    || task.contains("整理")
+                    || task.contains("文档");
+
+            if (needTool) {
+                handleNonStreaming(task, assistant, emitter, isCompleted);
+            } else {
+                try {
+                    handleStreaming(task, assistant, emitter, isCompleted);
+                } catch (IllegalArgumentException e) {
+                    if (e.getMessage() != null && e.getMessage().contains("Tools are currently not supported")) {
+                        log.warn("检测到不支持流式工具，自动降级为非流式模式...");
+                        safeSend(emitter, isCompleted, "data: {\"type\": \"content\", \"message\": \"当前模型不支持流式生成，已自动切换为普通模式...\"}\n\n");
+                        handleNonStreaming(task, assistant, emitter, isCompleted);
+                    } else {
+                        throw e;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            safeSend(emitter, isCompleted, "data: {\"status\": \"error\", \"message\": \"任务执行失败，请稍后重试\"}\n\n");
+            emitter.completeWithError(e);
+        } finally {
+            progressService.clearContext();
+            if (!isCompleted.get()) {
+                emitter.complete();
+            }
+        }
+    }
+
+    /** 安全发送 SSE 数据 */
+    private void safeSend(ResponseBodyEmitter emitter, AtomicBoolean isCompleted, String data) {
+        if (isCompleted.get()) {
+            throw new CancellationException("客户端连接已断开");
+        }
+        try {
+            emitter.send(data, org.springframework.http.MediaType.TEXT_EVENT_STREAM);
+        } catch (java.io.IOException e) {
+            log.warn("客户端连接已断开，停止发送数据: {}", e.getMessage());
+            isCompleted.set(true);
+            throw new CancellationException("客户端连接已断开");
+        }
+    }
+
+    /** 非流式模式 */
+    private void handleNonStreaming(String task, Assistant assistant,
+                                     ResponseBodyEmitter emitter, AtomicBoolean isCompleted) {
+        try {
+            safeSend(emitter, isCompleted, "data: {\"type\": \"content\", \"message\": \"正在调用工具处理...\"}\n\n");
+            String finalResult = assistant.chat(task);
+            safeSend(emitter, isCompleted, "data: {\"type\": \"content\", \"message\": \"" + escapeJson(finalResult) + "\"}\n\n");
+            safeSend(emitter, isCompleted, "data: {\"status\": \"complete\", \"message\": \"任务完成\"}\n\n");
+            if (!isCompleted.get()) emitter.complete();
+        } catch (Exception e) {
+            safeSend(emitter, isCompleted, "data: {\"status\": \"error\", \"message\": \"处理失败，请稍后重试\"}\n\n");
+        }
+    }
+
+    /** 流式模式 */
+    private void handleStreaming(String task, Assistant assistant,
+                                  ResponseBodyEmitter emitter, AtomicBoolean isCompleted) {
+        TokenStream tokenStream = assistant.chatStream(task);
+
+        tokenStream.onNext(token -> {
+            if (token != null && !token.trim().isEmpty()) {
+                safeSend(emitter, isCompleted, "data: {\"type\": \"content\", \"text\": \"" + escapeJson(token) + "\"}\n\n");
+            }
+        });
+
+        tokenStream.onComplete(response -> {
+            safeSend(emitter, isCompleted, "data: {\"status\": \"complete\", \"message\": \"任务完成\"}\n\n");
+            if (!isCompleted.get()) emitter.complete();
+        });
+
+        tokenStream.onError(throwable -> {
+            safeSend(emitter, isCompleted, "data: {\"status\": \"error\", \"message\": \"流式处理失败，请稍后重试\"}\n\n");
+            if (throwable instanceof CancellationException) {
+                log.info("任务已被用户主动取消/连接已断开");
+                emitter.complete();
+                return;
+            }
+            if (!isCompleted.get()) {
+                emitter.completeWithError(throwable);
+            }
+        });
+
+        tokenStream.start();
+    }
+
+    /** 转义 JSON 特殊字符 */
+    private String escapeJson(String s) {
+        if (s == null) return "";
+        return s.replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r");
     }
 }

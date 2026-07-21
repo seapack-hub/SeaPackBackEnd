@@ -32,6 +32,7 @@ public class TransactionService {
      * @param example 查询条件
      * @return 分页结果
      */
+    @Transactional(readOnly = true)
     public PageInfo<Transaction> getTransactionList(int pageNum, int pageSize, TransactionExample example) {
         PageHelper.startPage(pageNum, pageSize);
         List<Transaction> list = transactionMapper.selectByExampleWithBLOBs(example);
@@ -43,6 +44,7 @@ public class TransactionService {
      * @param fundCode 基金代码
      * @return 交易记录列表
      */
+    @Transactional(readOnly = true)
     public List<Transaction> getTransactionByFundCode(String fundCode) {
         TransactionExample example = new TransactionExample();
         example.createCriteria().andFundCodeEqualTo(fundCode);
@@ -55,6 +57,7 @@ public class TransactionService {
      * @param userId 用户ID
      * @return 交易记录列表
      */
+    @Transactional(readOnly = true)
     public List<Transaction> getTransactionByUserId(Integer userId) {
         TransactionExample example = new TransactionExample();
         example.createCriteria().andUserIdEqualTo(userId);
@@ -67,6 +70,7 @@ public class TransactionService {
      * @param id 主键ID
      * @return 交易信息
      */
+    @Transactional(readOnly = true)
     public Transaction getTransactionById(Integer id) {
         return transactionMapper.selectByPrimaryKey(id);
     }
