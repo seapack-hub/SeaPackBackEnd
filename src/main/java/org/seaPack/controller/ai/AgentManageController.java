@@ -30,6 +30,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @RestController
 @RequestMapping("/ai/agents")
+@CrossOrigin(origins = "${cors.allowed-origins:*}")
 public class AgentManageController {
 
     @Autowired
@@ -263,6 +264,7 @@ public class AgentManageController {
         response.setCharacterEncoding("UTF-8");
         response.setHeader("Cache-Control", "no-cache");
         response.setHeader("Connection", "keep-alive");
+        response.setHeader("X-Accel-Buffering", "no");      // 通知 nginx 关闭缓冲
 
         // 创建 SSE 发射器，超时时间 10 分钟
         SseEmitter emitter = new SseEmitter(600000L);

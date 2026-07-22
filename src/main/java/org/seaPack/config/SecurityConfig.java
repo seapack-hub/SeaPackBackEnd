@@ -53,6 +53,15 @@ public class SecurityConfig {
                     // 其余接口 —— 需携带有效 token
                     .anyRequest().authenticated()
                 )
+                .cors(cors -> cors.configurationSource(request -> {
+                    // 允许跨域请求中的 Authorization 头
+                    var config = new org.springframework.web.cors.CorsConfiguration();
+                    config.setAllowedOriginPatterns(java.util.List.of("*"));
+                    config.setAllowedMethods(java.util.List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+                    config.setAllowedHeaders(java.util.List.of("*"));
+                    config.setAllowCredentials(true);
+                    return config;
+                }))
                 .csrf(csrf -> csrf.disable())
                 // 在 UsernamePasswordAuthenticationFilter 之前执行 JWT 过滤器
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

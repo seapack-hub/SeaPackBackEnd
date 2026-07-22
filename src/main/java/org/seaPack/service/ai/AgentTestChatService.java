@@ -510,6 +510,12 @@ public class AgentTestChatService {
                     "stepName", "提示词组装"
             ));
 
+            // 注册 onCompletion 回调：客户端断连或服务器 complete 时设置标记，用于中断 LLM 流
+            emitter.onCompletion(() -> {
+                log.info("SSE 连接已关闭，设置 isCompleted 标记");
+                isCompleted.set(true);
+            });
+
             AgentTraceStepResult stepResult = assemblePrompt(agent, stepIndex);
             systemPrompt = stepResult.output;
             stepIndex = stepResult.nextStepIndex;
@@ -633,13 +639,8 @@ public class AgentTestChatService {
         long totalDuration = System.currentTimeMillis() - totalStart;
         AgentTraceSnapshot snapshot = buildTraceSnapshot(steps, totalDuration, promptTokens, completionTokens);
 
-        // ===== 保存测试会话 =====
-        saveTestSession(agent, request, replyContent, snapshot, (int) totalDuration,
-                promptTokens, completionTokens, modelName, "success", null, userId);
-
-        agentMapper.incrementUseCount(agent.getId());
-
-        // ===== 发送完成事件 =====
+        // ===== 先发送完成事件关闭 SSE 连接，再执行后续 DB 操作 =====
+        // 注意：必须优先关闭 SSE，否则 DB 异常会导致前端永远收不到 done 事件
         Map<String, Object> doneData = new HashMap<>();
         doneData.put("traceSnapshot", snapshot);
         doneData.put("tokens", Map.of(
@@ -650,6 +651,20 @@ public class AgentTestChatService {
         sendSseEvent(emitter, "done", doneData);
 
         emitter.complete();
+
+        // ===== 异步保存测试会话和统计（不影响 SSE 响应） =====
+        try {
+            saveTestSession(agent, request, replyContent, snapshot, (int) totalDuration,
+                    promptTokens, completionTokens, modelName, "success", null, userId);
+        } catch (Exception e) {
+            log.error("保存测试会话失败: {}", e.getMessage(), e);
+        }
+
+        try {
+            agentMapper.incrementUseCount(agent.getId());
+        } catch (Exception e) {
+            log.error("更新 Agent 使用次数失败: {}", e.getMessage(), e);
+        }
     }
 
     /**
