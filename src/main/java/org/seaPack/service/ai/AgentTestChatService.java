@@ -24,6 +24,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
+import jakarta.servlet.http.HttpServletResponse;
 
 /**
  * Agent 测试对话服务
@@ -484,7 +485,7 @@ public class AgentTestChatService {
      * @param userId  当前用户 ID
      * @param emitter SSE 发射器
      */
-    public void testChatStream(AgentTestChatRequest request, Long userId, SseEmitter emitter, String authToken) {
+    public void testChatStream(AgentTestChatRequest request, Long userId, SseEmitter emitter, String authToken, HttpServletResponse response) {
         long totalStart = System.currentTimeMillis();
         List<AgentTraceStep> steps = new ArrayList<>();
         int stepIndex = 1;
@@ -650,7 +651,13 @@ public class AgentTestChatService {
         doneData.put("durationMs", totalDuration);
         sendSseEvent(emitter, "done", doneData);
 
+        // 关闭响应体：flush → close → complete
+        // 必须确保浏览器收到 chunked 传输的结束标记 (0\r\n\r\n)
+        try { response.flushBuffer(); } catch (Exception ignored) {}
+        try { response.getOutputStream().close(); } catch (Exception ignored) {}
         emitter.complete();
+
+        log.info("SSE 连接已完全关闭 (flush+close+complete)");
 
         // ===== 异步保存测试会话和统计（不影响 SSE 响应） =====
         try {

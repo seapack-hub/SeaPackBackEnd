@@ -263,7 +263,6 @@ public class AgentManageController {
         response.setContentType(MediaType.TEXT_EVENT_STREAM_VALUE);
         response.setCharacterEncoding("UTF-8");
         response.setHeader("Cache-Control", "no-cache");
-        response.setHeader("Connection", "keep-alive");
         response.setHeader("X-Accel-Buffering", "no");      // 通知 nginx 关闭缓冲
 
         // 创建 SSE 发射器，超时时间 10 分钟
@@ -276,7 +275,7 @@ public class AgentManageController {
         ExecutorService executor = Executors.newSingleThreadExecutor();
         executor.execute(() -> {
             try {
-                agentTestChatService.testChatStream(request, userId, emitter, authHeader);
+                agentTestChatService.testChatStream(request, userId, emitter, authHeader, response);
             } catch (Exception e) {
                 try {
                     emitter.completeWithError(e);
