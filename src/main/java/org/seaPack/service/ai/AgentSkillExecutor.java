@@ -70,11 +70,26 @@ public class AgentSkillExecutor {
      * @return 技能执行结果（含输出文本和统计元数据）
      */
     public SkillExecuteResult executeSkills(Long agentId, String userMessage, String authToken) {
+        return executeSkills(agentId, userMessage, authToken, null);
+    }
+
+    /**
+     * 执行 Agent 关联的技能（支持 SSE 流式进度）
+     * <p>流程：获取已启用技能 → LLM 智能选择 → 逐个提取参数并调用 endpoint → 返回汇总结果。</p>
+     *
+     * @param agentId     Agent ID
+     * @param userMessage 用户原始消息
+     * @param authToken   Bearer Token（用于内部API调用的认证，SSE 异步线程中需手动传入）
+     * @param emitter     SSE 发射器（可选，用于发送流式进度）
+     * @return 技能执行结果（含输出文本和统计元数据）
+     */
+    public SkillExecuteResult executeSkills(Long agentId, String userMessage, String authToken, org.springframework.web.servlet.mvc.method.annotation.SseEmitter emitter) {
         long start = System.currentTimeMillis();
         StringBuilder skillBuilder = new StringBuilder();
         int executedCount = 0;
         int failedCount = 0;
         List<String> skillNames = new ArrayList<>();
+        List<Map<String, Object>> skillDetails = new ArrayList<>();
 
         // 获取 Agent 关联的已启用技能
         List<AgentSkill> enabledSkills = agentSkillMapper.selectByAgentId(agentId).stream()
@@ -82,6 +97,14 @@ public class AgentSkillExecutor {
                 .sorted(Comparator.comparingInt(s -> s.getSortOrder() != null ? s.getSortOrder() : 0))
                 .collect(Collectors.toList());
         log.info("[技能调用] AgentId={}, 从DB查到已启用技能数={}", agentId, enabledSkills.size());
+
+        if (emitter != null) {
+            sendSseEvent(emitter, "step_progress", Map.of(
+                    "stepIndex", 0,
+                    "message", "共找到 " + enabledSkills.size() + " 个已启用技能"
+            ));
+        }
+
         if (!enabledSkills.isEmpty()) {
             for (AgentSkill as : enabledSkills) {
                 log.info("[技能调用]   技能关联记录: skillId={}, skillName={}, sortOrder={}",
@@ -96,9 +119,23 @@ public class AgentSkillExecutor {
 
         // LLM 智能选择最匹配的技能，避免全部执行
         if (config != null) {
+            if (emitter != null) {
+                sendSseEvent(emitter, "step_progress", Map.of(
+                        "stepIndex", 0,
+                        "message", "正在通过 LLM 智能选择技能..."
+                ));
+            }
+
             int beforeSelectCount = enabledSkills.size();
             enabledSkills = selectSkillsByLLM(userMessage, enabledSkills, config);
             log.info("[技能调用] LLM选择后: 技能数从{}变为{}", beforeSelectCount, enabledSkills.size());
+
+            if (emitter != null) {
+                sendSseEvent(emitter, "step_progress", Map.of(
+                        "stepIndex", 0,
+                        "message", "LLM 选中 " + enabledSkills.size() + " 个技能"
+                ));
+            }
         } else {
             log.warn("[技能调用] config为null, 跳过LLM选择, 将直接执行{}个技能(但循环内还会再次判断config)", enabledSkills.size());
         }
@@ -116,14 +153,47 @@ public class AgentSkillExecutor {
 
             skillNames.add(skill.getName());
 
+            if (emitter != null) {
+                sendSseEvent(emitter, "step_progress", Map.of(
+                        "stepIndex", 0,
+                        "message", "正在调用技能: " + skill.getName()
+                ));
+            }
+
+            Map<String, Object> skillDetail = new HashMap<>();
+            skillDetail.put("skillId", skill.getId());
+            skillDetail.put("skillName", skill.getName());
+            skillDetail.put("endpoint", skill.getEndpoint());
+            skillDetail.put("description", skill.getDescription());
+
             try {
                 if (config == null) {
                     log.warn("[技能调用] 技能[{}] 因config为null被跳过(activeProvider={}获取不到配置)", skill.getName(), providerName);
+                    skillDetail.put("status", "skipped");
+                    skillDetail.put("reason", "AI 配置错误");
+                    skillDetails.add(skillDetail);
                     continue;
                 }
 
                 // LLM 提取参数
+                if (emitter != null) {
+                    sendSseEvent(emitter, "step_progress", Map.of(
+                            "stepIndex", 0,
+                            "message", "正在为技能 [" + skill.getName() + "] 提取参数..."
+                    ));
+                }
+
                 Map<String, Object> extractedParams = extractParamsByLLM(userMessage, skill.getInputSchema(), config);
+                skillDetail.put("extractedParams", extractedParams);
+
+                if (emitter != null) {
+                    sendSseEvent(emitter, "step_detail", Map.of(
+                            "stepIndex", 0,
+                            "detailType", "skill_params",
+                            "skillName", skill.getName(),
+                            "params", extractedParams
+                    ));
+                }
 
                 // 处理 URL
                 String url = skill.getEndpoint();
@@ -147,6 +217,8 @@ public class AgentSkillExecutor {
                     requestBody.put("query", userMessage);
                     requestBody.put("params", extractedParams);
                 }
+
+                skillDetail.put("requestBody", requestBody);
 
                 // 构建 Headers
                 HttpHeaders headers = new HttpHeaders();
@@ -231,13 +303,47 @@ public class AgentSkillExecutor {
                         skillBuilder.append("--- 返回结果 ---\n");
                         skillBuilder.append(objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(resultData)).append("\n\n");
                         executedCount++;
+
+                        skillDetail.put("status", "success");
+                        skillDetail.put("httpMethod", httpMethod);
+                        skillDetail.put("actualUrl", displayUrl);
+                        skillDetail.put("result", resultData);
+
+                        if (emitter != null) {
+                            sendSseEvent(emitter, "step_detail", Map.of(
+                                    "stepIndex", 0,
+                                    "detailType", "skill_result",
+                                    "skillName", skill.getName(),
+                                    "status", "success",
+                                    "httpMethod", httpMethod,
+                                    "url", displayUrl,
+                                    "resultPreview", objectMapper.writeValueAsString(resultData).length() > 500
+                                            ? objectMapper.writeValueAsString(resultData).substring(0, 500) + "..."
+                                            : objectMapper.writeValueAsString(resultData)
+                            ));
+                        }
                     }
                 }
             } catch (Exception e) {
                 failedCount++;
                 log.error("[技能调用] 技能[{}] 执行异常: {}", skill.getName(), e.getMessage(), e);
                 skillBuilder.append("【").append(skill.getName()).append("】执行失败: ").append(e.getMessage()).append("\n\n");
+
+                skillDetail.put("status", "failed");
+                skillDetail.put("errorMessage", e.getMessage());
+
+                if (emitter != null) {
+                    sendSseEvent(emitter, "step_detail", Map.of(
+                            "stepIndex", 0,
+                            "detailType", "skill_result",
+                            "skillName", skill.getName(),
+                            "status", "failed",
+                            "errorMessage", e.getMessage()
+                    ));
+                }
             }
+
+            skillDetails.add(skillDetail);
         }
 
         // 组装返回结果
@@ -251,6 +357,21 @@ public class AgentSkillExecutor {
         log.info("[技能调用] 执行完毕: totalSkillCount={}, executedCount={}, failedCount={}, skillNames={}",
                 enabledSkills.size(), executedCount, failedCount, skillNames);
         return result;
+    }
+
+    /**
+     * 发送 SSE 事件
+     */
+    private void sendSseEvent(org.springframework.web.servlet.mvc.method.annotation.SseEmitter emitter, String type, Map<String, Object> data) {
+        try {
+            Map<String, Object> event = new HashMap<>(data);
+            event.put("type", type);
+            emitter.send(org.springframework.web.servlet.mvc.method.annotation.SseEmitter.event()
+                    .name("message")
+                    .data(objectMapper.writeValueAsString(event), org.springframework.http.MediaType.APPLICATION_JSON));
+        } catch (Exception e) {
+            log.warn("发送 SSE 事件失败: {}", e.getMessage());
+        }
     }
 
     /**

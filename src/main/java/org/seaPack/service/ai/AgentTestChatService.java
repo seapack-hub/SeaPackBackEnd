@@ -90,7 +90,7 @@ public class AgentTestChatService {
         // ===== Step 1: 提示词组装 =====
         String systemPrompt;
         try {
-            AgentTraceStepResult stepResult = assemblePrompt(agent, stepIndex);
+            AgentTraceStepResult stepResult = assemblePrompt(agent, stepIndex, request.getMessage());
             systemPrompt = stepResult.output;
             stepIndex = stepResult.nextStepIndex;
             steps.add(stepResult.step);
@@ -182,18 +182,152 @@ public class AgentTestChatService {
         return response;
     }
 
+    /**
+     * LLM 动态选择相关模板
+     * <p>根据用户消息和所有可用模板，调用 LLM 选出最相关的模板。</p>
+     *
+     * @param userMessage   用户消息
+     * @param allTemplates  所有可用的模板列表
+     * @param config        AI 配置
+     * @return 选中的模板列表
+     */
+    private List<PromptTemplate> selectPromptsByLLM(String userMessage, List<PromptTemplate> allTemplates,
+                                                     AIProperties.ProviderConfig config) {
+        if (allTemplates.size() <= 1) {
+            return allTemplates;
+        }
+
+        // 构建模板列表描述
+        StringBuilder templateListDesc = new StringBuilder("[");
+        for (int i = 0; i < allTemplates.size(); i++) {
+            PromptTemplate template = allTemplates.get(i);
+            if (i > 0) {
+                templateListDesc.append(", ");
+            }
+            // 提取模板内容的前100个字符作为描述预览
+            String contentPreview = template.getContent().length() > 100
+                    ? template.getContent().substring(0, 100) + "..."
+                    : template.getContent();
+            templateListDesc.append("{\"id\":").append(template.getId())
+                    .append(",\"name\":\"").append(template.getName() != null ? template.getName() : "模板" + template.getId())
+                    .append("\",\"description\":\"").append(contentPreview.replace("\"", "\\\"")).append("\"}");
+        }
+        templateListDesc.append("]");
+
+        String systemPrompt = "你是一个模板选择器。根据用户消息，从模板列表中选出与用户意图最相关的模板。\n\n" +
+                "可用模板：\n" + templateListDesc + "\n\n" +
+                "规则：\n" +
+                "1. 只返回 JSON 数组，包含选中模板的 ID，如 [1, 3]\n" +
+                "2. 根据用户意图选择最相关的模板，可以选多个\n" +
+                "3. 如果用户意图不明确或与所有模板无关，返回所有模板的 ID\n" +
+                "4. 不要返回任何解释文字、markdown 标记或其他内容\n\n" +
+                "用户消息：" + userMessage;
+
+        List<Map<String, String>> messages = new ArrayList<>();
+        Map<String, String> sysMsg = new HashMap<>();
+        sysMsg.put("role", "system");
+        sysMsg.put("content", systemPrompt);
+        messages.add(sysMsg);
+
+        Map<String, Object> requestBody = new HashMap<>();
+        requestBody.put("model", config.getChatModel());
+        requestBody.put("messages", messages);
+        requestBody.put("stream", false);
+        requestBody.put("temperature", 0);
+
+        try {
+            String url = config.getBaseUrl().replaceAll("/+$", "") + "/chat/completions";
+            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+            headers.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
+            headers.set("Authorization", "Bearer " + config.getApiKey());
+
+            org.springframework.http.HttpEntity<Map<String, Object>> entity =
+                    new org.springframework.http.HttpEntity<>(requestBody, headers);
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> apiResponse = restTemplate.postForObject(url, entity, Map.class);
+
+            if (apiResponse != null) {
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> choices = (List<Map<String, Object>>) apiResponse.get("choices");
+                if (choices != null && !choices.isEmpty()) {
+                    Map<String, Object> choice = choices.get(0);
+                    @SuppressWarnings("unchecked")
+                    Map<String, String> message = (Map<String, String>) choice.get("message");
+                    if (message != null && message.get("content") != null) {
+                        String content = message.get("content").trim();
+                        log.info("[模板选择] LLM返回内容: {}", content);
+
+                        // 解析返回的模板 ID 列表
+                        if (content.startsWith("```")) {
+                            content = content.replaceAll("^```(json)?\\s*", "").replaceAll("\\s*```$", "");
+                        }
+                        @SuppressWarnings("unchecked")
+                        List<Integer> selectedIds = objectMapper.readValue(content, List.class);
+
+                        if (selectedIds != null && !selectedIds.isEmpty()) {
+                            Set<Integer> idSet = new HashSet<>(selectedIds);
+                            return allTemplates.stream()
+                                    .filter(t -> t.getId() != null && idSet.contains(t.getId().intValue()))
+                                    .collect(Collectors.toList());
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("[模板选择] LLM调用异常，降级为加载全部模板: {}", e.getMessage());
+        }
+
+        // 降级：返回全部模板
+        return allTemplates;
+    }
+
     // ===== Step 1: 提示词组装 =====
 
     /**
      * 组装系统提示词
      * <p>将 Agent 基础提示词与关联的提示词模板按顺序拼接。</p>
      */
-    private AgentTraceStepResult assemblePrompt(Agent agent, int stepIndex) {
+    private AgentTraceStepResult assemblePrompt(Agent agent, int stepIndex, String userMessage) {
+        return assemblePrompt(agent, stepIndex, userMessage, null);
+    }
+
+    /**
+     * 组装系统提示词（支持 SSE 流式进度）
+     * <p>将 Agent 基础提示词与 LLM 动态选择的提示词模板按顺序拼接。</p>
+     */
+    private AgentTraceStepResult assemblePrompt(Agent agent, int stepIndex, String userMessage, SseEmitter emitter) {
         long stepStart = System.currentTimeMillis();
         StringBuilder systemPromptBuilder = new StringBuilder();
+        List<Map<String, Object>> templateDetails = new ArrayList<>();
+        List<PromptTemplate> selectedTemplates = new ArrayList<>();
+
+        // 发送开始加载 Agent 基础提示词
+        if (emitter != null) {
+            sendSseEvent(emitter, "step_progress", Map.of(
+                    "stepIndex", stepIndex,
+                    "message", "正在加载 Agent 基础提示词..."
+            ));
+        }
 
         if (agent.getSystemPrompt() != null && !agent.getSystemPrompt().isBlank()) {
             systemPromptBuilder.append(agent.getSystemPrompt());
+            if (emitter != null) {
+                sendSseEvent(emitter, "step_detail", Map.of(
+                        "stepIndex", stepIndex,
+                        "detailType", "agent_prompt",
+                        "content", agent.getSystemPrompt(),
+                        "contentLength", agent.getSystemPrompt().length()
+                ));
+            }
+        }
+
+        // 发送开始加载关联模板
+        if (emitter != null) {
+            sendSseEvent(emitter, "step_progress", Map.of(
+                    "stepIndex", stepIndex,
+                    "message", "正在通过 LLM 智能选择相关模板..."
+            ));
         }
 
         List<AgentPrompt> enabledPrompts = agentPromptMapper.selectByAgentId(agent.getId()).stream()
@@ -206,13 +340,66 @@ public class AgentTestChatService {
                 .map(AgentPrompt::getTemplateId)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
+
         if (!templateIds.isEmpty()) {
             Map<Long, PromptTemplate> templateMap = promptTemplateMapper.selectByIds(templateIds).stream()
                     .collect(Collectors.toMap(PromptTemplate::getId, t -> t, (a, b) -> a));
+
+            // 收集所有可用模板的信息
+            List<PromptTemplate> allTemplates = new ArrayList<>();
             for (AgentPrompt ap : enabledPrompts) {
                 PromptTemplate template = templateMap.get(ap.getTemplateId());
                 if (template != null && template.getContent() != null && !template.getContent().isBlank()) {
-                    systemPromptBuilder.append("\n\n").append(template.getContent());
+                    allTemplates.add(template);
+                }
+            }
+
+            // 使用 LLM 动态选择相关模板
+            if (!allTemplates.isEmpty()) {
+                String providerName = aiProperties.getActiveProvider();
+                AIProperties.ProviderConfig config = aiProperties.getProviders().get(providerName);
+
+                if (config != null && userMessage != null && !userMessage.isBlank()) {
+                    selectedTemplates = selectPromptsByLLM(userMessage, allTemplates, config);
+
+                    if (emitter != null) {
+                        sendSseEvent(emitter, "step_progress", Map.of(
+                                "stepIndex", stepIndex,
+                                "message", "LLM 选择了 " + selectedTemplates.size() + " 个相关模板（共 " + allTemplates.size() + " 个）"
+                        ));
+                    }
+                } else {
+                    // 如果没有用户消息或配置，加载全部模板
+                    selectedTemplates = allTemplates;
+                }
+            }
+
+            // 拼接选中的模板内容
+            for (PromptTemplate template : selectedTemplates) {
+                systemPromptBuilder.append("\n\n").append(template.getContent());
+
+                // 收集模板详情
+                Map<String, Object> templateDetail = new HashMap<>();
+                templateDetail.put("templateId", template.getId());
+                templateDetail.put("templateName", template.getName());
+                templateDetail.put("contentLength", template.getContent().length());
+                templateDetail.put("contentPreview", template.getContent().length() > 100
+                        ? template.getContent().substring(0, 100) + "..."
+                        : template.getContent());
+                templateDetails.add(templateDetail);
+
+                // 发送每个模板加载完成的详细信息
+                if (emitter != null) {
+                    sendSseEvent(emitter, "step_detail", Map.of(
+                            "stepIndex", stepIndex,
+                            "detailType", "template_loaded",
+                            "templateId", template.getId(),
+                            "templateName", template.getName() != null ? template.getName() : "未命名模板",
+                            "contentLength", template.getContent().length(),
+                            "contentPreview", template.getContent().length() > 100
+                                    ? template.getContent().substring(0, 100) + "..."
+                                    : template.getContent()
+                    ));
                 }
             }
         }
@@ -220,6 +407,14 @@ public class AgentTestChatService {
         String systemPrompt = systemPromptBuilder.toString();
         if (systemPrompt.isBlank()) {
             throw new RuntimeException("Agent 系统提示词为空: " + agent.getName());
+        }
+
+        // 发送组装完成
+        if (emitter != null) {
+            sendSseEvent(emitter, "step_progress", Map.of(
+                    "stepIndex", stepIndex,
+                    "message", "提示词组装完成"
+            ));
         }
 
         AgentTraceStep step = new AgentTraceStep();
@@ -232,6 +427,8 @@ public class AgentTestChatService {
         step.setOutput(systemPrompt);
         Map<String, Object> meta = new HashMap<>();
         meta.put("templateCount", enabledPrompts.size());
+        meta.put("templateDetails", templateDetails);
+        meta.put("totalPromptLength", systemPrompt.length());
         step.setMetadata(meta);
 
         AgentTraceStepResult result = new AgentTraceStepResult();
@@ -247,9 +444,24 @@ public class AgentTestChatService {
      * 从 Agent 关联的知识库中检索相关内容
      */
     private AgentTraceStepResult retrieveKnowledge(Agent agent, String query, int stepIndex) {
+        return retrieveKnowledge(agent, query, stepIndex, null);
+    }
+
+    /**
+     * 从 Agent 关联的知识库中检索相关内容（支持 SSE 流式进度）
+     */
+    private AgentTraceStepResult retrieveKnowledge(Agent agent, String query, int stepIndex, SseEmitter emitter) {
         long stepStart = System.currentTimeMillis();
         StringBuilder knowledgeBuilder = new StringBuilder();
         int totalChunks = 0;
+        List<Map<String, Object>> knowledgeDetails = new ArrayList<>();
+
+        if (emitter != null) {
+            sendSseEvent(emitter, "step_progress", Map.of(
+                    "stepIndex", stepIndex,
+                    "message", "正在检索关联的知识库..."
+            ));
+        }
 
         List<AgentKnowledge> enabledKnowledge = agentKnowledgeMapper.selectByAgentId(agent.getId()).stream()
                 .filter(k -> k.getEnabled() != null && k.getEnabled() == 1)
@@ -257,16 +469,58 @@ public class AgentTestChatService {
                 .collect(Collectors.toList());
 
         for (AgentKnowledge ak : enabledKnowledge) {
+            String knowledgeName = ak.getKnowledgeName() != null ? ak.getKnowledgeName() : "知识库";
+
+            if (emitter != null) {
+                sendSseEvent(emitter, "step_progress", Map.of(
+                        "stepIndex", stepIndex,
+                        "message", "正在检索知识库: " + knowledgeName
+                ));
+            }
+
             int topK = ak.getRetrievalCount() != null ? ak.getRetrievalCount() : 3;
             List<RetrievalResult> results = knowledgeBaseService.retrieve(ak.getKnowledgeId(), query, topK);
 
+            Map<String, Object> knowledgeDetail = new HashMap<>();
+            knowledgeDetail.put("knowledgeId", ak.getKnowledgeId());
+            knowledgeDetail.put("knowledgeName", knowledgeName);
+            knowledgeDetail.put("retrievalCount", topK);
+            knowledgeDetail.put("actualCount", results.size());
+
             if (!results.isEmpty()) {
-                knowledgeBuilder.append("【").append(ak.getKnowledgeName() != null ? ak.getKnowledgeName() : "知识库").append("】\n");
+                knowledgeBuilder.append("【").append(knowledgeName).append("】\n");
+                List<Map<String, Object>> chunkDetails = new ArrayList<>();
                 for (RetrievalResult r : results) {
                     knowledgeBuilder.append("- ").append(r.getContent()).append("\n");
                     totalChunks++;
+
+                    Map<String, Object> chunkDetail = new HashMap<>();
+                    chunkDetail.put("content", r.getContent());
+                    chunkDetail.put("score", r.getScore());
+                    chunkDetails.add(chunkDetail);
                 }
                 knowledgeBuilder.append("\n");
+                knowledgeDetail.put("chunks", chunkDetails);
+            } else {
+                knowledgeDetail.put("message", "未检索到相关内容");
+            }
+            knowledgeDetails.add(knowledgeDetail);
+
+            if (emitter != null) {
+                sendSseEvent(emitter, "step_detail", Map.of(
+                        "stepIndex", stepIndex,
+                        "detailType", "knowledge_result",
+                        "knowledgeId", ak.getKnowledgeId(),
+                        "knowledgeName", knowledgeName,
+                        "foundCount", results.size(),
+                        "chunks", results.isEmpty() ? List.of() : results.stream()
+                                .map(r -> Map.<String, Object>of(
+                                        "contentPreview", r.getContent().length() > 200
+                                                ? r.getContent().substring(0, 200) + "..."
+                                                : r.getContent(),
+                                        "score", r.getScore() != null ? r.getScore() : 0.0
+                                )).collect(Collectors.toList())
+                ));
             }
         }
 
@@ -280,6 +534,7 @@ public class AgentTestChatService {
         Map<String, Object> meta = new HashMap<>();
         meta.put("knowledgeCount", enabledKnowledge.size());
         meta.put("chunkCount", totalChunks);
+        meta.put("knowledgeDetails", knowledgeDetails);
         step.setMetadata(meta);
 
         AgentTraceStepResult result = new AgentTraceStepResult();
@@ -517,7 +772,7 @@ public class AgentTestChatService {
                 isCompleted.set(true);
             });
 
-            AgentTraceStepResult stepResult = assemblePrompt(agent, stepIndex);
+            AgentTraceStepResult stepResult = assemblePrompt(agent, stepIndex, request.getMessage(), emitter);
             systemPrompt = stepResult.output;
             stepIndex = stepResult.nextStepIndex;
             steps.add(stepResult.step);
@@ -544,7 +799,7 @@ public class AgentTestChatService {
                     "stepName", "知识库检索"
             ));
 
-            AgentTraceStepResult stepResult = retrieveKnowledge(agent, request.getMessage(), stepIndex);
+            AgentTraceStepResult stepResult = retrieveKnowledge(agent, request.getMessage(), stepIndex, emitter);
             knowledgeContext = stepResult.output;
             stepIndex = stepResult.nextStepIndex;
             steps.add(stepResult.step);
@@ -574,7 +829,7 @@ public class AgentTestChatService {
                     "stepName", "技能调用"
             ));
 
-            SkillExecuteResult skillResult = skillExecutor.executeSkills(agent.getId(), request.getMessage(), authToken);
+            SkillExecuteResult skillResult = skillExecutor.executeSkills(agent.getId(), request.getMessage(), authToken, emitter);
             skillContext = skillResult.getOutput();
 
             AgentTraceStep step = new AgentTraceStep();
