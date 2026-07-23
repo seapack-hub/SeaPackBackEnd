@@ -61,7 +61,7 @@ public class AgentChatService {
         String systemPrompt = buildSystemPrompt(agent);
 
         // 3. 构建消息列表
-        List<Map<String, String>> messages = buildMessages(agent, systemPrompt, request.getMessage());
+        List<Map<String, String>> messages = buildMessages(agent, systemPrompt, request.getMessage(), request.getHistory());
 
         // 4. 获取 AI 提供商配置
         String providerName = aiProperties.getActiveProvider();
@@ -179,7 +179,8 @@ public class AgentChatService {
     /**
      * 构建消息列表（含系统提示词、历史记忆、用户消息）
      */
-    private List<Map<String, String>> buildMessages(Agent agent, String systemPrompt, String userMessage) {
+    private List<Map<String, String>> buildMessages(Agent agent, String systemPrompt,
+                                                     String userMessage, List<Map<String, String>> history) {
         List<Map<String, String>> messages = new ArrayList<>();
 
         Map<String, String> systemMsg = new HashMap<>();
@@ -187,8 +188,16 @@ public class AgentChatService {
         systemMsg.put("content", systemPrompt);
         messages.add(systemMsg);
 
-        if (agent.getMemoryEnabled() != null && agent.getMemoryEnabled() == 1) {
-            // 正式对话不传 history，此处预留扩展
+        // 添加历史消息（如果启用记忆）
+        if (agent.getMemoryEnabled() != null && agent.getMemoryEnabled() == 1
+                && history != null && !history.isEmpty()) {
+            int window = agent.getMemoryWindow() != null ? agent.getMemoryWindow() : 20;
+            List<Map<String, String>> trimmedHistory = new ArrayList<>(history);
+            // 按 memory_window 裁剪历史，保留最近的 window*2 条消息（用户+助手交替）
+            if (trimmedHistory.size() > window * 2) {
+                trimmedHistory = trimmedHistory.subList(trimmedHistory.size() - window * 2, trimmedHistory.size());
+            }
+            messages.addAll(trimmedHistory);
         }
 
         Map<String, String> userMsg = new HashMap<>();
