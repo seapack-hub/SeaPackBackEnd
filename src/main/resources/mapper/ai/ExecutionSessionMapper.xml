@@ -7,6 +7,8 @@
         <result property="bizType" column="biz_type"/>
         <result property="bizId" column="biz_id"/>
         <result property="bizName" column="biz_name"/>
+        <result property="moduleKey" column="module_key"/>
+        <result property="position" column="position"/>
         <result property="sessionId" column="session_id"/>
         <result property="requestId" column="request_id"/>
         <result property="retryCount" column="retry_count"/>
@@ -27,7 +29,8 @@
     </resultMap>
 
     <sql id="BaseColumns">
-        id, biz_type, biz_id, biz_name, session_id, request_id, retry_count,
+        id, biz_type, biz_id, biz_name, module_key, position,
+        session_id, request_id, retry_count,
         user_message, history_messages, output_result, trace_snapshot,
         total_duration_ms, tokens_prompt, tokens_completion, tokens_total,
         model_name, status, is_deleted, error_message, created_by, created_at
@@ -61,12 +64,14 @@
 
     <insert id="insert" parameterType="org.seaPack.model.ai.ExecutionSession"
             useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO ai_execution_session (biz_type, biz_id, biz_name, session_id, request_id,
+        INSERT INTO ai_execution_session (biz_type, biz_id, biz_name, module_key, position,
+                                           session_id, request_id,
                                            retry_count, user_message, history_messages, output_result,
                                            trace_snapshot, total_duration_ms, tokens_prompt, tokens_completion,
                                            tokens_total, model_name, status, is_deleted, error_message,
                                            created_by, created_at)
-        VALUES (#{bizType}, #{bizId}, #{bizName}, #{sessionId}, #{requestId},
+        VALUES (#{bizType}, #{bizId}, #{bizName}, #{moduleKey}, #{position},
+                #{sessionId}, #{requestId},
                 #{retryCount}, #{userMessage}, #{historyMessages}, #{outputResult},
                 #{traceSnapshot}, #{totalDurationMs}, #{tokensPrompt}, #{tokensCompletion},
                 #{tokensTotal}, #{modelName}, #{status}, 0, #{errorMessage},
@@ -77,6 +82,8 @@
         UPDATE ai_execution_session
         <set>
             <if test="bizName != null">biz_name = #{bizName},</if>
+            <if test="moduleKey != null">module_key = #{moduleKey},</if>
+            <if test="position != null">position = #{position},</if>
             <if test="sessionId != null">session_id = #{sessionId},</if>
             <if test="retryCount != null">retry_count = #{retryCount},</if>
             <if test="userMessage != null">user_message = #{userMessage},</if>

@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.ai.SceneDeploymentMapper">
+
+    <resultMap id="BaseMap" type="org.seaPack.model.ai.SceneDeployment">
+        <id property="id" column="id"/>
+        <result property="sceneId" column="scene_id"/>
+        <result property="moduleKey" column="module_key"/>
+        <result property="positionKey" column="position_key"/>
+        <result property="config" column="config"/>
+        <result property="isDefault" column="is_default"/>
+        <result property="sortOrder" column="sort_order"/>
+        <result property="status" column="status"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <sql id="BaseColumns">
+        id, scene_id, module_key, position_key, config, is_default,
+        sort_order, status, created_at, updated_at
+    </sql>
+
+    <!-- 查询场景的所有部署，按排序和创建时间升序 -->
+    <select id="selectBySceneId" resultMap="BaseMap">
+        SELECT <include refid="BaseColumns"/>
+        FROM ai_scene_deployment
+        WHERE scene_id = #{sceneId}
+        ORDER BY sort_order ASC, created_at ASC
+    </select>
+
+    <!-- 查询指定模块+位置的所有已启用部署（仅已启用状态） -->
+    <select id="selectByModuleAndPosition" resultMap="BaseMap">
+        SELECT <include refid="BaseColumns"/>
+        FROM ai_scene_deployment
+        WHERE module_key = #{moduleKey} AND position_key = #{positionKey}
+          AND status = 1
+        ORDER BY sort_order ASC, created_at ASC
+    </select>
+
+    <!-- 根据 ID 查询部署 -->
+    <select id="selectById" resultMap="BaseMap">
+        SELECT <include refid="BaseColumns"/>
+        FROM ai_scene_deployment
+        WHERE id = #{id}
+    </select>
+
+    <!-- 校验唯一约束 -->
+    <select id="countByUnique" resultType="int">
+        SELECT COUNT(*) FROM ai_scene_deployment
+        WHERE scene_id = #{sceneId} AND module_key = #{moduleKey} AND position_key = #{positionKey}
+    </select>
+
+    <!-- 新增部署 -->
+    <insert id="insert" parameterType="org.seaPack.model.ai.SceneDeployment"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO ai_scene_deployment (scene_id, module_key, position_key, config, is_default,
+                                          sort_order, status, created_at, updated_at)
+        VALUES (#{sceneId}, #{moduleKey}, #{positionKey}, #{config, jdbcType=VARCHAR},
+                #{isDefault, jdbcType=INTEGER}, #{sortOrder, jdbcType=INTEGER},
+                #{status, jdbcType=INTEGER}, NOW(), NOW())
+    </insert>
+
+    <!-- 更新部署（只更新非空字段） -->
+    <update id="update" parameterType="org.seaPack.model.ai.SceneDeployment">
+        UPDATE ai_scene_deployment
+        <set>
+            <if test="moduleKey != null">module_key = #{moduleKey},</if>
+            <if test="positionKey != null">position_key = #{positionKey},</if>
+            <if test="config != null">config = #{config},</if>
+            <if test="isDefault != null">is_default = #{isDefault},</if>
+            <if test="sortOrder != null">sort_order = #{sortOrder},</if>
+            <if test="status != null">status = #{status},</if>
+            updated_at = NOW(),
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <!-- 删除部署 -->
+    <delete id="deleteById">
+        DELETE FROM ai_scene_deployment WHERE id = #{id}
+    </delete>
+
+    <!-- 删除场景的所有部署（级联删除） -->
+    <delete id="deleteBySceneId">
+        DELETE FROM ai_scene_deployment WHERE scene_id = #{sceneId}
+    </delete>
+
+</mapper>

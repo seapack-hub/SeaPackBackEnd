@@ -62,6 +62,9 @@ public class AgentTestChatService {
     @Autowired
     private ExecutionSessionMapper executionSessionMapper;
 
+    @Autowired
+    private SceneAgentConfigMapper sceneAgentConfigMapper;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
@@ -86,6 +89,9 @@ public class AgentTestChatService {
         if (agent.getStatus() == null || agent.getStatus() != 1) {
             throw new RuntimeException("Agent 已禁用: " + agent.getName());
         }
+
+        // 2. 解析场景级配置覆盖
+        applySceneConfig(agent, request.getSceneId());
 
         // ===== Step 1: 提示词组装 =====
         String systemPrompt;
@@ -706,6 +712,35 @@ public class AgentTestChatService {
         return response;
     }
 
+    /**
+     * 应用场景级配置覆盖
+     * <p>修改 Agent 对象的相关字段，优先级：ai_scene_agent_config > ai_agent 默认值。</p>
+     */
+    private void applySceneConfig(Agent agent, Long sceneId) {
+        if (sceneId == null) {
+            return;
+        }
+        SceneAgentConfig config = sceneAgentConfigMapper.selectBySceneAndAgent(sceneId, agent.getId());
+        if (config == null) {
+            return;
+        }
+        if (config.getModel() != null && !config.getModel().isBlank()) {
+            agent.setModelCode(config.getModel());
+        }
+        if (config.getTemperature() != null) {
+            agent.setTemperature(config.getTemperature());
+        }
+        if (config.getMaxTokens() != null) {
+            agent.setMaxTokens(config.getMaxTokens());
+        }
+        if (config.getSystemPrompt() != null && !config.getSystemPrompt().isBlank()) {
+            String existing = agent.getSystemPrompt();
+            agent.setSystemPrompt(existing + "\n\n" + config.getSystemPrompt());
+        }
+        log.info("Agent[{}] 应用场景级配置(场景={}): model={}, temperature={}, maxTokens={}",
+                agent.getName(), sceneId, config.getModel(), config.getTemperature(), config.getMaxTokens());
+    }
+
     private void saveTestSession(Agent agent, AgentTestChatRequest request, String reply,
                                  AgentTraceSnapshot snapshot, int durationMs,
                                  int promptTokens, int completionTokens, String modelName,
@@ -757,7 +792,8 @@ public class AgentTestChatService {
             return;
         }
 
-        // ===== Step 1: 提示词组装 =====
+        // 2. 解析场景级配置覆盖
+        applySceneConfig(agent, request.getSceneId());        // ===== Step 1: 提示词组装 =====
         String systemPrompt;
         try {
             sendSseEvent(emitter, "step_start", Map.of(

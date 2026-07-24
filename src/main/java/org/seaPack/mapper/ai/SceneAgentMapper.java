@@ -22,4 +22,7 @@ public interface SceneAgentMapper {
     int deleteById(@Param("id") Long id);
 
     int deleteBySceneId(@Param("sceneId") Long sceneId);
+
+    /** 查询所有默认 Agent（is_default = 1），含 Agent 名称和编码 */
+    List<SceneAgent> selectDefaultAgents();
 }

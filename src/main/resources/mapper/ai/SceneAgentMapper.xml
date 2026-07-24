@@ -59,4 +59,14 @@
         DELETE FROM ai_scene_agent WHERE scene_id = #{sceneId}
     </delete>
 
+    <!-- 查询所有默认 Agent（is_default=1），含 Agent 名称和编码 -->
+    <select id="selectDefaultAgents" resultMap="BaseMap">
+        SELECT sa.id, sa.scene_id, sa.agent_id, sa.is_default, sa.sort_order, sa.created_at,
+               ag.name AS agent_name, ag.code AS agent_code
+        FROM ai_scene_agent sa
+        LEFT JOIN ai_agent ag ON sa.agent_id = ag.id
+        WHERE sa.is_default = 1
+        ORDER BY sa.scene_id, sa.sort_order ASC
+    </select>
+
 </mapper>

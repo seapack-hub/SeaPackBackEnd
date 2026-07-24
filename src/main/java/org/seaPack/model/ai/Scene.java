@@ -42,10 +42,6 @@ public class Scene {
     @Comment("场景描述")
     private String description;
 
-    @Column(name = "module_key")
-    @Comment("关联前端模块")
-    private String moduleKey;
-
     @Column(name = "is_public")
     @Comment("1公开 0私有")
     private Integer isPublic;

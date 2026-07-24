@@ -14,6 +14,9 @@ public class AgentTestChatRequest {
     /** Agent ID */
     private Long agentId;
 
+    /** 场景ID（可选，用于场景级配置覆盖） */
+    private Long sceneId;
+
     /** 用户消息 */
     private String message;
 

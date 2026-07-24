@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.ai.SceneAgentConfigMapper">
+
+    <resultMap id="BaseMap" type="org.seaPack.model.ai.SceneAgentConfig">
+        <id property="id" column="id"/>
+        <result property="sceneId" column="scene_id"/>
+        <result property="agentId" column="agent_id"/>
+        <result property="model" column="model"/>
+        <result property="temperature" column="temperature"/>
+        <result property="maxTokens" column="max_tokens"/>
+        <result property="systemPrompt" column="system_prompt"/>
+        <result property="outputFormat" column="output_format"/>
+        <result property="contextLimit" column="context_limit"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <sql id="BaseColumns">
+        id, scene_id, agent_id, model, temperature, max_tokens,
+        system_prompt, output_format, context_limit, created_at, updated_at
+    </sql>
+
+    <!-- 查询场景的所有 Agent 配置 -->
+    <select id="selectBySceneId" resultMap="BaseMap">
+        SELECT <include refid="BaseColumns"/>
+        FROM ai_scene_agent_config
+        WHERE scene_id = #{sceneId}
+        ORDER BY created_at ASC
+    </select>
+
+    <!-- 查询场景下指定 Agent 的配置 -->
+    <select id="selectBySceneAndAgent" resultMap="BaseMap">
+        SELECT <include refid="BaseColumns"/>
+        FROM ai_scene_agent_config
+        WHERE scene_id = #{sceneId} AND agent_id = #{agentId}
+    </select>
+
+    <!-- 根据 ID 查询配置 -->
+    <select id="selectById" resultMap="BaseMap">
+        SELECT <include refid="BaseColumns"/>
+        FROM ai_scene_agent_config
+        WHERE id = #{id}
+    </select>
+
+    <!-- 校验是否已存在 -->
+    <select id="countBySceneAndAgent" resultType="int">
+        SELECT COUNT(*) FROM ai_scene_agent_config
+        WHERE scene_id = #{sceneId} AND agent_id = #{agentId}
+    </select>
+
+    <!-- 新增配置 -->
+    <insert id="insert" parameterType="org.seaPack.model.ai.SceneAgentConfig"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO ai_scene_agent_config (scene_id, agent_id, model, temperature, max_tokens,
+                                            system_prompt, output_format, context_limit, created_at, updated_at)
+        VALUES (#{sceneId}, #{agentId}, #{model, jdbcType=VARCHAR},
+                #{temperature, jdbcType=DECIMAL}, #{maxTokens, jdbcType=INTEGER},
+                #{systemPrompt, jdbcType=VARCHAR}, #{outputFormat, jdbcType=VARCHAR},
+                #{contextLimit, jdbcType=INTEGER}, NOW(), NOW())
+    </insert>
+
+    <!-- 更新配置（只更新非空字段） -->
+    <update id="update" parameterType="org.seaPack.model.ai.SceneAgentConfig">
+        UPDATE ai_scene_agent_config
+        <set>
+            <if test="model != null">model = #{model},</if>
+            <if test="temperature != null">temperature = #{temperature},</if>
+            <if test="maxTokens != null">max_tokens = #{maxTokens},</if>
+            <if test="systemPrompt != null">system_prompt = #{systemPrompt},</if>
+            <if test="outputFormat != null">output_format = #{outputFormat},</if>
+            <if test="contextLimit != null">context_limit = #{contextLimit},</if>
+            updated_at = NOW(),
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <!-- 删除配置 -->
+    <delete id="deleteById">
+        DELETE FROM ai_scene_agent_config WHERE id = #{id}
+    </delete>
+
+    <!-- 删除场景的所有配置（级联删除） -->
+    <delete id="deleteBySceneId">
+        DELETE FROM ai_scene_agent_config WHERE scene_id = #{sceneId}
+    </delete>
+
+    <!-- 删除场景下指定 Agent 的配置 -->
+    <delete id="deleteBySceneAndAgent">
+        DELETE FROM ai_scene_agent_config WHERE scene_id = #{sceneId} AND agent_id = #{agentId}
+    </delete>
+
+</mapper>

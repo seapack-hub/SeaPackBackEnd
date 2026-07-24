@@ -7,9 +7,11 @@ import org.seaPack.dto.ai.AgentChatResponse;
 import org.seaPack.mapper.ai.AgentMapper;
 import org.seaPack.mapper.ai.AgentPromptMapper;
 import org.seaPack.mapper.ai.PromptTemplateMapper;
+import org.seaPack.mapper.ai.SceneAgentConfigMapper;
 import org.seaPack.model.ai.Agent;
 import org.seaPack.model.ai.AgentPrompt;
 import org.seaPack.model.ai.PromptTemplate;
+import org.seaPack.model.ai.SceneAgentConfig;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
@@ -17,10 +19,6 @@ import org.springframework.web.client.RestTemplate;
 import java.util.*;
 import java.util.stream.Collectors;
 
-/**
- * Agent 正式对话服务
- * <p>提供 Agent 的正式对话功能（非测试），组装 prompt → 调用 LLM → 返回结果。</p>
- */
 @Slf4j
 @Service
 public class AgentChatService {
@@ -35,6 +33,9 @@ public class AgentChatService {
     private PromptTemplateMapper promptTemplateMapper;
 
     @Autowired
+    private SceneAgentConfigMapper sceneAgentConfigMapper;
+
+    @Autowired
     private RestTemplate restTemplate;
 
     @Autowired
@@ -42,9 +43,9 @@ public class AgentChatService {
 
     /**
      * 执行 Agent 对话
-     * <p>核心流程：加载 Agent → 组装系统提示词 → 构建消息列表（含可选历史记忆） → 调用 LLM。</p>
+     * <p>核心流程：加载 Agent → 解析场景级配置覆盖 → 组装系统提示词 → 构建消息列表 → 调用 LLM。</p>
      *
-     * @param request 对话请求（含 Agent ID、用户消息、可选历史）
+     * @param request 对话请求（含 Agent ID、用户消息、可选历史、可选场景 ID）
      * @return 对话响应（含回复内容、Token 统计、耗时）
      */
     public AgentChatResponse chat(AgentChatRequest request) {
@@ -57,35 +58,48 @@ public class AgentChatService {
             throw new RuntimeException("Agent 已禁用: " + agent.getName());
         }
 
-        // 2. 组装系统提示词
-        String systemPrompt = buildSystemPrompt(agent);
+        // 2. 解析场景级配置覆盖
+        SceneAgentConfig sceneConfig = null;
+        if (request.getSceneId() != null) {
+            sceneConfig = sceneAgentConfigMapper.selectBySceneAndAgent(request.getSceneId(), request.getAgentId());
+            if (sceneConfig != null) {
+                log.info("Agent[{}] 应用场景级配置(场景={})", agent.getName(), request.getSceneId());
+            }
+        }
 
-        // 3. 构建消息列表
+        // 3. 组装系统提示词（含场景级追加内容）
+        String systemPrompt = buildSystemPrompt(agent, sceneConfig);
+
+        // 4. 构建消息列表
         List<Map<String, String>> messages = buildMessages(agent, systemPrompt, request.getMessage(), request.getHistory());
 
-        // 4. 获取 AI 提供商配置
+        // 5. 获取 AI 提供商配置
         String providerName = aiProperties.getActiveProvider();
         AIProperties.ProviderConfig config = aiProperties.getProviders().get(providerName);
         if (config == null) {
             throw new RuntimeException("AI 配置错误：未找到提供商 [" + providerName + "]");
         }
 
-        // 5. 构建 LLM API 请求
+        // 6. 构建 LLM API 请求
         String url = config.getBaseUrl().replaceAll("/+$", "") + "/chat/completions";
 
+        String modelName = resolveModel(agent, sceneConfig, config);
+        Double temperature = resolveTemperature(agent, sceneConfig);
+        Integer maxTokens = resolveMaxTokens(agent, sceneConfig);
+
         Map<String, Object> requestBody = new HashMap<>();
-        requestBody.put("model", agent.getModelCode() != null ? agent.getModelCode() : config.getChatModel());
+        requestBody.put("model", modelName);
         requestBody.put("messages", messages);
         requestBody.put("stream", false);
 
-        if (agent.getTemperature() != null) {
-            requestBody.put("temperature", agent.getTemperature());
+        if (temperature != null) {
+            requestBody.put("temperature", temperature);
         }
-        if (agent.getMaxTokens() != null) {
-            requestBody.put("max_tokens", agent.getMaxTokens());
+        if (maxTokens != null) {
+            requestBody.put("max_tokens", maxTokens);
         }
 
-        // 6. 发送请求
+        // 7. 发送请求
         long startTime = System.currentTimeMillis();
         try {
             org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
@@ -99,7 +113,7 @@ public class AgentChatService {
             Map<String, Object> apiResponse = restTemplate.postForObject(url, entity, Map.class);
             long durationMs = System.currentTimeMillis() - startTime;
 
-            // 7. 解析响应
+            // 8. 解析响应
             String content = "";
             Integer promptTokens = 0;
             Integer completionTokens = 0;
@@ -124,10 +138,10 @@ public class AgentChatService {
                 }
             }
 
-            // 8. 增加使用次数
+            // 9. 增加使用次数
             agentMapper.incrementUseCount(agent.getId());
 
-            // 9. 组装响应
+            // 10. 组装响应
             AgentChatResponse response = new AgentChatResponse();
             response.setContent(content);
             response.setTokensPrompt(promptTokens);
@@ -141,9 +155,14 @@ public class AgentChatService {
     }
 
     /**
-     * 组装系统提示词：Agent 基础 system_prompt + 已启用的模板内容
+     * 组装系统提示词
+     * <p>Agent 基础 system_prompt + 已启用的模板内容 + 场景级 System Prompt 追加内容。</p>
+     *
+     * @param agent       Agent 对象
+     * @param sceneConfig 场景级配置（可选，用于追加 systemPrompt）
+     * @return 组装完成的系统提示词
      */
-    private String buildSystemPrompt(Agent agent) {
+    private String buildSystemPrompt(Agent agent, SceneAgentConfig sceneConfig) {
         StringBuilder systemPromptBuilder = new StringBuilder();
         if (agent.getSystemPrompt() != null && !agent.getSystemPrompt().isBlank()) {
             systemPromptBuilder.append(agent.getSystemPrompt());
@@ -169,6 +188,11 @@ public class AgentChatService {
             }
         }
 
+        // 追加场景级 System Prompt
+        if (sceneConfig != null && sceneConfig.getSystemPrompt() != null && !sceneConfig.getSystemPrompt().isBlank()) {
+            systemPromptBuilder.append("\n\n").append(sceneConfig.getSystemPrompt());
+        }
+
         String systemPrompt = systemPromptBuilder.toString();
         if (systemPrompt.isBlank()) {
             throw new RuntimeException("Agent 系统提示词为空: " + agent.getName());
@@ -176,9 +200,6 @@ public class AgentChatService {
         return systemPrompt;
     }
 
-    /**
-     * 构建消息列表（含系统提示词、历史记忆、用户消息）
-     */
     private List<Map<String, String>> buildMessages(Agent agent, String systemPrompt,
                                                      String userMessage, List<Map<String, String>> history) {
         List<Map<String, String>> messages = new ArrayList<>();
@@ -188,12 +209,10 @@ public class AgentChatService {
         systemMsg.put("content", systemPrompt);
         messages.add(systemMsg);
 
-        // 添加历史消息（如果启用记忆）
         if (agent.getMemoryEnabled() != null && agent.getMemoryEnabled() == 1
                 && history != null && !history.isEmpty()) {
             int window = agent.getMemoryWindow() != null ? agent.getMemoryWindow() : 20;
             List<Map<String, String>> trimmedHistory = new ArrayList<>(history);
-            // 按 memory_window 裁剪历史，保留最近的 window*2 条消息（用户+助手交替）
             if (trimmedHistory.size() > window * 2) {
                 trimmedHistory = trimmedHistory.subList(trimmedHistory.size() - window * 2, trimmedHistory.size());
             }
@@ -206,5 +225,38 @@ public class AgentChatService {
         messages.add(userMsg);
 
         return messages;
+    }
+
+    /**
+     * 解析模型
+     * <p>优先级：场景级配置 > Agent 默认模型 > AI 提供商默认模型。</p>
+     */
+    private String resolveModel(Agent agent, SceneAgentConfig sceneConfig, AIProperties.ProviderConfig config) {
+        if (sceneConfig != null && sceneConfig.getModel() != null && !sceneConfig.getModel().isBlank()) {
+            return sceneConfig.getModel();
+        }
+        return agent.getModelCode() != null ? agent.getModelCode() : config.getChatModel();
+    }
+
+    /**
+     * 解析温度参数
+     * <p>优先级：场景级配置 > Agent 默认温度。</p>
+     */
+    private Double resolveTemperature(Agent agent, SceneAgentConfig sceneConfig) {
+        if (sceneConfig != null && sceneConfig.getTemperature() != null) {
+            return sceneConfig.getTemperature().doubleValue();
+        }
+        return agent.getTemperature() != null ? agent.getTemperature().doubleValue() : null;
+    }
+
+    /**
+     * 解析最大 Token 数
+     * <p>优先级：场景级配置 > Agent 默认 MaxTokens。</p>
+     */
+    private Integer resolveMaxTokens(Agent agent, SceneAgentConfig sceneConfig) {
+        if (sceneConfig != null && sceneConfig.getMaxTokens() != null) {
+            return sceneConfig.getMaxTokens();
+        }
+        return agent.getMaxTokens();
     }
 }
