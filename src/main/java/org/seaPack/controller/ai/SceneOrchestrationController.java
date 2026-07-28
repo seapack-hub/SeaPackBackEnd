@@ -1,16 +1,23 @@
 package org.seaPack.controller.ai;
 
+import jakarta.servlet.http.HttpServletResponse;
+import org.seaPack.dto.ai.OrchestrationExecuteRequest;
 import org.seaPack.model.ai.SceneOrchestration;
 import org.seaPack.model.ai.SceneOrchestrationStep;
+import org.seaPack.service.ai.OrchestrationExecuteService;
 import org.seaPack.service.ai.SceneOrchestrationService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * 场景编排控制器
@@ -22,6 +29,9 @@ public class SceneOrchestrationController {
 
     @Autowired
     private SceneOrchestrationService orchestrationService;
+
+    @Autowired
+    private OrchestrationExecuteService executeService;
 
     // ===== 编排 CRUD =====
 
@@ -129,6 +139,40 @@ public class SceneOrchestrationController {
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
+    }
+
+    @PostMapping("/execute-stream")
+    public SseEmitter executeStream(@RequestBody OrchestrationExecuteRequest request,
+                                    HttpServletResponse response) {
+        // 设置 SSE 响应头
+        response.setContentType(MediaType.TEXT_EVENT_STREAM_VALUE);
+        response.setCharacterEncoding("UTF-8");
+        response.setHeader("Cache-Control", "no-cache");
+        response.setHeader("X-Accel-Buffering", "no");
+
+        SseEmitter emitter = new SseEmitter(600000L);
+
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        executor.execute(() -> {
+            try {
+                executeService.execute(request, emitter);
+            } catch (Exception e) {
+                try {
+                    Map<String, Object> errorEvent = new java.util.HashMap<>();
+                    errorEvent.put("type", "error");
+                    errorEvent.put("errorMessage", e.getMessage());
+                    emitter.send(SseEmitter.event()
+                            .name("message")
+                            .data(new com.fasterxml.jackson.databind.ObjectMapper()
+                                    .writeValueAsString(errorEvent), MediaType.APPLICATION_JSON));
+                } catch (Exception ignored) {
+                }
+                emitter.completeWithError(e);
+            }
+        });
+        executor.shutdown();
+
+        return emitter;
     }
 
     // ===== 步骤管理 =====
