@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.ai.AiPositionMapper">
+
+    <resultMap id="BaseMap" type="org.seaPack.model.ai.AiPosition">
+        <id property="id" column="id"/>
+        <result property="moduleKey" column="module_key"/>
+        <result property="positionKey" column="position_key"/>
+        <result property="label" column="label"/>
+        <result property="description" column="description"/>
+        <result property="component" column="component"/>
+        <result property="status" column="status"/>
+        <result property="sortOrder" column="sort_order"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <sql id="BaseColumns">
+        id, module_key, position_key, label, description, component,
+        status, sort_order, created_at, updated_at
+    </sql>
+
+    <!-- 查询所有位置（可按状态和关键字筛选） -->
+    <select id="selectList" resultMap="BaseMap">
+        SELECT <include refid="BaseColumns"/>
+        FROM ai_position
+        <where>
+            <if test="status != null">AND status = #{status}</if>
+            <if test="keyword != null and keyword != ''">
+                AND (label LIKE CONCAT('%', #{keyword}, '%')
+                OR module_key LIKE CONCAT('%', #{keyword}, '%')
+                OR position_key LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+        </where>
+        ORDER BY sort_order ASC, created_at ASC
+    </select>
+
+    <!-- 根据 ID 查询位置 -->
+    <select id="selectById" resultMap="BaseMap">
+        SELECT <include refid="BaseColumns"/>
+        FROM ai_position
+        WHERE id = #{id}
+    </select>
+
+    <!-- 校验唯一约束 -->
+    <select id="countByUnique" resultType="int">
+        SELECT COUNT(*) FROM ai_position
+        WHERE module_key = #{moduleKey} AND position_key = #{positionKey}
+        <if test="excludeId != null">AND id != #{excludeId}</if>
+    </select>
+
+    <!-- 新增位置 -->
+    <insert id="insert" parameterType="org.seaPack.model.ai.AiPosition"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO ai_position (module_key, position_key, label, description, component,
+                                  status, sort_order, created_at, updated_at)
+        VALUES (#{moduleKey}, #{positionKey}, #{label}, #{description, jdbcType=VARCHAR},
+                #{component, jdbcType=VARCHAR}, #{status, jdbcType=INTEGER},
+                #{sortOrder, jdbcType=INTEGER}, NOW(), NOW())
+    </insert>
+
+    <!-- 更新位置（只更新非空字段） -->
+    <update id="update" parameterType="org.seaPack.model.ai.AiPosition">
+        UPDATE ai_position
+        <set>
+            <if test="moduleKey != null">module_key = #{moduleKey},</if>
+            <if test="positionKey != null">position_key = #{positionKey},</if>
+            <if test="label != null">label = #{label},</if>
+            <if test="description != null">description = #{description},</if>
+            <if test="component != null">component = #{component},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="sortOrder != null">sort_order = #{sortOrder},</if>
+            updated_at = NOW(),
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <!-- 删除位置 -->
+    <delete id="deleteById">
+        DELETE FROM ai_position WHERE id = #{id}
+    </delete>
+
+    <!-- 获取已启用的模块列表（去重） -->
+    <select id="selectModules" resultType="java.util.Map">
+        SELECT module_key AS moduleKey, label AS label
+        FROM ai_position
+        WHERE status = 1
+        GROUP BY module_key, label
+        ORDER BY MIN(sort_order) ASC
+    </select>
+
+</mapper>
