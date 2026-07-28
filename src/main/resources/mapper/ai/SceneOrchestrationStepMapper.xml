@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.ai.SceneOrchestrationStepMapper">
+
+    <resultMap id="BaseMap" type="org.seaPack.model.ai.SceneOrchestrationStep">
+        <id property="id" column="id"/>
+        <result property="orchestrationId" column="orchestration_id"/>
+        <result property="stepIndex" column="step_index"/>
+        <result property="stepName" column="step_name"/>
+        <result property="agentId" column="agent_id"/>
+        <result property="agentName" column="agent_name"/>
+        <result property="agentCode" column="agent_code"/>
+        <result property="inputMapping" column="input_mapping"/>
+        <result property="condition" column="condition"/>
+        <result property="retryCount" column="retry_count"/>
+        <result property="timeoutMs" column="timeout_ms"/>
+        <result property="status" column="status"/>
+        <result property="sortOrder" column="sort_order"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <sql id="BaseColumns">
+        s.id, s.orchestration_id, s.step_index, s.step_name, s.agent_id,
+        ag.name AS agent_name, ag.code AS agent_code,
+        s.input_mapping, s.`condition`, s.retry_count, s.timeout_ms,
+        s.status, s.sort_order, s.created_at, s.updated_at
+    </sql>
+
+    <!-- 查询编排的所有步骤（按 step_index 升序） -->
+    <select id="selectByOrchestrationId" resultMap="BaseMap">
+        SELECT <include refid="BaseColumns"/>
+        FROM ai_scene_orchestration_step s
+        LEFT JOIN ai_agent ag ON s.agent_id = ag.id
+        WHERE s.orchestration_id = #{orchestrationId}
+        ORDER BY s.step_index ASC, s.sort_order ASC
+    </select>
+
+    <!-- 根据 ID 查询步骤 -->
+    <select id="selectById" resultMap="BaseMap">
+        SELECT <include refid="BaseColumns"/>
+        FROM ai_scene_orchestration_step s
+        LEFT JOIN ai_agent ag ON s.agent_id = ag.id
+        WHERE s.id = #{id}
+    </select>
+
+    <!-- 校验步骤序号是否重复 -->
+    <select id="countByOrchAndIndex" resultType="int">
+        SELECT COUNT(*) FROM ai_scene_orchestration_step
+        WHERE orchestration_id = #{orchestrationId} AND step_index = #{stepIndex}
+        <if test="excludeId != null">AND id != #{excludeId}</if>
+    </select>
+
+    <!-- 新增步骤 -->
+    <insert id="insert" parameterType="org.seaPack.model.ai.SceneOrchestrationStep"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO ai_scene_orchestration_step (orchestration_id, step_index, step_name, agent_id,
+                                                  input_mapping, `condition`, retry_count, timeout_ms,
+                                                  status, sort_order, created_at, updated_at)
+        VALUES (#{orchestrationId}, #{stepIndex}, #{stepName}, #{agentId},
+                #{inputMapping, jdbcType=VARCHAR}, #{condition, jdbcType=VARCHAR},
+                #{retryCount, jdbcType=INTEGER}, #{timeoutMs, jdbcType=INTEGER},
+                #{status, jdbcType=INTEGER}, #{sortOrder, jdbcType=INTEGER}, NOW(), NOW())
+    </insert>
+
+    <!-- 更新步骤（只更新非空字段） -->
+    <update id="update" parameterType="org.seaPack.model.ai.SceneOrchestrationStep">
+        UPDATE ai_scene_orchestration_step
+        <set>
+            <if test="stepIndex != null">step_index = #{stepIndex},</if>
+            <if test="stepName != null">step_name = #{stepName},</if>
+            <if test="agentId != null">agent_id = #{agentId},</if>
+            <if test="inputMapping != null">input_mapping = #{inputMapping},</if>
+            <if test="condition != null">`condition` = #{condition},</if>
+            <if test="retryCount != null">retry_count = #{retryCount},</if>
+            <if test="timeoutMs != null">timeout_ms = #{timeoutMs},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="sortOrder != null">sort_order = #{sortOrder},</if>
+            updated_at = NOW(),
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <!-- 删除步骤 -->
+    <delete id="deleteById">
+        DELETE FROM ai_scene_orchestration_step WHERE id = #{id}
+    </delete>
+
+    <!-- 删除编排的所有步骤（级联用） -->
+    <delete id="deleteByOrchestrationId">
+        DELETE FROM ai_scene_orchestration_step WHERE orchestration_id = #{orchestrationId}
+    </delete>
+
+    <!-- 批量更新步骤序号（排序用） -->
+    <update id="batchUpdateStepIndex">
+        <foreach collection="stepIds" item="stepId" index="idx" separator=";">
+            UPDATE ai_scene_orchestration_step
+            SET step_index = #{idx} + 1
+            WHERE id = #{stepId} AND orchestration_id = #{orchestrationId}
+        </foreach>
+    </update>
+
+    <!-- 获取编排的最大步骤序号 -->
+    <select id="selectMaxStepIndex" resultType="int">
+        SELECT COALESCE(MAX(step_index), 0) FROM ai_scene_orchestration_step
+        WHERE orchestration_id = #{orchestrationId}
+    </select>
+
+</mapper>

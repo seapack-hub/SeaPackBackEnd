@@ -35,6 +35,12 @@ public class SceneService {
     @Autowired
     private SceneAgentConfigMapper sceneAgentConfigMapper;
 
+    @Autowired
+    private SceneOrchestrationMapper sceneOrchestrationMapper;
+
+    @Autowired
+    private SceneOrchestrationStepMapper sceneOrchestrationStepMapper;
+
     // ===== 场景 CRUD =====
 
     /**
@@ -116,6 +122,12 @@ public class SceneService {
         sceneAgentConfigMapper.deleteBySceneId(id);
         sceneAgentMapper.deleteBySceneId(id);
         sceneKnowledgeMapper.deleteBySceneId(id);
+        // 级联删除编排及其步骤
+        List<SceneOrchestration> orchs = sceneOrchestrationMapper.selectBySceneId(id);
+        for (SceneOrchestration o : orchs) {
+            sceneOrchestrationStepMapper.deleteByOrchestrationId(o.getId());
+        }
+        sceneOrchestrationMapper.deleteBySceneId(id);
         return sceneMapper.deleteById(id);
     }
 
@@ -197,6 +209,37 @@ public class SceneService {
             cac.setOutputFormat(ac.getOutputFormat());
             cac.setContextLimit(ac.getContextLimit());
             sceneAgentConfigMapper.insert(cac);
+        }
+
+        // 复制编排及其步骤
+        List<SceneOrchestration> orchs = sceneOrchestrationMapper.selectBySceneId(id);
+        for (SceneOrchestration o : orchs) {
+            SceneOrchestration co = new SceneOrchestration();
+            co.setSceneId(newId);
+            co.setName(o.getName());
+            co.setCode(o.getCode());
+            co.setDescription(o.getDescription());
+            co.setStrategy(o.getStrategy());
+            co.setStatus(o.getStatus());
+            co.setSortOrder(o.getSortOrder());
+            co.setCreatedBy(o.getCreatedBy());
+            sceneOrchestrationMapper.insert(co);
+
+            List<SceneOrchestrationStep> steps = sceneOrchestrationStepMapper.selectByOrchestrationId(o.getId());
+            for (SceneOrchestrationStep s : steps) {
+                SceneOrchestrationStep cs = new SceneOrchestrationStep();
+                cs.setOrchestrationId(co.getId());
+                cs.setStepIndex(s.getStepIndex());
+                cs.setStepName(s.getStepName());
+                cs.setAgentId(s.getAgentId());
+                cs.setInputMapping(s.getInputMapping());
+                cs.setCondition(s.getCondition());
+                cs.setRetryCount(s.getRetryCount());
+                cs.setTimeoutMs(s.getTimeoutMs());
+                cs.setStatus(s.getStatus());
+                cs.setSortOrder(s.getSortOrder());
+                sceneOrchestrationStepMapper.insert(cs);
+            }
         }
 
         return copy;

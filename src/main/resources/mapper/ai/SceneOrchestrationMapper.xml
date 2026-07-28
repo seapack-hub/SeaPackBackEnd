@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.ai.SceneOrchestrationMapper">
+
+    <resultMap id="BaseMap" type="org.seaPack.model.ai.SceneOrchestration">
+        <id property="id" column="id"/>
+        <result property="sceneId" column="scene_id"/>
+        <result property="name" column="name"/>
+        <result property="code" column="code"/>
+        <result property="description" column="description"/>
+        <result property="strategy" column="strategy"/>
+        <result property="status" column="status"/>
+        <result property="sortOrder" column="sort_order"/>
+        <result property="createdBy" column="created_by"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <sql id="BaseColumns">
+        id, scene_id, `name`, `code`, `description`, strategy, status,
+        sort_order, created_by, created_at, updated_at
+    </sql>
+
+    <!-- 查询场景下的所有编排 -->
+    <select id="selectBySceneId" resultMap="BaseMap">
+        SELECT <include refid="BaseColumns"/>
+        FROM ai_scene_orchestration
+        WHERE scene_id = #{sceneId}
+        ORDER BY sort_order ASC, created_at ASC
+    </select>
+
+    <!-- 根据 ID 查询编排 -->
+    <select id="selectById" resultMap="BaseMap">
+        SELECT <include refid="BaseColumns"/>
+        FROM ai_scene_orchestration
+        WHERE id = #{id}
+    </select>
+
+    <!-- 根据场景ID和编码查询编排 -->
+    <select id="selectBySceneAndCode" resultMap="BaseMap">
+        SELECT <include refid="BaseColumns"/>
+        FROM ai_scene_orchestration
+        WHERE scene_id = #{sceneId} AND code = #{code}
+    </select>
+
+    <!-- 校验编码是否重复 -->
+    <select id="countBySceneAndCode" resultType="int">
+        SELECT COUNT(*) FROM ai_scene_orchestration
+        WHERE scene_id = #{sceneId} AND code = #{code}
+        <if test="excludeId != null">AND id != #{excludeId}</if>
+    </select>
+
+    <!-- 新增编排 -->
+    <insert id="insert" parameterType="org.seaPack.model.ai.SceneOrchestration"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO ai_scene_orchestration (scene_id, `name`, `code`, description, strategy,
+                                             status, sort_order, created_by, created_at, updated_at)
+        VALUES (#{sceneId}, #{name}, #{code}, #{description, jdbcType=VARCHAR},
+                #{strategy}, #{status, jdbcType=INTEGER}, #{sortOrder, jdbcType=INTEGER},
+                #{createdBy, jdbcType=BIGINT}, NOW(), NOW())
+    </insert>
+
+    <!-- 更新编排（只更新非空字段） -->
+    <update id="update" parameterType="org.seaPack.model.ai.SceneOrchestration">
+        UPDATE ai_scene_orchestration
+        <set>
+            <if test="name != null">`name` = #{name},</if>
+            <if test="code != null">`code` = #{code},</if>
+            <if test="description != null">description = #{description},</if>
+            <if test="strategy != null">strategy = #{strategy},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="sortOrder != null">sort_order = #{sortOrder},</if>
+            updated_at = NOW(),
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <!-- 删除编排 -->
+    <delete id="deleteById">
+        DELETE FROM ai_scene_orchestration WHERE id = #{id}
+    </delete>
+
+    <!-- 删除场景的所有编排（级联用） -->
+    <delete id="deleteBySceneId">
+        DELETE FROM ai_scene_orchestration WHERE scene_id = #{sceneId}
+    </delete>
+
+</mapper>
