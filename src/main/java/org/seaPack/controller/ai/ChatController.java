@@ -1,17 +1,20 @@
 package org.seaPack.controller.ai;
 
-import dev.langchain4j.service.TokenStream;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.seaPack.config.AIProperties;
 import org.seaPack.dto.ai.ChatRequest;
+import org.seaPack.service.ai.LLMTestChatService;
 import org.seaPack.service.ai.RagService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.*;
 import org.springframework.http.converter.HttpMessageConverter;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import java.io.InputStream;
@@ -19,6 +22,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * AI 对话控制器
@@ -37,6 +42,9 @@ public class ChatController {
 
     @Autowired
     private RagService ragService;
+
+    @Autowired
+    private LLMTestChatService llmTestChatService;
 
     /**
      * AI 模型对话（流式返回 SSE 事件流）
@@ -129,5 +137,81 @@ public class ChatController {
         responseHeaders.setCacheControl("no-cache"); // 禁止缓存
 
         return new ResponseEntity<>(stream, responseHeaders, HttpStatus.OK); // 返回流式响应
+    }
+
+    /**
+     * LLM 测试对话（SSE 流式返回，含 token 统计和执行记录）
+     * <p>以 SSE 格式逐 token 流式返回 AI 回复，并在完成时推送 token 消耗统计、耗时等信息。
+     * 对话记录会自动保存到 ai_execution_session 表中。</p>
+     *
+     * @param request    对话请求体（含消息列表、可选命名空间等）
+     * @param authHeader Authorization 请求头
+     * @param response   HTTP 响应（用于设置 SSE 响应头）
+     * @return SSE 发射器
+     */
+    @PostMapping("/test-chat")
+    public SseEmitter testChat(@RequestBody ChatRequest request,
+                                @RequestHeader("Authorization") String authHeader,
+                                HttpServletResponse response) {
+        // 设置 SSE 响应头
+        response.setContentType(MediaType.TEXT_EVENT_STREAM_VALUE);
+        response.setCharacterEncoding("UTF-8");
+        response.setHeader("Cache-Control", "no-cache");
+        response.setHeader("X-Accel-Buffering", "no");
+
+        // 创建 SSE 发射器，超时时间 10 分钟
+        SseEmitter emitter = new SseEmitter(600000L);
+
+        // 获取当前用户 ID
+        Long userId = getCurrentUserId();
+
+        // 使用线程池异步执行，避免阻塞 Servlet 线程
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        executor.execute(() -> {
+            try {
+                llmTestChatService.testChatStream(request, userId, emitter, response);
+            } catch (Exception e) {
+                try {
+                    emitter.completeWithError(e);
+                } catch (Exception ignored) {
+                }
+            } finally {
+                executor.shutdown();
+            }
+        });
+
+        // 注册回调
+        emitter.onCompletion(() -> log.info("SSE 连接正常关闭"));
+        emitter.onTimeout(() -> {
+            log.warn("SSE 连接超时");
+            emitter.complete();
+        });
+        emitter.onError((e) -> log.error("SSE 连接发生错误", e));
+
+        return emitter;
+    }
+
+    /**
+     * 取消当前用户的 LLM 流式对话
+     * <p>通知后端 AI 服务线程优雅终止，不再消费上游 LLM API 的响应，
+     * 已接收到的内容仍会通过 SSE 发送 stop 事件后正常关闭连接。</p>
+     */
+    @PostMapping("/cancel")
+    public ResponseEntity<Void> cancelChat() {
+        Long userId = getCurrentUserId();
+        log.info("用户请求终止 LLM 对话, userId={}", userId);
+        llmTestChatService.cancelStream(userId);
+        return ResponseEntity.ok().build();
+    }
+
+    /**
+     * 从 SecurityContext 中获取当前登录用户 ID
+     */
+    private Long getCurrentUserId() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.getPrincipal() instanceof Long) {
+            return (Long) auth.getPrincipal();
+        }
+        return null;
     }
 }
