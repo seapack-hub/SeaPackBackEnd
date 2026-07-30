@@ -777,7 +777,9 @@ public class AgentTestChatService {
         }
 
         // 2. 解析场景级配置覆盖
-        applySceneConfig(agent, request.getSceneId());        // ===== Step 1: 提示词组装 =====
+        applySceneConfig(agent, request.getSceneId());
+
+        // ===== Step 1: 提示词组装 =====
         String systemPrompt;
         try {
             SseEvent.send(emitter, "step_start", Map.of(

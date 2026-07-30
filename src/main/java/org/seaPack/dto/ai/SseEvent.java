@@ -34,6 +34,10 @@ public class SseEvent {
     public static final String TYPE_ERROR = "error";
     /** 用户终止 */
     public static final String TYPE_STOP = "stop";
+    /** 编排启动 */
+    public static final String TYPE_ORCHESTRATION_START = "orchestration_start";
+    /** Agent 选择结果（LLM 动态路由） */
+    public static final String TYPE_AGENT_SELECT = "agent_select";
 
     private static final ObjectMapper objectMapper = new ObjectMapper();
 

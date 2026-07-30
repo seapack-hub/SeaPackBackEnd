@@ -61,6 +61,17 @@ public class LlmSseHelper {
      *                   参数为 Chunk 对象（含 deltaContent / promptTokens / completionTokens / done 标记）
      */
     public void readChunks(HttpURLConnection conn, AtomicBoolean cancelFlag, Consumer<Chunk> onChunk) throws Exception {
+        // 先检查 HTTP 响应码，非 200 时读取错误流并抛出异常
+        int responseCode = conn.getResponseCode();
+        if (responseCode != 200) {
+            String errorBody = new String(
+                    conn.getErrorStream() != null
+                            ? conn.getErrorStream().readAllBytes()
+                            : new byte[0],
+                    StandardCharsets.UTF_8);
+            throw new RuntimeException("LLM API 返回错误: HTTP " + responseCode + ", body=" + errorBody);
+        }
+
         try (BufferedReader reader = new BufferedReader(
                 new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
             String line;

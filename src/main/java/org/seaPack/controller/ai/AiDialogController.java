@@ -143,15 +143,24 @@ public class AiDialogController {
     // ========================================================================
 
     /**
-     * 编排对话（SSE 流式返回，按步骤执行）
+     * 编排对话（SSE 流式返回，含 4 级降级策略）
+     * <pre>
+     * 优先级  条件                执行方式
+     * 1      有编排 + 有步骤      编排执行
+     * 2      有编排 + 无步骤      降级到场景 Agent
+     * 3      无编排 + 有 Agent    Agent 对话
+     * 4      无编排 + 无 Agent    通用 LLM 对话
+     * </pre>
      *
      * @param request  统一对话请求（mode=orchestration）
+     * @param authHeader Authorization 请求头
      * @param response HTTP 响应对象
      * @return SSE 发射器
      */
     @PostMapping("/orchestration")
     public SseEmitter orchestration(@RequestBody AiDialogRequest request,
-                                     HttpServletResponse response) {
+                                    @RequestHeader("Authorization") String authHeader,
+                                    HttpServletResponse response) {
         // 设置 SSE 响应头
         response.setContentType(MediaType.TEXT_EVENT_STREAM_VALUE);
         response.setCharacterEncoding("UTF-8");
@@ -164,7 +173,7 @@ public class AiDialogController {
         // 使用公共线程池异步执行
         sseExecutor.execute(() -> {
             try {
-                dialogService.handleStream(request, userId, null, emitter, response);
+                dialogService.handleStream(request, userId, authHeader, emitter, response);
             } catch (Exception e) {
                 try {
                     emitter.completeWithError(e);

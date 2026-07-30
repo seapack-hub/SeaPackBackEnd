@@ -5,9 +5,11 @@ import org.seaPack.config.AIProperties;
 import org.seaPack.dto.ai.OrchestrationExecuteRequest;
 import org.seaPack.dto.ai.SseEvent;
 import org.seaPack.mapper.ai.AgentMapper;
+import org.seaPack.mapper.ai.SceneMapper;
 import org.seaPack.mapper.ai.SceneOrchestrationMapper;
 import org.seaPack.mapper.ai.SceneOrchestrationStepMapper;
 import org.seaPack.model.ai.Agent;
+import org.seaPack.model.ai.Scene;
 import org.seaPack.model.ai.SceneOrchestration;
 import org.seaPack.model.ai.SceneOrchestrationStep;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,6 +40,9 @@ public class OrchestrationExecuteService {
     private AgentMapper agentMapper;
 
     @Autowired
+    private SceneMapper sceneMapper;
+
+    @Autowired
     private AIProperties aiProperties;
 
     @Autowired
@@ -66,11 +71,26 @@ public class OrchestrationExecuteService {
         });
 
         try {
-            // 1. 加载编排
+            // 1. 加载编排：先尝试编排ID，再尝试场景ID
             SceneOrchestration orchestration = orchestrationMapper.selectById(request.getOrchestrationId());
             if (orchestration == null) {
-                sendSseError(emitter, "编排不存在: " + request.getOrchestrationId());
-                return;
+                // 不是编排ID，尝试作为场景ID查询
+                Scene scene = sceneMapper.selectById(request.getOrchestrationId());
+                if (scene == null) {
+                    sendSseError(emitter, "未找到编排或场景: " + request.getOrchestrationId());
+                    return;
+                }
+                // 查找该场景下第一个启用的编排（按 sort_order 升序）
+                List<SceneOrchestration> sceneOrchestrations = orchestrationMapper.selectBySceneId(scene.getId());
+                orchestration = sceneOrchestrations.stream()
+                        .filter(o -> o.getStatus() != null && o.getStatus() == 1)
+                        .findFirst()
+                        .orElse(null);
+                if (orchestration == null) {
+                    sendSseError(emitter, "场景 [" + scene.getName() + "] 下没有启用的编排");
+                    return;
+                }
+                log.info("通过场景ID [{}] 找到编排 [{}]", scene.getId(), orchestration.getName());
             }
             if (orchestration.getStatus() == null || orchestration.getStatus() != 1) {
                 sendSseError(emitter, "编排已禁用: " + orchestration.getName());
@@ -78,7 +98,7 @@ public class OrchestrationExecuteService {
             }
 
             // 2. 加载步骤（按 step_index 升序）
-            List<SceneOrchestrationStep> steps = stepMapper.selectByOrchestrationId(request.getOrchestrationId());
+            List<SceneOrchestrationStep> steps = stepMapper.selectByOrchestrationId(orchestration.getId());
             if (steps == null || steps.isEmpty()) {
                 sendSseError(emitter, "编排没有定义任何步骤: " + orchestration.getName());
                 return;
@@ -94,6 +114,18 @@ public class OrchestrationExecuteService {
 
             // 4. 按策略执行
             String strategy = orchestration.getStrategy() != null ? orchestration.getStrategy() : "sequential";
+
+            // 4a. 发送编排启动事件：告知前端编排的基本信息和执行计划
+            sendSseEvent(emitter, "orchestration_start", Map.of(
+                    "orchestrationId", orchestration.getId(),
+                    "orchestrationName", orchestration.getName() != null ? orchestration.getName() : "",
+                    "strategy", strategy,
+                    "totalSteps", steps.size(),
+                    "provider", providerName,
+                    "chatModel", config.getChatModel() != null ? config.getChatModel() : "",
+                    "message", "编排 [" + orchestration.getName() + "] 开始执行，策略: " + strategy + "，共 " + steps.size() + " 个步骤"
+            ));
+
             String mergedResult;
             int totalTokensPrompt = 0;
             int totalTokensCompletion = 0;
@@ -124,15 +156,109 @@ public class OrchestrationExecuteService {
             Map<String, Object> doneData = new HashMap<>();
             doneData.put("result", mergedResult);
             doneData.put("totalDurationMs", totalDuration);
+            doneData.put("strategy", strategy);
+            doneData.put("totalSteps", steps.size());
             doneData.put("tokens", Map.of(
                     "prompt", totalTokensPrompt,
                     "completion", totalTokensCompletion
             ));
+            doneData.put("message", "编排执行完成，共耗时 " + totalDuration + "ms");
             sendSseEvent(emitter, "done", doneData);
 
         } catch (Exception e) {
             log.error("编排执行异常", e);
             sendSseError(emitter, "编排执行失败: " + e.getMessage());
+        } finally {
+            try {
+                emitter.complete();
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    // ===== 动态编排执行（LLM 路由构建的步骤） =====
+
+    /**
+     * 执行动态构建的编排步骤（不查数据库，直接执行传入的步骤列表）
+     * <p>用于 LLM 动态选择 Agent 后的多 Agent 协作场景。</p>
+     *
+     * @param steps     动态构建的步骤列表（stepIndex 从 1 开始）
+     * @param strategy  执行策略：sequential / parallel
+     * @param message   用户输入消息
+     * @param history   对话历史
+     * @param emitter   SSE 发射器
+     */
+    public void executeDynamic(List<SceneOrchestrationStep> steps, String strategy,
+                               String message, List<Map<String, String>> history,
+                               SseEmitter emitter) {
+        long totalStart = System.currentTimeMillis();
+        AtomicBoolean isCompleted = new AtomicBoolean(false);
+
+        emitter.onCompletion(() -> {
+            log.info("动态编排 SSE 连接已关闭");
+            isCompleted.set(true);
+        });
+        emitter.onTimeout(() -> {
+            log.warn("动态编排 SSE 连接超时");
+            isCompleted.set(true);
+        });
+
+        try {
+            // 1. 获取 AI 配置
+            String providerName = aiProperties.getActiveProvider();
+            AIProperties.ProviderConfig config = aiProperties.getProviders().get(providerName);
+            if (config == null) {
+                sendSseError(emitter, "AI 配置错误：未找到提供商 [" + providerName + "]");
+                return;
+            }
+
+            // 2. 发送编排启动事件
+            sendSseEvent(emitter, "orchestration_start", Map.of(
+                    "orchestrationName", "动态编排",
+                    "strategy", strategy != null ? strategy : "sequential",
+                    "totalSteps", steps.size(),
+                    "provider", providerName,
+                    "chatModel", config.getChatModel() != null ? config.getChatModel() : "",
+                    "message", "LLM 选择了 " + steps.size() + " 个 Agent，策略: " + (strategy != null ? strategy : "sequential")
+            ));
+
+            // 3. 构造请求对象
+            OrchestrationExecuteRequest request = new OrchestrationExecuteRequest();
+            request.setMessage(message);
+            request.setHistory(history);
+
+            // 4. 按策略执行
+            String execStrategy = strategy != null ? strategy : "sequential";
+            OrchestrationResult result;
+
+            if ("parallel".equals(execStrategy)) {
+                result = executeParallel(steps, request, config, emitter, isCompleted);
+            } else {
+                result = executeSequential(steps, request, config, emitter, isCompleted);
+            }
+
+            if (isCompleted.get()) {
+                log.info("动态编排执行被中断");
+                return;
+            }
+
+            // 5. 发送完成事件
+            long totalDuration = System.currentTimeMillis() - totalStart;
+            Map<String, Object> doneData = new HashMap<>();
+            doneData.put("result", result.output);
+            doneData.put("totalDurationMs", totalDuration);
+            doneData.put("strategy", execStrategy);
+            doneData.put("totalSteps", steps.size());
+            doneData.put("tokens", Map.of(
+                    "prompt", result.tokensPrompt,
+                    "completion", result.tokensCompletion
+            ));
+            doneData.put("message", "动态编排执行完成，共耗时 " + totalDuration + "ms");
+            sendSseEvent(emitter, "done", doneData);
+
+        } catch (Exception e) {
+            log.error("动态编排执行异常", e);
+            sendSseError(emitter, "动态编排执行失败: " + e.getMessage());
         } finally {
             try {
                 emitter.complete();
@@ -172,16 +298,38 @@ public class OrchestrationExecuteService {
             long stepStart = System.currentTimeMillis();
             int stepIdx = step.getStepIndex();
 
-            // 4a. 发送 step_start
+            // 4a. 发送 step_start：告知前端步骤开始
             sendSseEvent(emitter, "step_start", Map.of(
                     "stepIndex", stepIdx,
+                    "stepType", "llm",
                     "stepName", step.getStepName() != null ? step.getStepName() : ("步骤" + stepIdx)
             ));
 
             try {
-                // 4b. 条件评估
+                // 4b. 条件评估（发送详细评估过程）
                 if (step.getCondition() != null && !step.getCondition().isBlank()) {
+                    // 替换占位符，展示实际评估值
+                    String resolvedCondition = step.getCondition();
+                    for (Map.Entry<Integer, String> entry : stepStatuses.entrySet()) {
+                        resolvedCondition = resolvedCondition.replace(
+                                "${step_" + entry.getKey() + ".status}",
+                                entry.getValue() != null ? entry.getValue() : "未执行"
+                        );
+                    }
                     boolean conditionMet = evaluateCondition(step.getCondition(), stepOutputs, stepStatuses);
+
+                    sendSseEvent(emitter, "step_detail", Map.of(
+                            "stepIndex", stepIdx,
+                            "stepName", step.getStepName(),
+                            "phase", "condition_eval",
+                            "rawCondition", step.getCondition(),
+                            "resolvedCondition", resolvedCondition,
+                            "result", conditionMet ? "pass" : "skip",
+                            "message", conditionMet
+                                    ? "条件满足，继续执行"
+                                    : "条件不满足，跳过本步骤"
+                    ));
+
                     if (!conditionMet) {
                         sendSseEvent(emitter, "step_done", Map.of(
                                 "stepIndex", stepIdx,
@@ -195,7 +343,7 @@ public class OrchestrationExecuteService {
                     }
                 }
 
-                // 4c. 加载 Agent
+                // 4c. 加载 Agent（发送详细 Agent 信息）
                 Agent agent = agentMapper.selectById(step.getAgentId());
                 if (agent == null) {
                     sendSseEvent(emitter, "step_error", Map.of(
@@ -216,14 +364,46 @@ public class OrchestrationExecuteService {
                     continue;
                 }
 
-                // 4d. 解析输入映射
+                Map<String, Object> agentDetail = new HashMap<>();
+                agentDetail.put("stepIndex", stepIdx);
+                agentDetail.put("stepName", step.getStepName());
+                agentDetail.put("phase", "agent_loaded");
+                agentDetail.put("agentId", agent.getId());
+                agentDetail.put("agentName", agent.getName() != null ? agent.getName() : "");
+                agentDetail.put("agentCode", agent.getCode() != null ? agent.getCode() : "");
+                agentDetail.put("model", agent.getModelCode() != null ? agent.getModelCode() : config.getChatModel());
+                agentDetail.put("systemPromptLength", agent.getSystemPrompt() != null ? agent.getSystemPrompt().length() : 0);
+                agentDetail.put("temperature", agent.getTemperature() != null ? agent.getTemperature() : 1.0);
+                agentDetail.put("maxTokens", agent.getMaxTokens() != null ? agent.getMaxTokens() : 0);
+                agentDetail.put("memoryWindow", agent.getMemoryWindow() != null ? agent.getMemoryWindow() : 20);
+                agentDetail.put("message", "Agent [" + agent.getName() + "] 加载完成");
+                sendSseEvent(emitter, "step_detail", agentDetail);
+
+                // 4d. 解析输入映射（发送解析详情）
                 String stepInput = resolveInputMapping(step.getInputMapping(), stepOutputs, request.getMessage());
 
-                // 4e. 调用 LLM 流式输出
-                sendSseEvent(emitter, "step_progress", Map.of(
+                sendSseEvent(emitter, "step_detail", Map.of(
                         "stepIndex", stepIdx,
                         "stepName", step.getStepName(),
-                        "message", "正在调用 " + agent.getName() + " ..."
+                        "phase", "input_resolved",
+                        "rawTemplate", step.getInputMapping() != null ? step.getInputMapping() : "(空，使用用户原始输入)",
+                        "resolvedInput", stepInput.length() > 500
+                                ? stepInput.substring(0, 500) + "...(" + stepInput.length() + "字符)"
+                                : stepInput,
+                        "inputLength", stepInput.length(),
+                        "message", "输入映射解析完成"
+                ));
+
+                // 4e. 调用 LLM 流式输出（发送调用准备信息）
+                sendSseEvent(emitter, "step_detail", Map.of(
+                        "stepIndex", stepIdx,
+                        "stepName", step.getStepName(),
+                        "phase", "llm_calling",
+                        "model", agent.getModelCode() != null ? agent.getModelCode() : config.getChatModel(),
+                        "inputLength", stepInput.length(),
+                        "historyCount", request.getHistory() != null ? request.getHistory().size() : 0,
+                        "systemPromptLength", agent.getSystemPrompt() != null ? agent.getSystemPrompt().length() : 0,
+                        "message", "正在调用 LLM: " + (agent.getModelCode() != null ? agent.getModelCode() : config.getChatModel())
                 ));
 
                 StepLlmResult llmResult = callLlmStream(agent, stepInput, request.getHistory(),
@@ -244,14 +424,30 @@ public class OrchestrationExecuteService {
                 overallOutput.append(llmResult.output);
 
                 long stepDuration = System.currentTimeMillis() - stepStart;
+
+                // 发送 LLM 调用完成详情
+                sendSseEvent(emitter, "step_detail", Map.of(
+                        "stepIndex", stepIdx,
+                        "stepName", step.getStepName(),
+                        "phase", "llm_done",
+                        "model", llmResult.modelName,
+                        "tokensPrompt", llmResult.tokensPrompt,
+                        "tokensCompletion", llmResult.tokensCompletion,
+                        "outputLength", llmResult.output.length(),
+                        "durationMs", llmResult.durationMs,
+                        "message", "LLM 调用完成，耗时 " + llmResult.durationMs + "ms"
+                ));
+
+                // 发送 step_done（含完整输出）
                 sendSseEvent(emitter, "step_done", Map.of(
                         "stepIndex", stepIdx,
                         "stepName", step.getStepName(),
                         "status", "success",
                         "durationMs", stepDuration,
-                        "output", llmResult.output.length() > 200
-                                ? llmResult.output.substring(0, 200) + "..."
-                                : llmResult.output
+                        "output", llmResult.output,
+                        "tokensPrompt", llmResult.tokensPrompt,
+                        "tokensCompletion", llmResult.tokensCompletion,
+                        "model", llmResult.modelName
                 ));
 
             } catch (Exception e) {
@@ -264,6 +460,16 @@ public class OrchestrationExecuteService {
                     for (int i = 0; i < step.getRetryCount(); i++) {
                         if (isCompleted.get()) break;
                         log.info("步骤[{}] 第{}次重试", step.getStepName(), i + 1);
+
+                        sendSseEvent(emitter, "step_detail", Map.of(
+                                "stepIndex", stepIdx,
+                                "stepName", step.getStepName(),
+                                "phase", "retry",
+                                "retryIndex", i + 1,
+                                "maxRetry", step.getRetryCount(),
+                                "message", "第" + (i + 1) + "次重试（共" + step.getRetryCount() + "次）"
+                        ));
+
                         try {
                             Agent agent = agentMapper.selectById(step.getAgentId());
                             if (agent == null) continue;
@@ -274,7 +480,44 @@ public class OrchestrationExecuteService {
                                     "message", "第" + (i + 1) + "次重试..."
                             ));
 
+                            // 发送重试的 Agent 加载详情
+                            sendSseEvent(emitter, "step_detail", Map.of(
+                                    "stepIndex", stepIdx,
+                                    "stepName", step.getStepName(),
+                                    "phase", "agent_loaded",
+                                    "agentId", agent.getId(),
+                                    "agentName", agent.getName() != null ? agent.getName() : "",
+                                    "model", agent.getModelCode() != null ? agent.getModelCode() : config.getChatModel(),
+                                    "systemPromptLength", agent.getSystemPrompt() != null ? agent.getSystemPrompt().length() : 0,
+                                    "message", "Agent [" + agent.getName() + "] 重新加载完成"
+                            ));
+
                             String stepInput = resolveInputMapping(step.getInputMapping(), stepOutputs, request.getMessage());
+
+                            // 发送输入映射解析详情
+                            sendSseEvent(emitter, "step_detail", Map.of(
+                                    "stepIndex", stepIdx,
+                                    "stepName", step.getStepName(),
+                                    "phase", "input_resolved",
+                                    "rawTemplate", step.getInputMapping() != null ? step.getInputMapping() : "(空，使用用户原始输入)",
+                                    "resolvedInput", stepInput.length() > 500
+                                            ? stepInput.substring(0, 500) + "...(" + stepInput.length() + "字符)"
+                                            : stepInput,
+                                    "inputLength", stepInput.length(),
+                                    "message", "输入映射解析完成"
+                            ));
+
+                            // 发送 LLM 调用准备
+                            sendSseEvent(emitter, "step_detail", Map.of(
+                                    "stepIndex", stepIdx,
+                                    "stepName", step.getStepName(),
+                                    "phase", "llm_calling",
+                                    "model", agent.getModelCode() != null ? agent.getModelCode() : config.getChatModel(),
+                                    "inputLength", stepInput.length(),
+                                    "historyCount", request.getHistory() != null ? request.getHistory().size() : 0,
+                                    "message", "正在调用 LLM: " + (agent.getModelCode() != null ? agent.getModelCode() : config.getChatModel())
+                            ));
+
                             StepLlmResult llmResult = callLlmStream(agent, stepInput, request.getHistory(),
                                     config, emitter, stepIdx, isCompleted);
 
@@ -289,16 +532,43 @@ public class OrchestrationExecuteService {
                             overallOutput.append(llmResult.output);
 
                             long stepDuration = System.currentTimeMillis() - stepStart;
+
+                            // 发送重试 LLM 完成详情
+                            sendSseEvent(emitter, "step_detail", Map.of(
+                                    "stepIndex", stepIdx,
+                                    "stepName", step.getStepName(),
+                                    "phase", "llm_done",
+                                    "model", llmResult.modelName,
+                                    "tokensPrompt", llmResult.tokensPrompt,
+                                    "tokensCompletion", llmResult.tokensCompletion,
+                                    "outputLength", llmResult.output.length(),
+                                    "durationMs", llmResult.durationMs,
+                                    "message", "重试 LLM 调用完成，耗时 " + llmResult.durationMs + "ms"
+                            ));
+
                             sendSseEvent(emitter, "step_done", Map.of(
                                     "stepIndex", stepIdx,
                                     "stepName", step.getStepName(),
                                     "status", "success",
-                                    "durationMs", stepDuration
+                                    "durationMs", stepDuration,
+                                    "output", llmResult.output,
+                                    "tokensPrompt", llmResult.tokensPrompt,
+                                    "tokensCompletion", llmResult.tokensCompletion,
+                                    "model", llmResult.modelName
                             ));
                             retried = true;
                             break;
                         } catch (Exception retryEx) {
                             log.warn("步骤[{}] 第{}次重试失败: {}", step.getStepName(), i + 1, retryEx.getMessage());
+
+                            sendSseEvent(emitter, "step_detail", Map.of(
+                                    "stepIndex", stepIdx,
+                                    "stepName", step.getStepName(),
+                                    "phase", "retry_failed",
+                                    "retryIndex", i + 1,
+                                    "errorMessage", retryEx.getMessage(),
+                                    "message", "第" + (i + 1) + "次重试失败: " + retryEx.getMessage()
+                            ));
                         }
                     }
                     if (retried) continue;
@@ -354,12 +624,19 @@ public class OrchestrationExecuteService {
                 long stepStart = System.currentTimeMillis();
                 sendSseEvent(emitter, "step_start", Map.of(
                         "stepIndex", stepIdx,
+                        "stepType", "llm",
                         "stepName", step.getStepName() != null ? step.getStepName() : ("步骤" + stepIdx)
                 ));
 
                 try {
                     if (step.getStatus() != null && step.getStatus() != 1) {
                         orderedOutputs[index] = "";
+                        sendSseEvent(emitter, "step_detail", Map.of(
+                                "stepIndex", stepIdx,
+                                "stepName", step.getStepName(),
+                                "phase", "skipped",
+                                "message", "步骤已禁用，跳过执行"
+                        ));
                         return;
                     }
 
@@ -374,7 +651,47 @@ public class OrchestrationExecuteService {
                         return;
                     }
 
+                    // 发送 Agent 加载详情
+                    Map<String, Object> agentDetail = new HashMap<>();
+                    agentDetail.put("stepIndex", stepIdx);
+                    agentDetail.put("stepName", step.getStepName());
+                    agentDetail.put("phase", "agent_loaded");
+                    agentDetail.put("agentId", agent.getId());
+                    agentDetail.put("agentName", agent.getName() != null ? agent.getName() : "");
+                    agentDetail.put("agentCode", agent.getCode() != null ? agent.getCode() : "");
+                    agentDetail.put("model", agent.getModelCode() != null ? agent.getModelCode() : config.getChatModel());
+                    agentDetail.put("systemPromptLength", agent.getSystemPrompt() != null ? agent.getSystemPrompt().length() : 0);
+                    agentDetail.put("temperature", agent.getTemperature() != null ? agent.getTemperature() : 1.0);
+                    agentDetail.put("maxTokens", agent.getMaxTokens() != null ? agent.getMaxTokens() : 0);
+                    agentDetail.put("message", "Agent [" + agent.getName() + "] 加载完成");
+                    sendSseEvent(emitter, "step_detail", agentDetail);
+
                     String stepInput = resolveInputMapping(step.getInputMapping(), new HashMap<>(), request.getMessage());
+
+                    // 发送输入映射解析详情
+                    sendSseEvent(emitter, "step_detail", Map.of(
+                            "stepIndex", stepIdx,
+                            "stepName", step.getStepName(),
+                            "phase", "input_resolved",
+                            "rawTemplate", step.getInputMapping() != null ? step.getInputMapping() : "(空，使用用户原始输入)",
+                            "resolvedInput", stepInput.length() > 500
+                                    ? stepInput.substring(0, 500) + "...(" + stepInput.length() + "字符)"
+                                    : stepInput,
+                            "inputLength", stepInput.length(),
+                            "message", "输入映射解析完成"
+                    ));
+
+                    // 发送 LLM 调用准备
+                    sendSseEvent(emitter, "step_detail", Map.of(
+                            "stepIndex", stepIdx,
+                            "stepName", step.getStepName(),
+                            "phase", "llm_calling",
+                            "model", agent.getModelCode() != null ? agent.getModelCode() : config.getChatModel(),
+                            "inputLength", stepInput.length(),
+                            "historyCount", request.getHistory() != null ? request.getHistory().size() : 0,
+                            "message", "正在调用 LLM: " + (agent.getModelCode() != null ? agent.getModelCode() : config.getChatModel())
+                    ));
+
                     StepLlmResult llmResult = callLlmStream(agent, stepInput, request.getHistory(),
                             config, emitter, stepIdx, isCompleted);
 
@@ -383,11 +700,29 @@ public class OrchestrationExecuteService {
                     totalCompletion[0] += llmResult.tokensCompletion;
 
                     long stepDuration = System.currentTimeMillis() - stepStart;
+
+                    // 发送 LLM 完成详情
+                    sendSseEvent(emitter, "step_detail", Map.of(
+                            "stepIndex", stepIdx,
+                            "stepName", step.getStepName(),
+                            "phase", "llm_done",
+                            "model", llmResult.modelName,
+                            "tokensPrompt", llmResult.tokensPrompt,
+                            "tokensCompletion", llmResult.tokensCompletion,
+                            "outputLength", llmResult.output.length(),
+                            "durationMs", llmResult.durationMs,
+                            "message", "LLM 调用完成，耗时 " + llmResult.durationMs + "ms"
+                    ));
+
                     sendSseEvent(emitter, "step_done", Map.of(
                             "stepIndex", stepIdx,
                             "stepName", step.getStepName(),
                             "status", "success",
-                            "durationMs", stepDuration
+                            "durationMs", stepDuration,
+                            "output", llmResult.output,
+                            "tokensPrompt", llmResult.tokensPrompt,
+                            "tokensCompletion", llmResult.tokensCompletion,
+                            "model", llmResult.modelName
                     ));
                 } catch (Exception e) {
                     orderedOutputs[index] = "";
