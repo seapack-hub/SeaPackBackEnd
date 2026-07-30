@@ -1,9 +1,9 @@
 package org.seaPack.service.ai;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.seaPack.config.AIProperties;
 import org.seaPack.dto.ai.OrchestrationExecuteRequest;
+import org.seaPack.dto.ai.SseEvent;
 import org.seaPack.mapper.ai.AgentMapper;
 import org.seaPack.mapper.ai.SceneOrchestrationMapper;
 import org.seaPack.mapper.ai.SceneOrchestrationStepMapper;
@@ -11,15 +11,10 @@ import org.seaPack.model.ai.Agent;
 import org.seaPack.model.ai.SceneOrchestration;
 import org.seaPack.model.ai.SceneOrchestrationStep;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
-import java.net.URI;
-import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -45,7 +40,8 @@ public class OrchestrationExecuteService {
     @Autowired
     private AIProperties aiProperties;
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    @Autowired
+    private LlmSseHelper llmSseHelper;
 
     // ===== 主入口 =====
 
@@ -498,59 +494,22 @@ public class OrchestrationExecuteService {
         int[] tokenUsage = {0, 0}; // [prompt, completion]
 
         try {
-            // 使用 HttpURLConnection 实现流式请求
-            HttpURLConnection connection = createStreamingConnection(url, config.getApiKey(), requestBody);
+            // 使用 LlmSseHelper 实现流式请求（统一 SSE 读取逻辑）
+            java.net.HttpURLConnection connection = llmSseHelper.createConnection(url, config.getApiKey(), requestBody);
             connection.setConnectTimeout(30000);
             connection.setReadTimeout(300000); // 5 分钟读取超时
 
-            try (BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    if (isCompleted.get()) {
-                        log.info("编排中断，取消 LLM 流式调用");
-                        break;
-                    }
-
-                    if (line.startsWith("data: ")) {
-                        String data = line.substring(6).trim();
-                        if ("[DONE]".equals(data)) {
-                            break;
-                        }
-
-                        try {
-                            @SuppressWarnings("unchecked")
-                            Map<String, Object> chunk = objectMapper.readValue(data, Map.class);
-
-                            @SuppressWarnings("unchecked")
-                            List<Map<String, Object>> choices = (List<Map<String, Object>>) chunk.get("choices");
-                            if (choices != null && !choices.isEmpty()) {
-                                Map<String, Object> choice = choices.get(0);
-                                @SuppressWarnings("unchecked")
-                                Map<String, Object> delta = (Map<String, Object>) choice.get("delta");
-                                if (delta != null && delta.get("content") != null) {
-                                    String content = delta.get("content").toString();
-                                    outputBuilder.append(content);
-
-                                    // 发送 content 事件
-                                    sendSseEvent(emitter, "content", Map.of("text", content));
-                                }
-                            }
-
-                            @SuppressWarnings("unchecked")
-                            Map<String, Object> usage = (Map<String, Object>) chunk.get("usage");
-                            if (usage != null) {
-                                tokenUsage[0] = usage.get("prompt_tokens") != null
-                                        ? ((Number) usage.get("prompt_tokens")).intValue() : 0;
-                                tokenUsage[1] = usage.get("completion_tokens") != null
-                                        ? ((Number) usage.get("completion_tokens")).intValue() : 0;
-                            }
-                        } catch (Exception e) {
-                            log.warn("解析 LLM 响应块失败: {}", e.getMessage());
-                        }
-                    }
+            llmSseHelper.readChunks(connection, isCompleted, chunk -> {
+                if (chunk.isDone()) return;
+                if (chunk.hasDeltaContent()) {
+                    outputBuilder.append(chunk.getDeltaContent());
+                    sendSseEvent(emitter, "content", java.util.Map.of("text", chunk.getDeltaContent()));
                 }
-            }
+                if (chunk.hasUsage()) {
+                    tokenUsage[0] = chunk.getPromptTokens() != null ? chunk.getPromptTokens() : tokenUsage[0];
+                    tokenUsage[1] = chunk.getCompletionTokens() != null ? chunk.getCompletionTokens() : tokenUsage[1];
+                }
+            });
             connection.disconnect();
 
         } catch (Exception e) {
@@ -620,38 +579,18 @@ public class OrchestrationExecuteService {
     }
 
     /**
-     * 创建流式 HTTP 连接
+     * 创建流式 HTTP 连接（委托给 LlmSseHelper）
      */
     private HttpURLConnection createStreamingConnection(String url, String apiKey,
                                                          Map<String, Object> requestBody) throws Exception {
-        HttpURLConnection connection = (HttpURLConnection) URI.create(url).toURL().openConnection();
-        connection.setRequestMethod("POST");
-        connection.setRequestProperty("Content-Type", "application/json");
-        connection.setRequestProperty("Authorization", "Bearer " + apiKey);
-        connection.setDoOutput(true);
-        connection.setInstanceFollowRedirects(false);
-        // 写入请求体
-        try (java.io.OutputStream os = connection.getOutputStream()) {
-            byte[] inputBytes = objectMapper.writeValueAsBytes(requestBody);
-            os.write(inputBytes);
-            os.flush();
-        }
-        return connection;
+        return llmSseHelper.createConnection(url, apiKey, requestBody);
     }
 
     /**
-     * 发送 SSE 事件
+     * 发送 SSE 事件（委托给 SseEvent 统一工具）
      */
     private void sendSseEvent(SseEmitter emitter, String type, Map<String, Object> data) {
-        try {
-            Map<String, Object> event = new HashMap<>(data);
-            event.put("type", type);
-            emitter.send(SseEmitter.event()
-                    .name("message")
-                    .data(objectMapper.writeValueAsString(event), MediaType.APPLICATION_JSON));
-        } catch (Exception e) {
-            log.warn("发送 SSE 事件失败: type={}, {}", type, e.getMessage());
-        }
+        SseEvent.send(emitter, type, data);
     }
 
     /**

@@ -9,18 +9,12 @@ import org.seaPack.dto.ai.SkillExecuteResult;
 import org.seaPack.mapper.ai.*;
 import org.seaPack.model.ai.*;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.RestTemplate;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
-import java.net.URI;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
+
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
@@ -54,7 +48,7 @@ public class AgentTestChatService {
     private AgentSkillExecutor skillExecutor;
 
     @Autowired
-    private RestTemplate restTemplate;
+    private LlmSseHelper llmSseHelper;
 
     @Autowired
     private AIProperties aiProperties;
@@ -76,7 +70,7 @@ public class AgentTestChatService {
      * @return 测试对话响应（含链路追踪快照）
      */
     @Transactional
-    public AgentTestChatResponse testChat(AgentTestChatRequest request, Long userId) {
+    public AgentTestChatResponse testChat(AiDialogRequest request, Long userId) {
         long totalStart = System.currentTimeMillis();
         List<AgentTraceStep> steps = new ArrayList<>();
         int stepIndex = 1;
@@ -96,7 +90,7 @@ public class AgentTestChatService {
         // ===== Step 1: 提示词组装 =====
         String systemPrompt;
         try {
-            AgentTraceStepResult stepResult = assemblePrompt(agent, stepIndex, request.getMessage());
+            AgentTraceStepResult stepResult = assemblePrompt(agent, stepIndex, extractMessage(request));
             systemPrompt = stepResult.output;
             stepIndex = stepResult.nextStepIndex;
             steps.add(stepResult.step);
@@ -108,7 +102,7 @@ public class AgentTestChatService {
         // ===== Step 2: 知识库检索 =====
         String knowledgeContext = "";
         try {
-            AgentTraceStepResult stepResult = retrieveKnowledge(agent, request.getMessage(), stepIndex);
+            AgentTraceStepResult stepResult = retrieveKnowledge(agent, extractMessage(request), stepIndex);
             knowledgeContext = stepResult.output;
             stepIndex = stepResult.nextStepIndex;
             steps.add(stepResult.step);
@@ -123,7 +117,7 @@ public class AgentTestChatService {
         // ===== Step 3: 技能调用 =====
         String skillContext = "";
         try {
-            SkillExecuteResult skillResult = skillExecutor.executeSkills(agent.getId(), request.getMessage());
+            SkillExecuteResult skillResult = skillExecutor.executeSkills(agent.getId(), extractMessage(request));
             skillContext = skillResult.getOutput();
 
             AgentTraceStep step = new AgentTraceStep();
@@ -243,15 +237,8 @@ public class AgentTestChatService {
 
         try {
             String url = config.getBaseUrl().replaceAll("/+$", "") + "/chat/completions";
-            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
-            headers.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
-            headers.set("Authorization", "Bearer " + config.getApiKey());
-
-            org.springframework.http.HttpEntity<Map<String, Object>> entity =
-                    new org.springframework.http.HttpEntity<>(requestBody, headers);
-
             @SuppressWarnings("unchecked")
-            Map<String, Object> apiResponse = restTemplate.postForObject(url, entity, Map.class);
+            Map<String, Object> apiResponse = llmSseHelper.callSync(url, config.getApiKey(), requestBody);
 
             if (apiResponse != null) {
                 @SuppressWarnings("unchecked")
@@ -310,7 +297,7 @@ public class AgentTestChatService {
 
         // 发送开始加载 Agent 基础提示词
         if (emitter != null) {
-            sendSseEvent(emitter, "step_progress", Map.of(
+            SseEvent.send(emitter, "step_progress", Map.of(
                     "stepIndex", stepIndex,
                     "message", "正在加载 Agent 基础提示词..."
             ));
@@ -319,7 +306,7 @@ public class AgentTestChatService {
         if (agent.getSystemPrompt() != null && !agent.getSystemPrompt().isBlank()) {
             systemPromptBuilder.append(agent.getSystemPrompt());
             if (emitter != null) {
-                sendSseEvent(emitter, "step_detail", Map.of(
+                SseEvent.send(emitter, "step_detail", Map.of(
                         "stepIndex", stepIndex,
                         "detailType", "agent_prompt",
                         "content", agent.getSystemPrompt(),
@@ -330,7 +317,7 @@ public class AgentTestChatService {
 
         // 发送开始加载关联模板
         if (emitter != null) {
-            sendSseEvent(emitter, "step_progress", Map.of(
+            SseEvent.send(emitter, "step_progress", Map.of(
                     "stepIndex", stepIndex,
                     "message", "正在通过 LLM 智能选择相关模板..."
             ));
@@ -369,7 +356,7 @@ public class AgentTestChatService {
                     selectedTemplates = selectPromptsByLLM(userMessage, allTemplates, config);
 
                     if (emitter != null) {
-                        sendSseEvent(emitter, "step_progress", Map.of(
+                        SseEvent.send(emitter, "step_progress", Map.of(
                                 "stepIndex", stepIndex,
                                 "message", "LLM 选择了 " + selectedTemplates.size() + " 个相关模板（共 " + allTemplates.size() + " 个）"
                         ));
@@ -396,7 +383,7 @@ public class AgentTestChatService {
 
                 // 发送每个模板加载完成的详细信息
                 if (emitter != null) {
-                    sendSseEvent(emitter, "step_detail", Map.of(
+                    SseEvent.send(emitter, "step_detail", Map.of(
                             "stepIndex", stepIndex,
                             "detailType", "template_loaded",
                             "templateId", template.getId(),
@@ -417,7 +404,7 @@ public class AgentTestChatService {
 
         // 发送组装完成
         if (emitter != null) {
-            sendSseEvent(emitter, "step_progress", Map.of(
+            SseEvent.send(emitter, "step_progress", Map.of(
                     "stepIndex", stepIndex,
                     "message", "提示词组装完成"
             ));
@@ -463,7 +450,7 @@ public class AgentTestChatService {
         List<Map<String, Object>> knowledgeDetails = new ArrayList<>();
 
         if (emitter != null) {
-            sendSseEvent(emitter, "step_progress", Map.of(
+            SseEvent.send(emitter, "step_progress", Map.of(
                     "stepIndex", stepIndex,
                     "message", "正在检索关联的知识库..."
             ));
@@ -478,7 +465,7 @@ public class AgentTestChatService {
             String knowledgeName = ak.getKnowledgeName() != null ? ak.getKnowledgeName() : "知识库";
 
             if (emitter != null) {
-                sendSseEvent(emitter, "step_progress", Map.of(
+                SseEvent.send(emitter, "step_progress", Map.of(
                         "stepIndex", stepIndex,
                         "message", "正在检索知识库: " + knowledgeName
                 ));
@@ -513,7 +500,7 @@ public class AgentTestChatService {
             knowledgeDetails.add(knowledgeDetail);
 
             if (emitter != null) {
-                sendSseEvent(emitter, "step_detail", Map.of(
+                SseEvent.send(emitter, "step_detail", Map.of(
                         "stepIndex", stepIndex,
                         "detailType", "knowledge_result",
                         "knowledgeId", ak.getKnowledgeId(),
@@ -557,7 +544,7 @@ public class AgentTestChatService {
      * <p>构建消息列表并调用 LLM，返回响应内容和 Token 统计。</p>
      */
     private AgentTraceStepResult callLLM(Agent agent, String systemPrompt,
-                                          AgentTestChatRequest request, int stepIndex) {
+                                          AiDialogRequest request, int stepIndex) {
         long llmStart = System.currentTimeMillis();
         String modelName = agent.getModelCode() != null ? agent.getModelCode() :
                 aiProperties.getProviders().get(aiProperties.getActiveProvider()).getChatModel();
@@ -581,7 +568,7 @@ public class AgentTestChatService {
 
         Map<String, String> userMsg = new HashMap<>();
         userMsg.put("role", "user");
-        userMsg.put("content", request.getMessage());
+        userMsg.put("content", extractMessage(request));
         messages.add(userMsg);
 
         String providerName = aiProperties.getActiveProvider();
@@ -602,15 +589,12 @@ public class AgentTestChatService {
             requestBody.put("max_tokens", agent.getMaxTokens());
         }
 
-        org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
-        headers.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
-        headers.set("Authorization", "Bearer " + config.getApiKey());
-
-        org.springframework.http.HttpEntity<Map<String, Object>> entity =
-                new org.springframework.http.HttpEntity<>(requestBody, headers);
-
-        @SuppressWarnings("unchecked")
-        Map<String, Object> apiResponse = restTemplate.postForObject(url, entity, Map.class);
+        Map<String, Object> apiResponse;
+        try {
+            apiResponse = llmSseHelper.callSync(url, config.getApiKey(), requestBody);
+        } catch (Exception e) {
+            throw new RuntimeException("LLM 调用失败: " + e.getMessage(), e);
+        }
 
         String replyContent = "";
         int promptTokens = 0;
@@ -688,7 +672,7 @@ public class AgentTestChatService {
         return snapshot;
     }
 
-    private AgentTestChatResponse buildErrorResponse(Agent agent, AgentTestChatRequest request,
+    private AgentTestChatResponse buildErrorResponse(Agent agent, AiDialogRequest request,
                                                      List<AgentTraceStep> steps, long totalStart,
                                                      Long userId, Exception e) {
         long totalDuration = System.currentTimeMillis() - totalStart;
@@ -741,7 +725,7 @@ public class AgentTestChatService {
                 agent.getName(), sceneId, config.getModel(), config.getTemperature(), config.getMaxTokens());
     }
 
-    private void saveTestSession(Agent agent, AgentTestChatRequest request, String reply,
+    private void saveTestSession(Agent agent, AiDialogRequest request, String reply,
                                  AgentTraceSnapshot snapshot, int durationMs,
                                  int promptTokens, int completionTokens, String modelName,
                                  String status, String errorMessage, Long userId) {
@@ -749,7 +733,7 @@ public class AgentTestChatService {
         session.setBizType("agent");
         session.setBizId(agent.getId());
         session.setBizName(agent.getName());
-        session.setUserMessage(request.getMessage());
+        session.setUserMessage(extractMessage(request));
         session.setOutputResult(reply);
         try {
             session.setTraceSnapshot(objectMapper.writeValueAsString(snapshot));
@@ -775,7 +759,7 @@ public class AgentTestChatService {
      * @param userId  当前用户 ID
      * @param emitter SSE 发射器
      */
-    public void testChatStream(AgentTestChatRequest request, Long userId, SseEmitter emitter, String authToken, HttpServletResponse response) {
+    public void testChatStream(AiDialogRequest request, Long userId, SseEmitter emitter, String authToken, HttpServletResponse response) {
         long totalStart = System.currentTimeMillis();
         List<AgentTraceStep> steps = new ArrayList<>();
         int stepIndex = 1;
@@ -784,11 +768,11 @@ public class AgentTestChatService {
         // 1. 加载 Agent 并校验状态
         Agent agent = agentMapper.selectById(request.getAgentId());
         if (agent == null) {
-            sendSseError(emitter, "Agent 不存在: " + request.getAgentId());
+            SseEvent.sendError(emitter, "Agent 不存在: " + request.getAgentId());
             return;
         }
         if (agent.getStatus() == null || agent.getStatus() != 1) {
-            sendSseError(emitter, "Agent 已禁用: " + agent.getName());
+            SseEvent.sendError(emitter, "Agent 已禁用: " + agent.getName());
             return;
         }
 
@@ -796,7 +780,7 @@ public class AgentTestChatService {
         applySceneConfig(agent, request.getSceneId());        // ===== Step 1: 提示词组装 =====
         String systemPrompt;
         try {
-            sendSseEvent(emitter, "step_start", Map.of(
+            SseEvent.send(emitter, "step_start", Map.of(
                     "stepIndex", stepIndex,
                     "stepType", "prompt_assembly",
                     "stepName", "提示词组装"
@@ -808,12 +792,12 @@ public class AgentTestChatService {
                 isCompleted.set(true);
             });
 
-            AgentTraceStepResult stepResult = assemblePrompt(agent, stepIndex, request.getMessage(), emitter);
+            AgentTraceStepResult stepResult = assemblePrompt(agent, stepIndex, extractMessage(request), emitter);
             systemPrompt = stepResult.output;
             stepIndex = stepResult.nextStepIndex;
             steps.add(stepResult.step);
 
-            sendSseEvent(emitter, "step_done", Map.of(
+            SseEvent.send(emitter, "step_done", Map.of(
                     "stepIndex", stepResult.step.getStepIndex(),
                     "stepType", "prompt_assembly",
                     "stepName", "提示词组装",
@@ -822,20 +806,20 @@ public class AgentTestChatService {
             ));
         } catch (Exception e) {
             steps.add(buildFailStep(stepIndex++, "prompt_assembly", "提示词组装", e.getMessage()));
-            sendSseError(emitter, "提示词组装失败: " + e.getMessage());
+            SseEvent.sendError(emitter, "提示词组装失败: " + e.getMessage());
             return;
         }
 
         // ===== Step 2: 知识库检索 =====
         String knowledgeContext = "";
         try {
-            sendSseEvent(emitter, "step_start", Map.of(
+            SseEvent.send(emitter, "step_start", Map.of(
                     "stepIndex", stepIndex,
                     "stepType", "knowledge_retrieval",
                     "stepName", "知识库检索"
             ));
 
-            AgentTraceStepResult stepResult = retrieveKnowledge(agent, request.getMessage(), stepIndex, emitter);
+            AgentTraceStepResult stepResult = retrieveKnowledge(agent, extractMessage(request), stepIndex, emitter);
             knowledgeContext = stepResult.output;
             stepIndex = stepResult.nextStepIndex;
             steps.add(stepResult.step);
@@ -844,7 +828,7 @@ public class AgentTestChatService {
                 systemPrompt += "\n\n【参考知识】\n" + knowledgeContext;
             }
 
-            sendSseEvent(emitter, "step_done", Map.of(
+            SseEvent.send(emitter, "step_done", Map.of(
                     "stepIndex", stepResult.step.getStepIndex(),
                     "stepType", "knowledge_retrieval",
                     "stepName", "知识库检索",
@@ -859,13 +843,13 @@ public class AgentTestChatService {
         // ===== Step 3: 技能调用 =====
         String skillContext = "";
         try {
-            sendSseEvent(emitter, "step_start", Map.of(
+            SseEvent.send(emitter, "step_start", Map.of(
                     "stepIndex", stepIndex,
                     "stepType", "skill_execution",
                     "stepName", "技能调用"
             ));
 
-            SkillExecuteResult skillResult = skillExecutor.executeSkills(agent.getId(), request.getMessage(), authToken, emitter);
+            SkillExecuteResult skillResult = skillExecutor.executeSkills(agent.getId(), extractMessage(request), authToken, emitter);
             skillContext = skillResult.getOutput();
 
             AgentTraceStep step = new AgentTraceStep();
@@ -890,7 +874,7 @@ public class AgentTestChatService {
                 systemPrompt += "\n\n【技能执行结果】\n" + skillContext;
             }
 
-            sendSseEvent(emitter, "step_done", Map.of(
+            SseEvent.send(emitter, "step_done", Map.of(
                     "stepIndex", step.getStepIndex(),
                     "stepType", "skill_execution",
                     "stepName", "技能调用",
@@ -903,7 +887,7 @@ public class AgentTestChatService {
         }
 
         // ===== Step 4: LLM 流式调用 =====
-        sendSseEvent(emitter, "step_start", Map.of(
+        SseEvent.send(emitter, "step_start", Map.of(
                 "stepIndex", stepIndex,
                 "stepType", "llm_call",
                 "stepName", "LLM 调用"
@@ -923,7 +907,7 @@ public class AgentTestChatService {
             steps.add(stepResult.step);
         } catch (Exception e) {
             steps.add(buildFailStep(stepIndex++, "llm_call", "LLM 调用", e.getMessage()));
-            sendSseError(emitter, "LLM 调用失败: " + e.getMessage());
+            SseEvent.sendError(emitter, "LLM 调用失败: " + e.getMessage());
             return;
         }
 
@@ -940,7 +924,7 @@ public class AgentTestChatService {
                 "completion", completionTokens
         ));
         doneData.put("durationMs", totalDuration);
-        sendSseEvent(emitter, "done", doneData);
+        SseEvent.send(emitter, "done", doneData);
 
         // 关闭响应体：flush → close → complete
         // 必须确保浏览器收到 chunked 传输的结束标记 (0\r\n\r\n)
@@ -970,7 +954,7 @@ public class AgentTestChatService {
      * <p>构建消息列表并调用 LLM，逐 token 发送 SSE 事件。</p>
      */
     private AgentTraceStepResult callLLMStream(Agent agent, String systemPrompt,
-                                                AgentTestChatRequest request, int stepIndex,
+                                                AiDialogRequest request, int stepIndex,
                                                 SseEmitter emitter, AtomicBoolean isCompleted) {
         long llmStart = System.currentTimeMillis();
         String modelName = agent.getModelCode() != null ? agent.getModelCode() :
@@ -995,7 +979,7 @@ public class AgentTestChatService {
 
         Map<String, String> userMsg = new HashMap<>();
         userMsg.put("role", "user");
-        userMsg.put("content", request.getMessage());
+        userMsg.put("content", extractMessage(request));
         messages.add(userMsg);
 
         String providerName = aiProperties.getActiveProvider();
@@ -1020,64 +1004,20 @@ public class AgentTestChatService {
         int[] tokenUsage = {0, 0}; // [promptTokens, completionTokens]
 
         try {
-            // 使用 HTTPURLConnection 实现流式请求
-            HttpURLConnection connection = createStreamingConnection(url, config.getApiKey(), requestBody);
-            connection.setConnectTimeout(30000);
-            connection.setReadTimeout(300000); // 5 分钟读取超时
-
-            try (BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    // 检查客户端是否断开连接
-                    if (isCompleted.get()) {
-                        log.info("客户端连接已断开，取消 LLM 流式调用");
-                        break;
-                    }
-
-                    // 解析 SSE 格式的响应
-                    if (line.startsWith("data: ")) {
-                        String data = line.substring(6).trim();
-                        if ("[DONE]".equals(data)) {
-                            break;
-                        }
-
-                        try {
-                            @SuppressWarnings("unchecked")
-                            Map<String, Object> chunk = objectMapper.readValue(data, Map.class);
-
-                            // 提取 delta 内容
-                            @SuppressWarnings("unchecked")
-                            List<Map<String, Object>> choices = (List<Map<String, Object>>) chunk.get("choices");
-                            if (choices != null && !choices.isEmpty()) {
-                                Map<String, Object> choice = choices.get(0);
-                                @SuppressWarnings("unchecked")
-                                Map<String, Object> delta = (Map<String, Object>) choice.get("delta");
-                                if (delta != null && delta.get("content") != null) {
-                                    String content = delta.get("content").toString();
-                                    replyContentBuilder.append(content);
-
-                                    // 发送 content 事件
-                                    sendSseEvent(emitter, "content", Map.of("text", content));
-                                }
-                            }
-
-                            // 提取 usage 信息（最后一个 chunk）
-                            @SuppressWarnings("unchecked")
-                            Map<String, Object> usage = (Map<String, Object>) chunk.get("usage");
-                            if (usage != null) {
-                                tokenUsage[0] = usage.get("prompt_tokens") != null ? (Integer) usage.get("prompt_tokens") : 0;
-                                tokenUsage[1] = usage.get("completion_tokens") != null ? (Integer) usage.get("completion_tokens") : 0;
-                            }
-                        } catch (Exception e) {
-                            log.warn("解析 LLM 响应块失败: {}", e.getMessage());
-                        }
-                    }
+            // 使用 LlmSseHelper 实现流式请求
+            HttpURLConnection connection = llmSseHelper.createConnection(url, config.getApiKey(), requestBody);
+            llmSseHelper.readChunks(connection, isCompleted, chunk -> {
+                if (chunk.isDone()) return;
+                if (chunk.hasDeltaContent()) {
+                    replyContentBuilder.append(chunk.getDeltaContent());
+                    SseEvent.send(emitter, SseEvent.TYPE_CONTENT, SseEvent.content(chunk.getDeltaContent()));
                 }
-            }
-
+                if (chunk.hasUsage()) {
+                    tokenUsage[0] = chunk.getPromptTokens() != null ? chunk.getPromptTokens() : tokenUsage[0];
+                    tokenUsage[1] = chunk.getCompletionTokens() != null ? chunk.getCompletionTokens() : tokenUsage[1];
+                }
+            });
             connection.disconnect();
-
         } catch (Exception e) {
             throw new RuntimeException("LLM 流式调用失败: " + e.getMessage(), e);
         }
@@ -1109,55 +1049,17 @@ public class AgentTestChatService {
     }
 
     /**
-     * 创建流式 HTTP 连接
+     * 从统一请求中提取用户消息
+     * <p>优先使用 question 字段，为空则取 messages 列表最后一条。</p>
      */
-    private HttpURLConnection createStreamingConnection(String url, String apiKey, Map<String, Object> requestBody) throws Exception {
-        HttpURLConnection connection = (HttpURLConnection) URI.create(url).toURL().openConnection();
-        connection.setRequestMethod("POST");
-        connection.setRequestProperty("Content-Type", "application/json");
-        connection.setRequestProperty("Authorization", "Bearer " + apiKey);
-        connection.setDoOutput(true);
-
-        // 写入请求体
-        byte[] body = objectMapper.writeValueAsBytes(requestBody);
-        connection.getOutputStream().write(body);
-        connection.getOutputStream().flush();
-
-        return connection;
-    }
-
-    /**
-     * 发送 SSE 事件
-     */
-    private void sendSseEvent(SseEmitter emitter, String type, Map<String, Object> data) {
-        try {
-            Map<String, Object> event = new HashMap<>(data);
-            event.put("type", type);
-            emitter.send(SseEmitter.event()
-                    .name("message")
-                    .data(objectMapper.writeValueAsString(event), MediaType.APPLICATION_JSON));
-        } catch (Exception e) {
-            log.warn("发送 SSE 事件失败: {}", e.getMessage());
+    private String extractMessage(AiDialogRequest request) {
+        if (request.getQuestion() != null && !request.getQuestion().isBlank()) {
+            return request.getQuestion();
         }
-    }
-
-    /**
-     * 发送 SSE 错误事件
-     */
-    private void sendSseError(SseEmitter emitter, String message) {
-        try {
-            Map<String, Object> event = Map.of(
-                    "type", "error",
-                    "message", message
-            );
-            emitter.send(SseEmitter.event()
-                    .name("message")
-                    .data(objectMapper.writeValueAsString(event), MediaType.APPLICATION_JSON));
-            emitter.complete();
-        } catch (Exception e) {
-            log.warn("发送 SSE 错误事件失败: {}", e.getMessage());
-            emitter.complete();
+        if (request.getMessages() != null && !request.getMessages().isEmpty()) {
+            return request.getMessages().get(request.getMessages().size() - 1).getContent();
         }
+        return "";
     }
 
     /** Step 结果内部类 */
@@ -1170,3 +1072,4 @@ public class AgentTestChatService {
         String modelName;
     }
 }
+

@@ -2,8 +2,8 @@ package org.seaPack.service.ai;
 
 import lombok.extern.slf4j.Slf4j;
 import org.seaPack.config.AIProperties;
-import org.seaPack.dto.ai.AgentChatRequest;
-import org.seaPack.dto.ai.AgentChatResponse;
+import org.seaPack.dto.ai.AiDialogRequest;
+import org.seaPack.dto.ai.AgentTestChatResponse;
 import org.seaPack.mapper.ai.AgentMapper;
 import org.seaPack.mapper.ai.AgentPromptMapper;
 import org.seaPack.mapper.ai.PromptTemplateMapper;
@@ -48,7 +48,7 @@ public class AgentChatService {
      * @param request 对话请求（含 Agent ID、用户消息、可选历史、可选场景 ID）
      * @return 对话响应（含回复内容、Token 统计、耗时）
      */
-    public AgentChatResponse chat(AgentChatRequest request) {
+    public AgentTestChatResponse chat(AiDialogRequest request) {
         // 1. 加载 Agent 并校验状态
         Agent agent = agentMapper.selectById(request.getAgentId());
         if (agent == null) {
@@ -71,7 +71,8 @@ public class AgentChatService {
         String systemPrompt = buildSystemPrompt(agent, sceneConfig);
 
         // 4. 构建消息列表
-        List<Map<String, String>> messages = buildMessages(agent, systemPrompt, request.getMessage(), request.getHistory());
+        String userMessage = request.getQuestion() != null && !request.getQuestion().isBlank() ? request.getQuestion() : (request.getMessages() != null && !request.getMessages().isEmpty() ? request.getMessages().get(request.getMessages().size() - 1).getContent() : "");
+        List<Map<String, String>> messages = buildMessages(agent, systemPrompt, userMessage, request.getHistory());
 
         // 5. 获取 AI 提供商配置
         String providerName = aiProperties.getActiveProvider();
@@ -142,11 +143,12 @@ public class AgentChatService {
             agentMapper.incrementUseCount(agent.getId());
 
             // 10. 组装响应
-            AgentChatResponse response = new AgentChatResponse();
+            AgentTestChatResponse response = new AgentTestChatResponse();
             response.setContent(content);
             response.setTokensPrompt(promptTokens);
             response.setTokensCompletion(completionTokens);
             response.setDurationMs((int) durationMs);
+            response.setTraceSnapshot(null);
             return response;
 
         } catch (Exception e) {

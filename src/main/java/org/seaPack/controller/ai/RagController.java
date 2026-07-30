@@ -3,7 +3,6 @@ package org.seaPack.controller.ai;
 import lombok.extern.slf4j.Slf4j;
 import org.seaPack.components.FileParserUtil;
 import org.seaPack.config.Result;
-import org.seaPack.dto.ai.IngestRequest;
 import org.seaPack.service.ai.RagService;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
