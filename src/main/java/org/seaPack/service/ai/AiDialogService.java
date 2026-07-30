@@ -369,12 +369,8 @@ public class AiDialogService {
 
     /**
      * 编排对话（智能路由，LLM 动态选择 Agent）
-     * <pre>
-     * 优先级  条件                          执行方式
-     * 1      有编排 + 有步骤                编排执行（已有）
-     * 2      有候选 Agent（≥1个）           LLM 选择 Agent → 按结果执行
-     * 3      无候选 Agent                   通用 LLM 对话
-     * </pre>
+     * <p>路由阶段只发2个事件：routing（开始）→ route_result（结果），
+     * 然后根据结果分流到编排执行 / Agent 对话 / 通用 LLM。</p>
      */
     @SuppressWarnings("unchecked")
     private void handleOrchestration(AiDialogRequest request, Long userId, String authToken,
@@ -382,11 +378,22 @@ public class AiDialogService {
         Long orchestrationId = request.getOrchestrationId();
         Long sceneId = request.getSceneId();
         Long agentId = request.getAgentId();
+        String userMessage = request.getQuestion() != null ? request.getQuestion()
+                : extractLastMessage(request.getMessages());
 
-        // === 优先级 1：尝试查找编排 + 步骤 ===
+        // 1. 发送 routing 事件（路由开始）
+        SseEvent.send(emitter, SseEvent.TYPE_ROUTING, Map.of(
+                "orchestrationId", orchestrationId != null ? orchestrationId : "",
+                "sceneId", sceneId != null ? sceneId : "",
+                "agentId", agentId != null ? agentId : "",
+                "message", "正在分析请求，确定执行策略..."
+        ));
+
+        // 2. 路由逻辑（内部不再发 SSE 事件）
         SceneOrchestration orchestration = null;
         Scene scene = null;
 
+        // 查编排
         if (orchestrationId != null) {
             orchestration = orchestrationMapper.selectById(orchestrationId);
         }
@@ -397,94 +404,103 @@ public class AiDialogService {
             }
         }
         if (orchestration == null && orchestrationId != null) {
-            // 兼容：orchestrationId 可能实际是场景 ID
             scene = sceneMapper.selectById(orchestrationId);
             if (scene != null) {
                 orchestration = findDefaultOrchestration(scene.getId());
             }
         }
 
-        // 有编排 + 有步骤 → 直接编排执行
+        // 有编排 + 有步骤 → 编排执行
         if (orchestration != null) {
             if (scene == null && orchestration.getSceneId() != null) {
                 scene = sceneMapper.selectById(orchestration.getSceneId());
             }
             List<SceneOrchestrationStep> steps = orchestrationStepMapper.selectByOrchestrationId(orchestration.getId());
             if (steps != null && !steps.isEmpty()) {
+                SseEvent.send(emitter, SseEvent.TYPE_ROUTE_RESULT, Map.of(
+                        "route", "orchestration",
+                        "orchestrationName", orchestration.getName() != null ? orchestration.getName() : "",
+                        "stepCount", steps.size(),
+                        "message", "使用编排 [" + orchestration.getName() + "]（" + steps.size() + " 个步骤）"
+                ));
                 log.info("路由到编排执行: orchestration={}, steps={}", orchestration.getName(), steps.size());
-                OrchestrationExecuteRequest orchRequest = buildOrchRequest(request);
-                orchestrationExecuteService.execute(orchRequest, emitter);
+                orchestrationExecuteService.execute(buildOrchRequest(request), emitter);
                 return;
             }
-            // 有编排但无步骤，继续降级到 LLM 动态路由
-            log.info("编排 [{}] 无步骤，降级到 LLM 动态路由", orchestration.getName());
         }
 
-        // === 优先级 2：收集候选 Agent → LLM 动态选择 ===
-        // 补充 scene（如果 orchestration 有关联场景但还没加载）
+        // 收集候选 Agent
         if (scene == null && orchestration != null && orchestration.getSceneId() != null) {
             scene = sceneMapper.selectById(orchestration.getSceneId());
         }
-
         List<Agent> candidates = collectCandidateAgents(scene, agentId);
-        String userMessage = request.getQuestion() != null ? request.getQuestion()
-                : extractLastMessage(request.getMessages());
 
+        // 无候选 → 通用 LLM
         if (candidates.isEmpty()) {
-            // === 优先级 3：无候选 Agent → 通用 LLM 对话 ===
+            SseEvent.send(emitter, SseEvent.TYPE_ROUTE_RESULT, Map.of(
+                    "route", "llm",
+                    "message", "无可用 Agent，使用通用 LLM 对话"
+            ));
             log.info("无候选 Agent，路由到通用 LLM 对话");
             handleLlmStream(request, userId, emitter, response);
             return;
         }
 
-        // 只有 1 个候选 Agent，直接用（跳过 LLM 选择）
+        // 1 个候选 → 直接用
         if (candidates.size() == 1) {
             Agent onlyAgent = candidates.get(0);
+            SseEvent.send(emitter, SseEvent.TYPE_ROUTE_RESULT, Map.of(
+                    "route", "agent",
+                    "agents", List.of(Map.of("id", onlyAgent.getId(),
+                            "name", onlyAgent.getName() != null ? onlyAgent.getName() : "")),
+                    "strategy", "sequential",
+                    "message", "使用 Agent [" + onlyAgent.getName() + "]"
+            ));
             log.info("仅 1 个候选 Agent [{}]，直接使用", onlyAgent.getName());
 
-            Map<String, Object> selectResult = new HashMap<>();
-            selectResult.put("agents", List.of(Map.of(
-                    "id", onlyAgent.getId(),
-                    "name", onlyAgent.getName() != null ? onlyAgent.getName() : "",
-                    "reason", "唯一候选 Agent"
-            )));
-            selectResult.put("strategy", "sequential");
-            SseEvent.send(emitter, SseEvent.TYPE_AGENT_SELECT, selectResult);
+            SseEvent.send(emitter, SseEvent.TYPE_AGENT_SELECT, Map.of(
+                    "agents", List.of(Map.of("id", onlyAgent.getId(),
+                            "name", onlyAgent.getName() != null ? onlyAgent.getName() : "",
+                            "reason", "唯一候选 Agent")),
+                    "strategy", "sequential"
+            ));
 
             request.setAgentId(onlyAgent.getId());
-            if (scene != null) {
-                request.setSceneId(scene.getId());
-            }
+            if (scene != null) request.setSceneId(scene.getId());
             agentTestChatService.testChatStream(request, userId, emitter, authToken, response);
             return;
         }
 
-        // 多个候选 Agent → LLM 动态选择
+        // 多候选 → LLM 选择
         log.info("候选 Agent {} 个，调用 LLM 动态选择", candidates.size());
         Map<String, Object> llmSelectResult = agentSelectByLLM(userMessage, candidates, emitter);
 
+        // LLM 选择失败 → 默认 Agent
         if (llmSelectResult == null) {
-            // LLM 选择失败，降级到默认 Agent
-            log.warn("LLM Agent 选择失败，降级到默认 Agent");
             Agent defaultAgent = candidates.stream()
                     .filter(a -> a.getStatus() != null && a.getStatus() == 1)
-                    .findFirst()
-                    .orElse(candidates.get(0));
+                    .findFirst().orElse(candidates.get(0));
 
-            Map<String, Object> fallbackResult = new HashMap<>();
-            fallbackResult.put("agents", List.of(Map.of(
-                    "id", defaultAgent.getId(),
-                    "name", defaultAgent.getName() != null ? defaultAgent.getName() : "",
-                    "reason", "LLM 选择失败，使用默认 Agent"
-            )));
-            fallbackResult.put("strategy", "sequential");
-            fallbackResult.put("fallback", true);
-            SseEvent.send(emitter, SseEvent.TYPE_AGENT_SELECT, fallbackResult);
+            SseEvent.send(emitter, SseEvent.TYPE_ROUTE_RESULT, Map.of(
+                    "route", "agent",
+                    "agents", List.of(Map.of("id", defaultAgent.getId(),
+                            "name", defaultAgent.getName() != null ? defaultAgent.getName() : "")),
+                    "strategy", "sequential",
+                    "fallback", true,
+                    "message", "Agent 选择失败，使用默认 Agent [" + defaultAgent.getName() + "]"
+            ));
+            log.warn("LLM Agent 选择失败，降级到默认 Agent");
+
+            SseEvent.send(emitter, SseEvent.TYPE_AGENT_SELECT, Map.of(
+                    "agents", List.of(Map.of("id", defaultAgent.getId(),
+                            "name", defaultAgent.getName() != null ? defaultAgent.getName() : "",
+                            "reason", "LLM 选择失败，使用默认 Agent")),
+                    "strategy", "sequential",
+                    "fallback", true
+            ));
 
             request.setAgentId(defaultAgent.getId());
-            if (scene != null) {
-                request.setSceneId(scene.getId());
-            }
+            if (scene != null) request.setSceneId(scene.getId());
             agentTestChatService.testChatStream(request, userId, emitter, authToken, response);
             return;
         }
@@ -493,35 +509,54 @@ public class AiDialogService {
         List<Map<String, Object>> selectedAgents = (List<Map<String, Object>>) llmSelectResult.get("agents");
         String strategy = (String) llmSelectResult.getOrDefault("strategy", "sequential");
 
+        // LLM 选 0 个 → 通用 LLM
         if (selectedAgents == null || selectedAgents.isEmpty()) {
-            // LLM 认为不需要任何 Agent → 通用 LLM 对话
+            SseEvent.send(emitter, SseEvent.TYPE_ROUTE_RESULT, Map.of(
+                    "route", "llm",
+                    "message", "Agent 选择结果为空，使用通用 LLM 对话"
+            ));
             log.info("LLM 判断不需要 Agent，路由到通用 LLM 对话");
-            Map<String, Object> noAgentResult = new HashMap<>();
-            noAgentResult.put("agents", List.of());
-            noAgentResult.put("strategy", "sequential");
-            noAgentResult.put("message", "LLM 判断用户需求不需要特定 Agent");
-            SseEvent.send(emitter, SseEvent.TYPE_AGENT_SELECT, noAgentResult);
             handleLlmStream(request, userId, emitter, response);
             return;
         }
 
-        // 发送 agent_select 事件
+        // 发送 agent_select
         SseEvent.send(emitter, SseEvent.TYPE_AGENT_SELECT, llmSelectResult);
 
+        // LLM 选 1 个 → Agent 对话
         if (selectedAgents.size() == 1) {
-            // LLM 选中 1 个 Agent → 单 Agent 对话
             Map<String, Object> selected = selectedAgents.get(0);
             Long selectedId = ((Number) selected.get("id")).longValue();
+            String selectedName = selected.get("name") != null ? (String) selected.get("name") : "";
+
+            SseEvent.send(emitter, SseEvent.TYPE_ROUTE_RESULT, Map.of(
+                    "route", "agent",
+                    "agents", List.of(Map.of("id", selectedId, "name", selectedName)),
+                    "strategy", "sequential",
+                    "message", "使用 Agent [" + selectedName + "]"
+            ));
             log.info("LLM 选中 1 个 Agent: id={}", selectedId);
 
             request.setAgentId(selectedId);
-            if (scene != null) {
-                request.setSceneId(scene.getId());
-            }
+            if (scene != null) request.setSceneId(scene.getId());
             agentTestChatService.testChatStream(request, userId, emitter, authToken, response);
         } else {
-            // LLM 选中多个 Agent → 动态编排执行
+            // LLM 选多个 → 动态编排
+            StringBuilder names = new StringBuilder();
+            for (int i = 0; i < selectedAgents.size(); i++) {
+                if (i > 0) names.append(", ");
+                Object n = selectedAgents.get(i).get("name");
+                names.append(n != null ? n : "Agent");
+            }
+
+            SseEvent.send(emitter, SseEvent.TYPE_ROUTE_RESULT, Map.of(
+                    "route", "dynamic_orchestration",
+                    "agents", selectedAgents,
+                    "strategy", strategy,
+                    "message", "动态编排 " + selectedAgents.size() + " 个 Agent: [" + names + "]，策略: " + strategy
+            ));
             log.info("LLM 选中 {} 个 Agent，启动动态编排", selectedAgents.size());
+
             List<SceneOrchestrationStep> dynamicSteps = buildDynamicSteps(selectedAgents);
             orchestrationExecuteService.executeDynamic(dynamicSteps, strategy, userMessage,
                     request.getHistory(), emitter);

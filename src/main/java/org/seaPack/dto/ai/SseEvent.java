@@ -38,6 +38,10 @@ public class SseEvent {
     public static final String TYPE_ORCHESTRATION_START = "orchestration_start";
     /** Agent 选择结果（LLM 动态路由） */
     public static final String TYPE_AGENT_SELECT = "agent_select";
+    /** 路由开始 */
+    public static final String TYPE_ROUTING = "routing";
+    /** 路由结果 */
+    public static final String TYPE_ROUTE_RESULT = "route_result";
 
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
