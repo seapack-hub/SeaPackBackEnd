@@ -165,7 +165,7 @@ public class AgentTestChatService {
 
         // ===== 组装链路追踪快照 =====
         long totalDuration = System.currentTimeMillis() - totalStart;
-        AgentTraceSnapshot snapshot = buildTraceSnapshot(steps, totalDuration, promptTokens, completionTokens);
+        AgentTraceSnapshot snapshot = buildTraceSnapshot(agent, steps, totalDuration, promptTokens, completionTokens);
 
         // ===== 保存测试会话 =====
         saveTestSession(agent, request, replyContent, snapshot, (int) totalDuration,
@@ -660,9 +660,18 @@ public class AgentTestChatService {
         return step;
     }
 
-    private AgentTraceSnapshot buildTraceSnapshot(List<AgentTraceStep> steps, long totalDuration,
+    private AgentTraceSnapshot buildTraceSnapshot(Agent agent, List<AgentTraceStep> steps, long totalDuration,
                                                    int promptTokens, int completionTokens) {
         AgentTraceSnapshot snapshot = new AgentTraceSnapshot();
+        // 新方案：route / agentName / model / systemPromptLength / tokensPrompt / tokensCompletion
+        snapshot.setRoute("agent");
+        snapshot.setAgentName(agent != null ? agent.getName() : null);
+        snapshot.setModel(agent != null ? agent.getModelCode() : null);
+        snapshot.setSystemPromptLength(agent != null && agent.getSystemPrompt() != null
+                ? agent.getSystemPrompt().length() : 0);
+        snapshot.setTokensPrompt(promptTokens);
+        snapshot.setTokensCompletion(completionTokens);
+        // 兼容旧版：保留完整步骤与汇总指标
         snapshot.setSteps(steps);
         snapshot.setTotalDurationMs(totalDuration);
         AgentTraceSnapshot.TotalTokens tokens = new AgentTraceSnapshot.TotalTokens();
@@ -677,6 +686,9 @@ public class AgentTestChatService {
                                                      Long userId, Exception e) {
         long totalDuration = System.currentTimeMillis() - totalStart;
         AgentTraceSnapshot snapshot = new AgentTraceSnapshot();
+        snapshot.setRoute("agent");
+        snapshot.setAgentName(agent != null ? agent.getName() : null);
+        snapshot.setModel(agent != null ? agent.getModelCode() : null);
         snapshot.setSteps(steps);
         snapshot.setTotalDurationMs(totalDuration);
         AgentTraceSnapshot.TotalTokens tokens = new AgentTraceSnapshot.TotalTokens();
@@ -733,6 +745,9 @@ public class AgentTestChatService {
         session.setBizType("agent");
         session.setBizId(agent.getId());
         session.setBizName(agent.getName());
+        session.setSceneId(request.getSceneId());
+        session.setConversationId(request.getConversationId());
+        session.setRequestId(request.getRequestId());
         session.setUserMessage(extractMessage(request));
         session.setOutputResult(reply);
         try {
@@ -915,7 +930,7 @@ public class AgentTestChatService {
 
         // ===== 组装链路追踪快照 =====
         long totalDuration = System.currentTimeMillis() - totalStart;
-        AgentTraceSnapshot snapshot = buildTraceSnapshot(steps, totalDuration, promptTokens, completionTokens);
+        AgentTraceSnapshot snapshot = buildTraceSnapshot(agent, steps, totalDuration, promptTokens, completionTokens);
 
         // ===== 先发送完成事件关闭 SSE 连接，再执行后续 DB 操作 =====
         // 注意：必须优先关闭 SSE，否则 DB 异常会导致前端永远收不到 done 事件
@@ -961,6 +976,8 @@ public class AgentTestChatService {
         long llmStart = System.currentTimeMillis();
         String modelName = agent.getModelCode() != null ? agent.getModelCode() :
                 aiProperties.getProviders().get(aiProperties.getActiveProvider()).getChatModel();
+        log.info("Agent LLM 流式调用开始: agentId={}, model={}, systemPrompt长度={}",
+                agent.getId(), modelName, systemPrompt != null ? systemPrompt.length() : 0);
 
         List<Map<String, String>> messages = new ArrayList<>();
         Map<String, String> systemMsg = new HashMap<>();
@@ -1025,6 +1042,8 @@ public class AgentTestChatService {
         }
 
         long llmDuration = System.currentTimeMillis() - llmStart;
+        log.info("Agent LLM 流式调用完成: model={}, tokens={}/{}, output长度={}, 耗时={}ms",
+                modelName, tokenUsage[0], tokenUsage[1], replyContentBuilder.length(), llmDuration);
         AgentTraceStep step = new AgentTraceStep();
         step.setStepIndex(stepIndex);
         step.setStepType("llm_call");

@@ -2,8 +2,10 @@ package org.seaPack.controller.ai;
 
 import jakarta.servlet.http.HttpServletResponse;
 import org.seaPack.dto.ai.OrchestrationExecuteRequest;
+import org.seaPack.model.ai.ExecutionSession;
 import org.seaPack.model.ai.SceneOrchestration;
 import org.seaPack.model.ai.SceneOrchestrationStep;
+import org.seaPack.service.ai.AgentTestSessionService;
 import org.seaPack.service.ai.OrchestrationExecuteService;
 import org.seaPack.service.ai.SceneOrchestrationService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,6 +34,9 @@ public class SceneOrchestrationController {
 
     @Autowired
     private OrchestrationExecuteService executeService;
+
+    @Autowired
+    private AgentTestSessionService agentTestSessionService;
 
     // ===== 编排 CRUD =====
 
@@ -155,7 +160,7 @@ public class SceneOrchestrationController {
         ExecutorService executor = Executors.newSingleThreadExecutor();
         executor.execute(() -> {
             try {
-                executeService.execute(request, emitter);
+                executeService.execute(request, getCurrentUserId(), emitter);
             } catch (Exception e) {
                 try {
                     Map<String, Object> errorEvent = new java.util.HashMap<>();
@@ -257,6 +262,36 @@ public class SceneOrchestrationController {
         }
         orchestrationService.sortSteps(orchestrationId, sortedIds);
         return ResponseEntity.ok("排序成功");
+    }
+
+    // ===== 执行会话查询（链路追踪） =====
+
+    /**
+     * 分页查询编排的执行会话列表
+     * <p>支持编排ID或场景ID（场景模式传场景ID，自动匹配该场景下所有编排的会话）。</p>
+     *
+     * @param orchestrationId 编排ID或场景ID
+     * @return 会话分页列表
+     */
+    @GetMapping("/{orchestrationId}/sessions")
+    public com.github.pagehelper.PageInfo<ExecutionSession> sessions(
+            @PathVariable("orchestrationId") Long orchestrationId,
+            @RequestParam(defaultValue = "1") int pageNum,
+            @RequestParam(defaultValue = "10") int pageSize) {
+        return agentTestSessionService.getOrchestrationSessions(orchestrationId, pageNum, pageSize);
+    }
+
+    /**
+     * 查询编排执行会话详情
+     *
+     * @param orchestrationId 编排ID或场景ID
+     * @param sessionId       会话ID
+     * @return 会话详情
+     */
+    @GetMapping("/{orchestrationId}/sessions/{sessionId}")
+    public ExecutionSession sessionDetail(@PathVariable("orchestrationId") Long orchestrationId,
+                                          @PathVariable Long sessionId) {
+        return agentTestSessionService.getOrchestrationSessionDetail(sessionId);
     }
 
     /**

@@ -1,5 +1,6 @@
 package org.seaPack.config;
 
+import jakarta.servlet.DispatcherType;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -37,6 +38,8 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http.authorizeHttpRequests(auth -> auth
+                    // 放行错误分发（SSE/异步请求内部异常触发的 ERROR dispatch，响应已提交时不再重复拦截）
+                    .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                     // 公开接口 —— 无需认证
                     .requestMatchers(
                         "/auth/login",

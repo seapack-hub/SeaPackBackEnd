@@ -14,16 +14,22 @@ public interface ExecutionSessionMapper {
      *
      * @param bizType   业务类型（可选）
      * @param bizId     业务ID（可选）
-     * @param sessionId 会话ID（可选，用于查询多轮对话）
      * @param createdBy 操作人（可选）
      * @param status    状态（可选）
      * @return 会话列表
      */
     List<ExecutionSession> selectList(@Param("bizType") String bizType,
                                        @Param("bizId") Long bizId,
-                                       @Param("sessionId") String sessionId,
                                        @Param("createdBy") Long createdBy,
                                        @Param("status") String status);
+
+    /**
+     * 按业务ID列表查询执行会话（IN 查询）
+     */
+    List<ExecutionSession> selectListByBizIds(@Param("bizType") String bizType,
+                                               @Param("bizIds") List<Long> bizIds,
+                                               @Param("createdBy") Long createdBy,
+                                               @Param("status") String status);
 
     /**
      * 根据ID查询会话详情
@@ -34,6 +40,11 @@ public interface ExecutionSessionMapper {
      * 根据requestId查询（用于幂等校验）
      */
     ExecutionSession selectByRequestId(@Param("requestId") String requestId);
+
+    /**
+     * 按对话ID查询该会话的所有轮次（对话历史回显）
+     */
+    List<ExecutionSession> selectListByConversationId(@Param("conversationId") String conversationId);
 
     /**
      * 新增会话记录

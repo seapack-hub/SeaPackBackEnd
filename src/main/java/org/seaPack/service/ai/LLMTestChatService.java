@@ -179,11 +179,21 @@ public class LLMTestChatService {
         ExecutionSession session = new ExecutionSession();
         session.setBizType("chat");
         session.setBizId(0L);
-        session.setBizName("LLM 对话");
-        session.setModuleKey("ai_assistant");
+        session.setBizName("通用对话");
         session.setUserMessage(extractLastUserMessage(request));
         session.setHistoryMessages(extractHistoryMessages(request));
         session.setOutputResult(reply);
+        // trace_snapshot：通用 LLM 简化链路（route = "llm"）
+        Map<String, Object> trace = new LinkedHashMap<>();
+        trace.put("route", "llm");
+        trace.put("model", modelName);
+        trace.put("tokensPrompt", promptTokens);
+        trace.put("tokensCompletion", completionTokens);
+        try {
+            session.setTraceSnapshot(objectMapper.writeValueAsString(trace));
+        } catch (Exception e) {
+            log.warn("序列化 LLM 链路快照失败: {}", e.getMessage());
+        }
         session.setTotalDurationMs(durationMs);
         session.setTokensPrompt(promptTokens);
         session.setTokensCompletion(completionTokens);

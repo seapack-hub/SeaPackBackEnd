@@ -1,9 +1,13 @@
 package org.seaPack.service.ai;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.seaPack.config.AIProperties;
+import org.seaPack.dto.ai.AgentTraceStep;
 import org.seaPack.dto.ai.OrchestrationExecuteRequest;
 import org.seaPack.dto.ai.SseEvent;
+import org.seaPack.mapper.ai.ExecutionSessionMapper;
+import org.seaPack.model.ai.ExecutionSession;
 import org.seaPack.mapper.ai.AgentMapper;
 import org.seaPack.mapper.ai.SceneMapper;
 import org.seaPack.mapper.ai.SceneOrchestrationMapper;
@@ -48,6 +52,12 @@ public class OrchestrationExecuteService {
     @Autowired
     private LlmSseHelper llmSseHelper;
 
+    @Autowired
+    private ExecutionSessionMapper executionSessionMapper;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
     // ===== 主入口 =====
 
     /**
@@ -56,7 +66,7 @@ public class OrchestrationExecuteService {
      * @param request 执行请求（orchestrationId, message, history）
      * @param emitter SSE 发射器
      */
-    public void execute(OrchestrationExecuteRequest request, SseEmitter emitter) {
+    public void execute(OrchestrationExecuteRequest request, Long userId, SseEmitter emitter) {
         long totalStart = System.currentTimeMillis();
         AtomicBoolean isCompleted = new AtomicBoolean(false);
 
@@ -129,6 +139,7 @@ public class OrchestrationExecuteService {
             String mergedResult;
             int totalTokensPrompt = 0;
             int totalTokensCompletion = 0;
+            List<AgentTraceStep> stepInfos = new ArrayList<>();
 
             switch (strategy) {
                 case "parallel":
@@ -136,6 +147,7 @@ public class OrchestrationExecuteService {
                     mergedResult = parallelResult.output;
                     totalTokensPrompt = parallelResult.tokensPrompt;
                     totalTokensCompletion = parallelResult.tokensCompletion;
+                    stepInfos = parallelResult.steps != null ? parallelResult.steps : new ArrayList<>();
                     break;
                 default:
                     // sequential（含 auto 单步骤时退化）
@@ -143,6 +155,7 @@ public class OrchestrationExecuteService {
                     mergedResult = sequentialResult.output;
                     totalTokensPrompt = sequentialResult.tokensPrompt;
                     totalTokensCompletion = sequentialResult.tokensCompletion;
+                    stepInfos = sequentialResult.steps != null ? sequentialResult.steps : new ArrayList<>();
                     break;
             }
 
@@ -164,6 +177,15 @@ public class OrchestrationExecuteService {
             ));
             doneData.put("message", "编排执行完成，共耗时 " + totalDuration + "ms");
             sendSseEvent(emitter, "done", doneData);
+
+            // 6. 保存执行会话（用于刷新后链路追踪历史查询）
+            try {
+                saveSession(request, orchestration, mergedResult, totalDuration,
+                        totalTokensPrompt, totalTokensCompletion,
+                        config.getChatModel(), "success", null, userId, stepInfos, strategy);
+            } catch (Exception ex) {
+                log.warn("保存编排执行会话失败: {}", ex.getMessage());
+            }
 
         } catch (Exception e) {
             log.error("编排执行异常", e);
@@ -190,7 +212,8 @@ public class OrchestrationExecuteService {
      */
     public void executeDynamic(List<SceneOrchestrationStep> steps, String strategy,
                                String message, List<Map<String, String>> history,
-                               SseEmitter emitter) {
+                               Long sceneId, String conversationId, String requestId,
+                               Long userId, SseEmitter emitter) {
         long totalStart = System.currentTimeMillis();
         AtomicBoolean isCompleted = new AtomicBoolean(false);
 
@@ -226,6 +249,9 @@ public class OrchestrationExecuteService {
             OrchestrationExecuteRequest request = new OrchestrationExecuteRequest();
             request.setMessage(message);
             request.setHistory(history);
+            request.setSceneId(sceneId);
+            request.setConversationId(conversationId);
+            request.setRequestId(requestId);
 
             // 4. 按策略执行
             String execStrategy = strategy != null ? strategy : "sequential";
@@ -256,6 +282,15 @@ public class OrchestrationExecuteService {
             doneData.put("message", "动态编排执行完成，共耗时 " + totalDuration + "ms");
             sendSseEvent(emitter, "done", doneData);
 
+            // 6. 保存动态编排执行会话（用于刷新后链路追踪历史查询）
+            try {
+                saveDynamicSession(request, result.output, totalDuration,
+                        result.tokensPrompt, result.tokensCompletion,
+                        config.getChatModel(), "success", null, userId, result.steps, execStrategy);
+            } catch (Exception ex) {
+                log.warn("保存动态编排执行会话失败: {}", ex.getMessage());
+            }
+
         } catch (Exception e) {
             log.error("动态编排执行异常", e);
             sendSseError(emitter, "动态编排执行失败: " + e.getMessage());
@@ -284,6 +319,8 @@ public class OrchestrationExecuteService {
         Map<Integer, String> stepOutputs = new HashMap<>();
         // 缓存每步状态
         Map<Integer, String> stepStatuses = new HashMap<>();
+        // 步骤链路信息
+        List<AgentTraceStep> stepInfos = new ArrayList<>();
         int totalPrompt = 0;
         int totalCompletion = 0;
 
@@ -304,6 +341,13 @@ public class OrchestrationExecuteService {
                     "stepType", "llm",
                     "stepName", step.getStepName() != null ? step.getStepName() : ("步骤" + stepIdx)
             ));
+
+            AgentTraceStep traceStep = new AgentTraceStep();
+            traceStep.setStepIndex(stepIdx);
+            traceStep.setStepType("llm_call");
+            traceStep.setStepName(step.getStepName() != null ? step.getStepName() : ("步骤" + stepIdx));
+            traceStep.setStatus("running");
+            stepInfos.add(traceStep);
 
             try {
                 // 4b. 条件评估（发送详细评估过程）
@@ -339,6 +383,9 @@ public class OrchestrationExecuteService {
                                 "durationMs", 0
                         ));
                         stepStatuses.put(stepIdx, "skip");
+                        traceStep.setStatus("skip");
+                        traceStep.setDurationMs(0L);
+                        traceStep.setOutput("条件不满足，跳过本步骤");
                         continue;
                     }
                 }
@@ -352,6 +399,9 @@ public class OrchestrationExecuteService {
                             "errorMessage", "Agent 不存在: " + step.getAgentId()
                     ));
                     stepStatuses.put(stepIdx, "fail");
+                    traceStep.setStatus("fail");
+                    traceStep.setDurationMs(System.currentTimeMillis() - stepStart);
+                    traceStep.setOutput("Agent 不存在: " + step.getAgentId());
                     continue;
                 }
                 if (agent.getStatus() == null || agent.getStatus() != 1) {
@@ -361,6 +411,9 @@ public class OrchestrationExecuteService {
                             "errorMessage", "Agent 已禁用: " + agent.getName()
                     ));
                     stepStatuses.put(stepIdx, "fail");
+                    traceStep.setStatus("fail");
+                    traceStep.setDurationMs(System.currentTimeMillis() - stepStart);
+                    traceStep.setOutput("Agent 已禁用: " + agent.getName());
                     continue;
                 }
 
@@ -449,6 +502,18 @@ public class OrchestrationExecuteService {
                         "tokensCompletion", llmResult.tokensCompletion,
                         "model", llmResult.modelName
                 ));
+
+                traceStep.setStatus("success");
+                traceStep.setDurationMs(stepDuration);
+                traceStep.setInput(stepInput);
+                traceStep.setOutput(llmResult.output);
+                Map<String, Object> stepMeta = new HashMap<>();
+                stepMeta.put("tokensPrompt", llmResult.tokensPrompt);
+                stepMeta.put("tokensCompletion", llmResult.tokensCompletion);
+                stepMeta.put("model", llmResult.modelName);
+                stepMeta.put("agentId", agent.getId());
+                stepMeta.put("agentName", agent.getName() != null ? agent.getName() : "");
+                traceStep.setMetadata(stepMeta);
 
             } catch (Exception e) {
                 log.warn("步骤[{}]执行异常: {}", step.getStepName(), e.getMessage());
@@ -556,6 +621,9 @@ public class OrchestrationExecuteService {
                                     "tokensCompletion", llmResult.tokensCompletion,
                                     "model", llmResult.modelName
                             ));
+                            traceStep.setStatus("success");
+                            traceStep.setDurationMs(stepDuration);
+                            traceStep.setOutput(llmResult.output);
                             retried = true;
                             break;
                         } catch (Exception retryEx) {
@@ -579,6 +647,9 @@ public class OrchestrationExecuteService {
                         "stepName", step.getStepName(),
                         "errorMessage", e.getMessage()
                 ));
+                traceStep.setStatus("fail");
+                traceStep.setDurationMs(System.currentTimeMillis() - stepStart);
+                traceStep.setOutput("执行异常: " + e.getMessage());
             }
         }
 
@@ -586,6 +657,7 @@ public class OrchestrationExecuteService {
         result.output = overallOutput.toString();
         result.tokensPrompt = totalPrompt;
         result.tokensCompletion = totalCompletion;
+        result.steps = stepInfos;
         return result;
     }
 
@@ -605,6 +677,8 @@ public class OrchestrationExecuteService {
         StringBuilder overallOutput = new StringBuilder();
         int[] totalPrompt = {0};
         int[] totalCompletion = {0};
+        // 步骤链路信息（并发收集，结束后按 stepIndex 排序）
+        List<AgentTraceStep> stepInfos = Collections.synchronizedList(new ArrayList<>());
         // 按步骤索引排序的并行结果
         int stepCount = steps.size();
         String[] orderedOutputs = new String[stepCount];
@@ -628,6 +702,13 @@ public class OrchestrationExecuteService {
                         "stepName", step.getStepName() != null ? step.getStepName() : ("步骤" + stepIdx)
                 ));
 
+                AgentTraceStep traceStep = new AgentTraceStep();
+                traceStep.setStepIndex(stepIdx);
+                traceStep.setStepType("llm_call");
+                traceStep.setStepName(step.getStepName() != null ? step.getStepName() : ("步骤" + stepIdx));
+                traceStep.setStatus("running");
+                stepInfos.add(traceStep);
+
                 try {
                     if (step.getStatus() != null && step.getStatus() != 1) {
                         orderedOutputs[index] = "";
@@ -637,6 +718,9 @@ public class OrchestrationExecuteService {
                                 "phase", "skipped",
                                 "message", "步骤已禁用，跳过执行"
                         ));
+                        traceStep.setStatus("skip");
+                        traceStep.setDurationMs(0L);
+                        traceStep.setOutput("步骤已禁用，跳过执行");
                         return;
                     }
 
@@ -648,6 +732,9 @@ public class OrchestrationExecuteService {
                                 "stepName", step.getStepName(),
                                 "errorMessage", "Agent 不可用: " + (agent != null ? agent.getName() : step.getAgentId())
                         ));
+                        traceStep.setStatus("fail");
+                        traceStep.setDurationMs(System.currentTimeMillis() - stepStart);
+                        traceStep.setOutput("Agent 不可用: " + (agent != null ? agent.getName() : step.getAgentId()));
                         return;
                     }
 
@@ -724,6 +811,17 @@ public class OrchestrationExecuteService {
                             "tokensCompletion", llmResult.tokensCompletion,
                             "model", llmResult.modelName
                     ));
+                    traceStep.setStatus("success");
+                    traceStep.setDurationMs(stepDuration);
+                    traceStep.setInput(stepInput);
+                    traceStep.setOutput(llmResult.output);
+                    Map<String, Object> stepMeta = new HashMap<>();
+                    stepMeta.put("tokensPrompt", llmResult.tokensPrompt);
+                    stepMeta.put("tokensCompletion", llmResult.tokensCompletion);
+                    stepMeta.put("model", llmResult.modelName);
+                    stepMeta.put("agentId", agent.getId());
+                    stepMeta.put("agentName", agent.getName() != null ? agent.getName() : "");
+                    traceStep.setMetadata(stepMeta);
                 } catch (Exception e) {
                     orderedOutputs[index] = "";
                     sendSseEvent(emitter, "step_error", Map.of(
@@ -731,6 +829,9 @@ public class OrchestrationExecuteService {
                             "stepName", step.getStepName(),
                             "errorMessage", e.getMessage()
                     ));
+                    traceStep.setStatus("fail");
+                    traceStep.setDurationMs(System.currentTimeMillis() - stepStart);
+                    traceStep.setOutput("执行异常: " + e.getMessage());
                 }
             });
         }
@@ -756,6 +857,9 @@ public class OrchestrationExecuteService {
         result.output = overallOutput.toString();
         result.tokensPrompt = totalPrompt[0];
         result.tokensCompletion = totalCompletion[0];
+        // 按 stepIndex 排序
+        stepInfos.sort(Comparator.comparing(s -> s.getStepIndex() == null ? 0 : s.getStepIndex()));
+        result.steps = stepInfos;
         return result;
     }
 
@@ -935,6 +1039,116 @@ public class OrchestrationExecuteService {
         sendSseEvent(emitter, "error", Map.of("errorMessage", errorMessage));
     }
 
+    // ===== 会话落库（链路追踪历史） =====
+
+    /**
+     * 保存编排执行会话
+     */
+    private void saveSession(OrchestrationExecuteRequest request, SceneOrchestration orchestration,
+                             String output, long durationMs, int tokensPrompt, int tokensCompletion,
+                             String modelName, String status, String errorMessage, Long userId,
+                             List<AgentTraceStep> steps, String strategy) {
+        ExecutionSession session = new ExecutionSession();
+        session.setBizType("orchestration");
+        session.setBizId(orchestration != null ? orchestration.getId() : 0L);
+        session.setBizName(orchestration != null ? orchestration.getName() : "编排执行");
+        session.setSceneId(request != null ? request.getSceneId() : null);
+        session.setConversationId(request != null ? request.getConversationId() : null);
+        session.setRequestId(request != null ? request.getRequestId() : null);
+        session.setUserMessage(request != null ? request.getMessage() : null);
+        session.setOutputResult(output);
+        session.setTraceSnapshot(buildTraceSnapshot(steps, durationMs, tokensPrompt, tokensCompletion,
+                "orchestration", orchestration != null ? orchestration.getName() : null, strategy));
+        session.setTotalDurationMs((int) durationMs);
+        session.setTokensPrompt(tokensPrompt);
+        session.setTokensCompletion(tokensCompletion);
+        session.setTokensTotal(tokensPrompt + tokensCompletion);
+        session.setModelName(modelName);
+        session.setStatus(status);
+        session.setErrorMessage(errorMessage);
+        session.setCreatedBy(userId);
+        executionSessionMapper.insert(session);
+    }
+
+    /**
+     * 保存动态编排执行会话
+     */
+    private void saveDynamicSession(OrchestrationExecuteRequest request,
+                                    String output, long durationMs, int tokensPrompt, int tokensCompletion,
+                                    String modelName, String status, String errorMessage, Long userId,
+                                    List<AgentTraceStep> steps, String strategy) {
+        ExecutionSession session = new ExecutionSession();
+        session.setBizType("orchestration");
+        session.setBizId(0L);
+        session.setBizName("动态编排");
+        session.setSceneId(request != null ? request.getSceneId() : null);
+        session.setConversationId(request != null ? request.getConversationId() : null);
+        session.setRequestId(request != null ? request.getRequestId() : null);
+        session.setUserMessage(request != null ? request.getMessage() : null);
+        session.setOutputResult(output);
+        session.setTraceSnapshot(buildTraceSnapshot(steps, durationMs, tokensPrompt, tokensCompletion,
+                "orchestration", "动态编排", strategy));
+        session.setTotalDurationMs((int) durationMs);
+        session.setTokensPrompt(tokensPrompt);
+        session.setTokensCompletion(tokensCompletion);
+        session.setTokensTotal(tokensPrompt + tokensCompletion);
+        session.setModelName(modelName);
+        session.setStatus(status);
+        session.setErrorMessage(errorMessage);
+        session.setCreatedBy(userId);
+        executionSessionMapper.insert(session);
+    }
+
+    /**
+     * 构建链路追踪快照 JSON（新方案结构）
+     * <p>编排执行：{route, orchestrationName, strategy, steps:[{stepIndex, stepName, agentId, agentName,
+     * model, input, output, durationMs, tokensPrompt, tokensCompletion, status}],
+     * totalTokensPrompt, totalTokensCompletion, totalDurationMs}</p>
+     */
+    private String buildTraceSnapshot(List<AgentTraceStep> steps, long durationMs,
+                                      int tokensPrompt, int tokensCompletion,
+                                      String route, String routeName, String strategy) {
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("route", route);
+        if (routeName != null && !routeName.isBlank()) {
+            snapshot.put("orchestrationName", routeName);
+        }
+        if (strategy != null && !strategy.isBlank()) {
+            snapshot.put("strategy", strategy);
+        }
+        List<Map<String, Object>> stepMaps = new ArrayList<>();
+        if (steps != null) {
+            for (AgentTraceStep s : steps) {
+                Map<String, Object> m = new LinkedHashMap<>();
+                m.put("stepIndex", s.getStepIndex());
+                m.put("stepName", s.getStepName());
+                m.put("status", s.getStatus());
+                m.put("durationMs", s.getDurationMs());
+                m.put("input", s.getInput());
+                m.put("output", s.getOutput());
+                Map<String, Object> meta = s.getMetadata();
+                if (meta != null) {
+                    if (meta.containsKey("agentId")) m.put("agentId", meta.get("agentId"));
+                    if (meta.containsKey("agentName")) m.put("agentName", meta.get("agentName"));
+                    if (meta.containsKey("model")) m.put("model", meta.get("model"));
+                    if (meta.containsKey("tokensPrompt")) m.put("tokensPrompt", meta.get("tokensPrompt"));
+                    if (meta.containsKey("tokensCompletion")) m.put("tokensCompletion", meta.get("tokensCompletion"));
+                }
+                stepMaps.add(m);
+            }
+        }
+        snapshot.put("steps", stepMaps);
+        snapshot.put("totalTokensPrompt", tokensPrompt);
+        snapshot.put("totalTokensCompletion", tokensCompletion);
+        snapshot.put("totalDurationMs", durationMs);
+        try {
+            return objectMapper.writeValueAsString(snapshot);
+        } catch (Exception e) {
+            log.warn("序列化链路快照失败: {}", e.getMessage());
+            return "{}";
+        }
+    }
+
     // ===== 内部结果类 =====
 
     /** 编排执行结果 */
@@ -942,6 +1156,7 @@ public class OrchestrationExecuteService {
         String output;
         int tokensPrompt;
         int tokensCompletion;
+        List<AgentTraceStep> steps = new ArrayList<>();
     }
 
     /** 单次 LLM 调用结果 */

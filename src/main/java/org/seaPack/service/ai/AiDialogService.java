@@ -424,7 +424,7 @@ public class AiDialogService {
                         "message", "使用编排 [" + orchestration.getName() + "]（" + steps.size() + " 个步骤）"
                 ));
                 log.info("路由到编排执行: orchestration={}, steps={}", orchestration.getName(), steps.size());
-                orchestrationExecuteService.execute(buildOrchRequest(request), emitter);
+                orchestrationExecuteService.execute(buildOrchRequest(request), userId, emitter);
                 return;
             }
         }
@@ -559,7 +559,8 @@ public class AiDialogService {
 
             List<SceneOrchestrationStep> dynamicSteps = buildDynamicSteps(selectedAgents);
             orchestrationExecuteService.executeDynamic(dynamicSteps, strategy, userMessage,
-                    request.getHistory(), emitter);
+                    request.getHistory(), request.getSceneId(), request.getConversationId(), request.getRequestId(),
+                    userId, emitter);
         }
     }
 
@@ -767,6 +768,10 @@ public class AiDialogService {
                 : extractLastMessage(request.getMessages()));
         orchRequest.setHistory(request.getHistory());
         orchRequest.setContext(request.getContext());
+        // 透传会话定位参数（落库：scene_id / conversation_id / request_id）
+        orchRequest.setSceneId(request.getSceneId());
+        orchRequest.setConversationId(request.getConversationId());
+        orchRequest.setRequestId(request.getRequestId());
         return orchRequest;
     }
 
@@ -783,6 +788,20 @@ public class AiDialogService {
     }
 
     /**
+     * 按消息ID查询单条执行记录（点击消息气泡查看完整链路）
+     */
+    public ExecutionSession getSessionByRequestId(String requestId) {
+        return executionSessionMapper.selectByRequestId(requestId);
+    }
+
+    /**
+     * 按对话ID查询该会话的所有轮次（对话历史回显）
+     */
+    public List<ExecutionSession> getSessionsByConversationId(String conversationId) {
+        return executionSessionMapper.selectListByConversationId(conversationId);
+    }
+
+    /**
      * 保存 LLM 执行会话
      */
     private void saveLlmSession(AiDialogRequest request, String reply, int durationMs,
@@ -791,11 +810,24 @@ public class AiDialogService {
         ExecutionSession session = new ExecutionSession();
         session.setBizType("chat");
         session.setBizId(0L);
-        session.setBizName("LLM 对话");
-        session.setModuleKey("ai_assistant");
+        session.setBizName("通用对话");
+        session.setSceneId(request.getSceneId());
+        session.setConversationId(request.getConversationId());
+        session.setRequestId(request.getRequestId());
         session.setUserMessage(request.getQuestion() != null ? request.getQuestion()
                 : extractLastMessage(request.getMessages()));
         session.setOutputResult(reply);
+        // trace_snapshot：通用 LLM 简化链路（route = "llm"）
+        Map<String, Object> trace = new LinkedHashMap<>();
+        trace.put("route", "llm");
+        trace.put("model", modelName);
+        trace.put("tokensPrompt", promptTokens);
+        trace.put("tokensCompletion", completionTokens);
+        try {
+            session.setTraceSnapshot(objectMapper.writeValueAsString(trace));
+        } catch (Exception e) {
+            log.warn("序列化 LLM 链路快照失败: {}", e.getMessage());
+        }
         session.setTotalDurationMs(durationMs);
         session.setTokensPrompt(promptTokens);
         session.setTokensCompletion(completionTokens);

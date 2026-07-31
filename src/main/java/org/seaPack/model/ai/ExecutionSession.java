@@ -34,20 +34,16 @@ public class ExecutionSession {
     @Comment("业务名称（冗余，方便查询）")
     private String bizName;
 
-    @Column(name = "module_key")
-    @Comment("来源模块标识")
-    private String moduleKey;
+    @Column(name = "conversation_id")
+    @Comment("对话ID，同一会话的所有轮次共享，由前端生成")
+    private String conversationId;
 
-    @Column(name = "position")
-    @Comment("来源位置标识")
-    private String position;
-
-    @Column(name = "session_id")
-    @Comment("会话ID，用于关联多轮对话")
-    private String sessionId;
+    @Column(name = "scene_id")
+    @Comment("场景ID，关联 ai_scene 表")
+    private Long sceneId;
 
     @Column(name = "request_id")
-    @Comment("外部请求幂等键，防止重试导致的重复记录/扣费")
+    @Comment("消息ID，每条消息唯一，由前端生成，用于精确定位某一轮对话")
     private String requestId;
 
     @Column(name = "retry_count")

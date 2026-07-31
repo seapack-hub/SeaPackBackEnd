@@ -72,6 +72,10 @@ public class LlmSseHelper {
             throw new RuntimeException("LLM API 返回错误: HTTP " + responseCode + ", body=" + errorBody);
         }
 
+        long readStart = System.currentTimeMillis();
+        int chunkCount = 0;
+        log.info("LLM 流式连接建立成功: HTTP 200, 开始读取响应流");
+
         try (BufferedReader reader = new BufferedReader(
                 new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
             String line;
@@ -82,9 +86,14 @@ public class LlmSseHelper {
                     break;
                 }
 
-                if (line.startsWith("data: ")) {
-                    String data = line.substring(6).trim();
+                // 兼容 "data: {...}" 与 "data:{...}"（无空格）两种格式
+                if (line.startsWith("data:")) {
+                    String data = line.substring(5).trim();
+                    if (data.isEmpty()) {
+                        continue;
+                    }
                     if ("[DONE]".equals(data)) {
+                        log.info("LLM 流式响应收到 [DONE]，结束读取");
                         Chunk doneChunk = new Chunk();
                         doneChunk.setDone(true);
                         onChunk.accept(doneChunk);
@@ -94,16 +103,24 @@ public class LlmSseHelper {
                     try {
                         @SuppressWarnings("unchecked")
                         Map<String, Object> chunk = objectMapper.readValue(data, Map.class);
+                        // 检测流式响应中的错误（OpenAI 兼容格式：data: {"error": {...}}）
+                        if (chunk.containsKey("error")) {
+                            throw new RuntimeException("LLM API 流式响应包含错误: " + data);
+                        }
                         Chunk result = parseChunk(chunk);
                         if (result != null) {
+                            chunkCount++;
                             onChunk.accept(result);
                         }
+                    } catch (RuntimeException re) {
+                        throw re;
                     } catch (Exception e) {
                         log.warn("解析 LLM 响应块失败: {}", e.getMessage());
                     }
                 }
             }
         }
+        log.info("LLM 流式响应读取结束: 有效chunk数={}, 耗时={}ms", chunkCount, System.currentTimeMillis() - readStart);
     }
 
     /**

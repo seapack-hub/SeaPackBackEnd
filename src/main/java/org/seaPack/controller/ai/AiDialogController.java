@@ -187,6 +187,32 @@ public class AiDialogController {
     }
 
     // ========================================================================
+    //  执行记录查询
+    // ========================================================================
+
+    /**
+     * 按消息ID查询单条执行记录（点击消息气泡查看完整链路）
+     * <p>request_id 为前端生成的每轮唯一消息ID。</p>
+     */
+    @GetMapping("/sessions/request/{requestId}")
+    public ResponseEntity<?> sessionByRequestId(@PathVariable String requestId) {
+        Object session = dialogService.getSessionByRequestId(requestId);
+        if (session == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(session);
+    }
+
+    /**
+     * 按对话ID查询该会话的所有轮次（对话历史回显，按时间升序）
+     * <p>conversation_id 为进入对话界面时生成，同一会话的所有轮次共享。</p>
+     */
+    @GetMapping("/sessions/conversation/{conversationId}")
+    public ResponseEntity<?> sessionsByConversationId(@PathVariable String conversationId) {
+        return ResponseEntity.ok(dialogService.getSessionsByConversationId(conversationId));
+    }
+
+    // ========================================================================
     //  取消对话
     // ========================================================================
 
