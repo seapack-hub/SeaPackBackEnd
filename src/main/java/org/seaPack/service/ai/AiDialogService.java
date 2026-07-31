@@ -15,6 +15,7 @@ import org.seaPack.mapper.ai.SceneOrchestrationStepMapper;
 import org.seaPack.model.ai.Agent;
 import org.seaPack.model.ai.ExecutionSession;
 import org.seaPack.model.ai.Scene;
+import org.seaPack.model.ai.TokenUsageLog;
 import org.seaPack.model.ai.SceneAgent;
 import org.seaPack.model.ai.SceneOrchestration;
 import org.seaPack.model.ai.SceneOrchestrationStep;
@@ -46,6 +47,7 @@ public class AiDialogService {
     private final SceneMapper sceneMapper;
     private final SceneAgentMapper sceneAgentMapper;
     private final AgentMapper agentMapper;
+    private final TokenStatsService tokenStatsService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -198,6 +200,25 @@ public class AiDialogService {
                 }
             });
             connection.disconnect();
+
+            // 记录本次 LLM 调用的 Token 消耗到统计表
+            try {
+                long llmDuration = System.currentTimeMillis() - startTime;
+                TokenUsageLog tokenLog = new TokenUsageLog();
+                tokenLog.setCallTime(new Date());
+                tokenLog.setModelName(modelName);
+                tokenLog.setTokensInput(tokenUsage[0]);
+                tokenLog.setTokensOutput(tokenUsage[1]);
+                tokenLog.setDurationMs((int) llmDuration);
+                tokenLog.setStatus("success");
+                tokenLog.setUserId(userId);
+                tokenLog.setBizType("chat");
+                tokenLog.setSceneId(request.getSceneId());
+                tokenLog.setRequestId(request.getRequestId());
+                tokenStatsService.recordCall(tokenLog);
+            } catch (Exception e) {
+                log.error("记录 Token 统计失败: {}", e.getMessage(), e);
+            }
 
             // 检查是否被取消标志中断
             if (cancelFlag != null && cancelFlag.get()) {

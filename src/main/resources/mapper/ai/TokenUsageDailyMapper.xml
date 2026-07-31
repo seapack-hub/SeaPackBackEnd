@@ -2,17 +2,14 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="org.seaPack.mapper.ai.TokenUsageDailyMapper">
 
-    <resultMap id="OverviewMap" type="org.seaPack.dto.ai.TokenStatOverview">
-    </resultMap>
-
-    <!-- 概览统计：分别聚合今日和昨日数据，用 UNION ALL 合并后转行列 -->
+    <!-- 概览统计：分别聚合今日和昨日数据，用 CASE WHEN 转行列 -->
     <select id="selectOverview" resultType="org.seaPack.dto.ai.TokenStatOverview">
         SELECT
             SUM(CASE WHEN stat_date = #{today} THEN call_count ELSE 0 END) AS todayCalls,
             SUM(CASE WHEN stat_date = #{today} THEN tokens_total ELSE 0 END) AS todayTokens,
             SUM(CASE WHEN stat_date = #{today} THEN total_cost_yuan ELSE 0 END) AS todayCost,
             ROUND(
-                CASE WHEN SUM(CASE WHEN stat_date = #{today} THEN call_count ELSE 0 END) > 0
+                CASE WHEN SUM(CASE WHEN stat_date = #{today} THEN call_count ELSE 0 END) &gt; 0
                      THEN SUM(CASE WHEN stat_date = #{today} THEN success_count ELSE 0 END) * 100.0
                           / SUM(CASE WHEN stat_date = #{today} THEN call_count ELSE 0 END)
                      ELSE 0 END, 2
@@ -21,7 +18,7 @@
             SUM(CASE WHEN stat_date = #{yesterday} THEN tokens_total ELSE 0 END) AS yesterdayTokens,
             SUM(CASE WHEN stat_date = #{yesterday} THEN total_cost_yuan ELSE 0 END) AS yesterdayCost,
             ROUND(
-                CASE WHEN SUM(CASE WHEN stat_date = #{yesterday} THEN call_count ELSE 0 END) > 0
+                CASE WHEN SUM(CASE WHEN stat_date = #{yesterday} THEN call_count ELSE 0 END) &gt; 0
                      THEN SUM(CASE WHEN stat_date = #{yesterday} THEN success_count ELSE 0 END) * 100.0
                           / SUM(CASE WHEN stat_date = #{yesterday} THEN call_count ELSE 0 END)
                      ELSE 0 END, 2
@@ -41,8 +38,9 @@
         FROM ai_token_usage_daily
         <where>
             AND stat_date BETWEEN #{startDate} AND #{endDate}
+            <if test="userId != null">AND user_id = #{userId}</if>
+            <if test="bizType != null and bizType != ''">AND biz_type = #{bizType}</if>
             <if test="modelName != null and modelName != ''">AND model_name = #{modelName}</if>
-            <if test="moduleKey != null and moduleKey != ''">AND module_key = #{moduleKey}</if>
         </where>
         GROUP BY stat_date
         ORDER BY stat_date ASC
@@ -57,8 +55,9 @@
         FROM ai_token_usage_daily
         <where>
             AND stat_date BETWEEN #{startDate} AND #{endDate}
+            <if test="userId != null">AND user_id = #{userId}</if>
+            <if test="bizType != null and bizType != ''">AND biz_type = #{bizType}</if>
             <if test="modelName != null and modelName != ''">AND model_name = #{modelName}</if>
-            <if test="moduleKey != null and moduleKey != ''">AND module_key = #{moduleKey}</if>
         </where>
         GROUP BY model_name
         ORDER BY tokensTotal DESC
@@ -76,8 +75,9 @@
         <where>
             AND d.stat_date BETWEEN #{startDate} AND #{endDate}
             AND d.scene_id IS NOT NULL
+            <if test="userId != null">AND d.user_id = #{userId}</if>
+            <if test="bizType != null and bizType != ''">AND d.biz_type = #{bizType}</if>
             <if test="modelName != null and modelName != ''">AND d.model_name = #{modelName}</if>
-            <if test="moduleKey != null and moduleKey != ''">AND d.module_key = #{moduleKey}</if>
         </where>
         GROUP BY d.scene_id, s.name
         ORDER BY callCount DESC
@@ -96,25 +96,50 @@
         FROM ai_token_usage_daily
         <where>
             AND stat_date BETWEEN #{startDate} AND #{endDate}
+            <if test="userId != null">AND user_id = #{userId}</if>
+            <if test="bizType != null and bizType != ''">AND biz_type = #{bizType}</if>
             <if test="modelName != null and modelName != ''">AND model_name = #{modelName}</if>
-            <if test="moduleKey != null and moduleKey != ''">AND module_key = #{moduleKey}</if>
         </where>
         GROUP BY model_name
         ORDER BY totalCostYuan DESC
     </select>
 
+    <!-- 用户 Token 消耗排行 -->
+    <select id="selectUserRanking" resultType="org.seaPack.dto.ai.TokenUserRankItem">
+        SELECT
+            d.user_id AS userId,
+            u.user_name AS userName,
+            SUM(d.call_count) AS callCount,
+            SUM(d.tokens_input) AS tokensInput,
+            SUM(d.tokens_output) AS tokensOutput,
+            SUM(d.tokens_total) AS tokensTotal,
+            SUM(d.total_cost_yuan) AS totalCostYuan
+        FROM ai_token_usage_daily d
+        LEFT JOIN sys_user u ON d.user_id = u.id
+        <where>
+            AND d.stat_date BETWEEN #{startDate} AND #{endDate}
+        </where>
+        GROUP BY d.user_id, u.user_name
+        ORDER BY tokensTotal DESC
+        LIMIT #{limit}
+    </select>
+
+    <!-- 插入日统计记录 -->
     <insert id="insert" parameterType="org.seaPack.model.ai.TokenUsageDaily"
             useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO ai_token_usage_daily (stat_date, model_name, agent_id, skill_id, scene_id, module_key,
+        INSERT INTO ai_token_usage_daily (stat_date, user_id, model_name, biz_type,
+                                          scene_id, agent_id, skill_id,
                                           call_count, success_count, fail_count,
                                           tokens_input, tokens_output, tokens_total,
                                           total_duration_ms, total_cost_yuan, created_at, updated_at)
-        VALUES (#{statDate}, #{modelName}, #{agentId}, #{skillId}, #{sceneId}, #{moduleKey},
+        VALUES (#{statDate}, #{userId}, #{modelName}, #{bizType},
+                #{sceneId}, #{agentId}, #{skillId},
                 #{callCount}, #{successCount}, #{failCount},
                 #{tokensInput}, #{tokensOutput}, #{tokensTotal},
                 #{totalDurationMs}, #{totalCostYuan}, NOW(), NOW())
     </insert>
 
+    <!-- 按唯一键更新聚合数据（upsert） -->
     <update id="updateByUniqueKey" parameterType="org.seaPack.model.ai.TokenUsageDaily">
         UPDATE ai_token_usage_daily
         SET call_count = call_count + #{callCount},
@@ -127,11 +152,12 @@
             total_cost_yuan = total_cost_yuan + #{totalCostYuan},
             updated_at = NOW()
         WHERE stat_date = #{statDate}
+          AND user_id = #{userId}
           AND model_name = #{modelName}
+          AND biz_type = #{bizType}
+          AND IFNULL(scene_id, 0) = IFNULL(#{sceneId}, 0)
           AND IFNULL(agent_id, 0) = IFNULL(#{agentId}, 0)
           AND IFNULL(skill_id, 0) = IFNULL(#{skillId}, 0)
-          AND IFNULL(scene_id, 0) = IFNULL(#{sceneId}, 0)
-          AND IFNULL(module_key, '') = IFNULL(#{moduleKey}, '')
     </update>
 
 </mapper>

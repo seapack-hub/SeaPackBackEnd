@@ -11,7 +11,7 @@ import java.util.List;
 
 /**
  * Token 用量统计控制器
- * <p>提供概览、趋势、模型占比、场景柱状图、费用汇总及最近调用记录接口。</p>
+ * <p>提供概览、趋势、模型占比、场景柱状图、费用汇总、用户排行及最近调用记录接口。</p>
  */
 @RestController
 @RequestMapping("/ai/token-stats")
@@ -34,16 +34,18 @@ public class TokenStatsController {
      *
      * @param startDate 起始日期 YYYY-MM-DD
      * @param endDate   结束日期 YYYY-MM-DD
+     * @param userId    用户ID（可选）
+     * @param bizType   用途（可选）：orchestration / agent / chat / skill
      * @param modelName 模型编码（可选）
-     * @param moduleKey 模块标识（可选）
      */
     @GetMapping("/trend")
     public List<TokenTrendItem> trend(
             @RequestParam String startDate,
             @RequestParam String endDate,
-            @RequestParam(required = false) String modelName,
-            @RequestParam(required = false) String moduleKey) {
-        return tokenStatsService.getTrend(startDate, endDate, modelName, moduleKey);
+            @RequestParam(required = false) Long userId,
+            @RequestParam(required = false) String bizType,
+            @RequestParam(required = false) String modelName) {
+        return tokenStatsService.getTrend(startDate, endDate, userId, bizType, modelName);
     }
 
     /**
@@ -53,9 +55,10 @@ public class TokenStatsController {
     public List<TokenModelPieItem> modelPie(
             @RequestParam String startDate,
             @RequestParam String endDate,
-            @RequestParam(required = false) String modelName,
-            @RequestParam(required = false) String moduleKey) {
-        return tokenStatsService.getModelPie(startDate, endDate, modelName, moduleKey);
+            @RequestParam(required = false) Long userId,
+            @RequestParam(required = false) String bizType,
+            @RequestParam(required = false) String modelName) {
+        return tokenStatsService.getModelPie(startDate, endDate, userId, bizType, modelName);
     }
 
     /**
@@ -65,9 +68,10 @@ public class TokenStatsController {
     public List<TokenSceneBarItem> sceneBar(
             @RequestParam String startDate,
             @RequestParam String endDate,
-            @RequestParam(required = false) String modelName,
-            @RequestParam(required = false) String moduleKey) {
-        return tokenStatsService.getSceneBar(startDate, endDate, modelName, moduleKey);
+            @RequestParam(required = false) Long userId,
+            @RequestParam(required = false) String bizType,
+            @RequestParam(required = false) String modelName) {
+        return tokenStatsService.getSceneBar(startDate, endDate, userId, bizType, modelName);
     }
 
     /**
@@ -77,9 +81,25 @@ public class TokenStatsController {
     public List<TokenCostSummaryItem> costSummary(
             @RequestParam String startDate,
             @RequestParam String endDate,
-            @RequestParam(required = false) String modelName,
-            @RequestParam(required = false) String moduleKey) {
-        return tokenStatsService.getCostSummary(startDate, endDate, modelName, moduleKey);
+            @RequestParam(required = false) Long userId,
+            @RequestParam(required = false) String bizType,
+            @RequestParam(required = false) String modelName) {
+        return tokenStatsService.getCostSummary(startDate, endDate, userId, bizType, modelName);
+    }
+
+    /**
+     * 用户 Token 消耗排行
+     *
+     * @param startDate 起始日期 YYYY-MM-DD
+     * @param endDate   结束日期 YYYY-MM-DD
+     * @param limit     返回条数（默认10）
+     */
+    @GetMapping("/user-ranking")
+    public List<TokenUserRankItem> userRanking(
+            @RequestParam String startDate,
+            @RequestParam String endDate,
+            @RequestParam(defaultValue = "10") int limit) {
+        return tokenStatsService.getUserRanking(startDate, endDate, limit);
     }
 
     /**
@@ -91,9 +111,11 @@ public class TokenStatsController {
             @RequestParam(defaultValue = "10") int pageSize,
             @RequestParam(required = false) String startDate,
             @RequestParam(required = false) String endDate,
+            @RequestParam(required = false) Long userId,
+            @RequestParam(required = false) String bizType,
             @RequestParam(required = false) String modelName,
-            @RequestParam(required = false) String moduleKey,
             @RequestParam(required = false) String status) {
-        return tokenStatsService.getRecentCalls(pageNum, pageSize, startDate, endDate, modelName, moduleKey, status);
+        return tokenStatsService.getRecentCalls(pageNum, pageSize, startDate, endDate,
+                userId, bizType, modelName, status);
     }
 }

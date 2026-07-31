@@ -14,6 +14,7 @@ import org.seaPack.mapper.ai.SceneOrchestrationMapper;
 import org.seaPack.mapper.ai.SceneOrchestrationStepMapper;
 import org.seaPack.model.ai.Agent;
 import org.seaPack.model.ai.Scene;
+import org.seaPack.model.ai.TokenUsageLog;
 import org.seaPack.model.ai.SceneOrchestration;
 import org.seaPack.model.ai.SceneOrchestrationStep;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -54,6 +55,9 @@ public class OrchestrationExecuteService {
 
     @Autowired
     private ExecutionSessionMapper executionSessionMapper;
+
+    @Autowired
+    private TokenStatsService tokenStatsService;
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -143,7 +147,7 @@ public class OrchestrationExecuteService {
 
             switch (strategy) {
                 case "parallel":
-                    OrchestrationResult parallelResult = executeParallel(steps, request, config, emitter, isCompleted);
+                    OrchestrationResult parallelResult = executeParallel(steps, request, config, emitter, isCompleted, userId);
                     mergedResult = parallelResult.output;
                     totalTokensPrompt = parallelResult.tokensPrompt;
                     totalTokensCompletion = parallelResult.tokensCompletion;
@@ -151,7 +155,7 @@ public class OrchestrationExecuteService {
                     break;
                 default:
                     // sequential（含 auto 单步骤时退化）
-                    OrchestrationResult sequentialResult = executeSequential(steps, request, config, emitter, isCompleted);
+                    OrchestrationResult sequentialResult = executeSequential(steps, request, config, emitter, isCompleted, userId);
                     mergedResult = sequentialResult.output;
                     totalTokensPrompt = sequentialResult.tokensPrompt;
                     totalTokensCompletion = sequentialResult.tokensCompletion;
@@ -258,9 +262,9 @@ public class OrchestrationExecuteService {
             OrchestrationResult result;
 
             if ("parallel".equals(execStrategy)) {
-                result = executeParallel(steps, request, config, emitter, isCompleted);
+                result = executeParallel(steps, request, config, emitter, isCompleted, userId);
             } else {
-                result = executeSequential(steps, request, config, emitter, isCompleted);
+                result = executeSequential(steps, request, config, emitter, isCompleted, userId);
             }
 
             if (isCompleted.get()) {
@@ -312,7 +316,8 @@ public class OrchestrationExecuteService {
             OrchestrationExecuteRequest request,
             AIProperties.ProviderConfig config,
             SseEmitter emitter,
-            AtomicBoolean isCompleted) {
+            AtomicBoolean isCompleted,
+            Long userId) {
 
         StringBuilder overallOutput = new StringBuilder();
         // 缓存每步输出 key: stepIndex, value: output
@@ -462,6 +467,26 @@ public class OrchestrationExecuteService {
                 StepLlmResult llmResult = callLlmStream(agent, stepInput, request.getHistory(),
                         config, emitter, stepIdx, isCompleted);
 
+                // 记录本步骤 LLM 调用的 Token 消耗到统计表
+                try {
+                    TokenUsageLog tokenLog = new TokenUsageLog();
+                    tokenLog.setCallTime(new Date());
+                    tokenLog.setModelName(llmResult.modelName);
+                    tokenLog.setTokensInput(llmResult.tokensPrompt);
+                    tokenLog.setTokensOutput(llmResult.tokensCompletion);
+                    tokenLog.setDurationMs((int) llmResult.durationMs);
+                    tokenLog.setStatus("success");
+                    tokenLog.setUserId(userId);
+                    tokenLog.setBizType("orchestration");
+                    tokenLog.setSceneId(request.getSceneId());
+                    tokenLog.setAgentId(agent.getId());
+                    tokenLog.setOrchestrationStep(stepIdx);
+                    tokenLog.setRequestId(request.getRequestId());
+                    tokenStatsService.recordCall(tokenLog);
+                } catch (Exception e) {
+                    log.error("记录 Token 统计失败: step={}, {}", stepIdx, e.getMessage(), e);
+                }
+
                 if (isCompleted.get()) break;
 
                 // 4f. 保存输出
@@ -586,6 +611,26 @@ public class OrchestrationExecuteService {
                             StepLlmResult llmResult = callLlmStream(agent, stepInput, request.getHistory(),
                                     config, emitter, stepIdx, isCompleted);
 
+                            // 记录重试步骤 LLM 调用的 Token 消耗到统计表
+                            try {
+                                TokenUsageLog retryTokenLog = new TokenUsageLog();
+                                retryTokenLog.setCallTime(new Date());
+                                retryTokenLog.setModelName(llmResult.modelName);
+                                retryTokenLog.setTokensInput(llmResult.tokensPrompt);
+                                retryTokenLog.setTokensOutput(llmResult.tokensCompletion);
+                                retryTokenLog.setDurationMs((int) llmResult.durationMs);
+                                retryTokenLog.setStatus("success");
+                                retryTokenLog.setUserId(userId);
+                                retryTokenLog.setBizType("orchestration");
+                                retryTokenLog.setSceneId(request.getSceneId());
+                                retryTokenLog.setAgentId(agent.getId());
+                                retryTokenLog.setOrchestrationStep(stepIdx);
+                                retryTokenLog.setRequestId(request.getRequestId());
+                                tokenStatsService.recordCall(retryTokenLog);
+                            } catch (Exception retryEx) {
+                                log.error("记录重试 Token 统计失败: step={}, {}", stepIdx, retryEx.getMessage(), retryEx);
+                            }
+
                             stepOutputs.put(stepIdx, llmResult.output);
                             stepStatuses.put(stepIdx, "success");
                             totalPrompt += llmResult.tokensPrompt;
@@ -672,7 +717,8 @@ public class OrchestrationExecuteService {
             OrchestrationExecuteRequest request,
             AIProperties.ProviderConfig config,
             SseEmitter emitter,
-            AtomicBoolean isCompleted) {
+            AtomicBoolean isCompleted,
+            Long userId) {
 
         StringBuilder overallOutput = new StringBuilder();
         int[] totalPrompt = {0};
@@ -781,6 +827,26 @@ public class OrchestrationExecuteService {
 
                     StepLlmResult llmResult = callLlmStream(agent, stepInput, request.getHistory(),
                             config, emitter, stepIdx, isCompleted);
+
+                    // 记录本步骤 LLM 调用的 Token 消耗到统计表
+                    try {
+                        TokenUsageLog tokenLog = new TokenUsageLog();
+                        tokenLog.setCallTime(new Date());
+                        tokenLog.setModelName(llmResult.modelName);
+                        tokenLog.setTokensInput(llmResult.tokensPrompt);
+                        tokenLog.setTokensOutput(llmResult.tokensCompletion);
+                        tokenLog.setDurationMs((int) llmResult.durationMs);
+                        tokenLog.setStatus("success");
+                        tokenLog.setUserId(userId);
+                        tokenLog.setBizType("orchestration");
+                        tokenLog.setSceneId(request.getSceneId());
+                        tokenLog.setAgentId(agent.getId());
+                        tokenLog.setOrchestrationStep(stepIdx);
+                        tokenLog.setRequestId(request.getRequestId());
+                        tokenStatsService.recordCall(tokenLog);
+                    } catch (Exception e) {
+                        log.error("记录并行步骤 Token 统计失败: step={}, {}", stepIdx, e.getMessage(), e);
+                    }
 
                     orderedOutputs[index] = llmResult.output;
                     totalPrompt[0] += llmResult.tokensPrompt;

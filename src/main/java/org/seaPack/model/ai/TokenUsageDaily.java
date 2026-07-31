@@ -9,7 +9,7 @@ import java.util.Date;
 
 /**
  * Token 日统计汇总实体
- * <p>对应 ai_token_usage_daily 表，由定时任务按天聚合生成。</p>
+ * <p>对应 ai_token_usage_daily 表，由 recordCall() 实时累加聚合。</p>
  */
 @Entity
 @Data
@@ -26,9 +26,21 @@ public class TokenUsageDaily {
     @Comment("统计日期")
     private Date statDate;
 
+    @Column(name = "user_id", nullable = false)
+    @Comment("用户ID")
+    private Long userId;
+
     @Column(name = "model_name")
     @Comment("模型编码")
     private String modelName;
+
+    @Column(name = "biz_type")
+    @Comment("用途：orchestration / agent / chat / skill")
+    private String bizType;
+
+    @Column(name = "scene_id")
+    @Comment("场景ID")
+    private Long sceneId;
 
     @Column(name = "agent_id")
     @Comment("Agent ID")
@@ -38,13 +50,7 @@ public class TokenUsageDaily {
     @Comment("技能ID")
     private Long skillId;
 
-    @Column(name = "scene_id")
-    @Comment("场景ID")
-    private Long sceneId;
-
-    @Column(name = "module_key")
-    @Comment("模块标识")
-    private String moduleKey;
+    // ===== 聚合指标 =====
 
     @Column(name = "call_count")
     @Comment("调用次数")
@@ -71,11 +77,11 @@ public class TokenUsageDaily {
     private Long tokensTotal;
 
     @Column(name = "total_duration_ms")
-    @Comment("总耗时(毫秒)")
+    @Comment("总耗时（毫秒）")
     private Long totalDurationMs;
 
     @Column(name = "total_cost_yuan")
-    @Comment("总费用(元)")
+    @Comment("总费用（元）")
     private BigDecimal totalCostYuan;
 
     @Column(name = "created_at")

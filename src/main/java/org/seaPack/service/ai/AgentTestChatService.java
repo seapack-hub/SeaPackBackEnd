@@ -59,6 +59,9 @@ public class AgentTestChatService {
     @Autowired
     private SceneAgentConfigMapper sceneAgentConfigMapper;
 
+    @Autowired
+    private TokenStatsService tokenStatsService;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
@@ -161,6 +164,26 @@ public class AgentTestChatService {
         } catch (Exception e) {
             steps.add(buildFailStep(stepIndex++, "llm_call", "LLM 调用", e.getMessage()));
             return buildErrorResponse(agent, request, steps, totalStart, userId, e);
+        }
+
+        // 记录本次 LLM 调用的 Token 消耗到统计表
+        try {
+            long llmDuration = System.currentTimeMillis() - totalStart;
+            TokenUsageLog tokenLog = new TokenUsageLog();
+            tokenLog.setCallTime(new Date());
+            tokenLog.setModelName(modelName);
+            tokenLog.setTokensInput(promptTokens);
+            tokenLog.setTokensOutput(completionTokens);
+            tokenLog.setDurationMs((int) llmDuration);
+            tokenLog.setStatus("success");
+            tokenLog.setUserId(userId);
+            tokenLog.setBizType("agent");
+            tokenLog.setSceneId(request.getSceneId());
+            tokenLog.setAgentId(agent.getId());
+            tokenLog.setRequestId(request.getRequestId());
+            tokenStatsService.recordCall(tokenLog);
+        } catch (Exception e) {
+            log.error("记录 Token 统计失败: {}", e.getMessage(), e);
         }
 
         // ===== 组装链路追踪快照 =====
@@ -926,6 +949,26 @@ public class AgentTestChatService {
             steps.add(buildFailStep(stepIndex++, "llm_call", "LLM 调用", e.getMessage()));
             SseEvent.sendError(emitter, "LLM 调用失败: " + e.getMessage());
             return;
+        }
+
+        // 记录本次 LLM 调用的 Token 消耗到统计表
+        try {
+            long llmDuration = System.currentTimeMillis() - totalStart;
+            TokenUsageLog tokenLog = new TokenUsageLog();
+            tokenLog.setCallTime(new Date());
+            tokenLog.setModelName(modelName);
+            tokenLog.setTokensInput(promptTokens);
+            tokenLog.setTokensOutput(completionTokens);
+            tokenLog.setDurationMs((int) llmDuration);
+            tokenLog.setStatus("success");
+            tokenLog.setUserId(userId);
+            tokenLog.setBizType("agent");
+            tokenLog.setSceneId(request.getSceneId());
+            tokenLog.setAgentId(agent.getId());
+            tokenLog.setRequestId(request.getRequestId());
+            tokenStatsService.recordCall(tokenLog);
+        } catch (Exception e) {
+            log.error("记录 Token 统计失败: {}", e.getMessage(), e);
         }
 
         // ===== 组装链路追踪快照 =====

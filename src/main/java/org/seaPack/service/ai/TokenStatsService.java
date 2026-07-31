@@ -9,15 +9,18 @@ import org.seaPack.model.ai.TokenUsageDaily;
 import org.seaPack.model.ai.TokenUsageLog;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.Date;
 import java.util.List;
 
 /**
  * Token 用量统计服务
- * <p>提供概览、趋势、模型占比、场景柱状图、费用汇总及调用明细查询等功能。</p>
+ * <p>提供概览、趋势、模型占比、场景柱状图、费用汇总、用户排行及调用明细查询等功能。
+ * recordCall() 在每次 LLM 调用完成后由各对话服务调用，同时写入明细表和日统计表。</p>
  */
 @Service
 public class TokenStatsService {
@@ -41,53 +44,71 @@ public class TokenStatsService {
         if (list != null && !list.isEmpty()) {
             return list.get(0);
         }
-        // 无数据时返回空默认值
         return new TokenStatOverview();
     }
 
     /**
      * 趋势数据（按天聚合）
      */
-    public List<TokenTrendItem> getTrend(String startDate, String endDate, String modelName, String moduleKey) {
-        return dailyMapper.selectTrend(startDate, endDate, modelName, moduleKey);
+    public List<TokenTrendItem> getTrend(String startDate, String endDate,
+                                          Long userId, String bizType, String modelName) {
+        return dailyMapper.selectTrend(startDate, endDate, userId, bizType, modelName);
     }
 
     /**
      * 模型占比
      */
-    public List<TokenModelPieItem> getModelPie(String startDate, String endDate, String modelName, String moduleKey) {
-        return dailyMapper.selectModelPie(startDate, endDate, modelName, moduleKey);
+    public List<TokenModelPieItem> getModelPie(String startDate, String endDate,
+                                                Long userId, String bizType, String modelName) {
+        return dailyMapper.selectModelPie(startDate, endDate, userId, bizType, modelName);
     }
 
     /**
      * 场景调用柱状图
      */
-    public List<TokenSceneBarItem> getSceneBar(String startDate, String endDate, String modelName, String moduleKey) {
-        return dailyMapper.selectSceneBar(startDate, endDate, modelName, moduleKey);
+    public List<TokenSceneBarItem> getSceneBar(String startDate, String endDate,
+                                                Long userId, String bizType, String modelName) {
+        return dailyMapper.selectSceneBar(startDate, endDate, userId, bizType, modelName);
     }
 
     /**
      * 费用汇总表（按模型聚合）
      */
-    public List<TokenCostSummaryItem> getCostSummary(String startDate, String endDate, String modelName, String moduleKey) {
-        return dailyMapper.selectCostSummary(startDate, endDate, modelName, moduleKey);
+    public List<TokenCostSummaryItem> getCostSummary(String startDate, String endDate,
+                                                      Long userId, String bizType, String modelName) {
+        return dailyMapper.selectCostSummary(startDate, endDate, userId, bizType, modelName);
+    }
+
+    /**
+     * 用户 Token 消耗排行
+     *
+     * @param startDate 起始日期
+     * @param endDate   结束日期
+     * @param limit     返回条数（默认10）
+     * @return 用户排行列表
+     */
+    public List<TokenUserRankItem> getUserRanking(String startDate, String endDate, int limit) {
+        if (limit <= 0) limit = 10;
+        return dailyMapper.selectUserRanking(startDate, endDate, limit);
     }
 
     /**
      * 最近调用记录（分页）
      */
-    public PageInfo<TokenUsageLog> getRecentCalls(int pageNum, int pageSize, String startDate, String endDate,
-                                                  String modelName, String moduleKey, String status) {
+    public PageInfo<TokenUsageLog> getRecentCalls(int pageNum, int pageSize,
+                                                  String startDate, String endDate,
+                                                  Long userId, String bizType,
+                                                  String modelName, String status) {
         PageHelper.startPage(pageNum, pageSize);
-        List<TokenUsageLog> list = logMapper.selectList(startDate, endDate, modelName, moduleKey, status);
+        List<TokenUsageLog> list = logMapper.selectList(startDate, endDate, userId, bizType, modelName, status);
         return new PageInfo<>(list);
     }
 
     /**
-     * 记录一次 AI 调用（写入明细 + 聚合到日统计）
-     * <p>供 SkillService、PromptTemplateService、AgentService 等在执行后调用。</p>
+     * 记录一次 LLM 调用（写入明细 + 实时聚合到日统计）
+     * <p>每次 LLM 调用完成后由各对话服务调用，同时写入 ai_token_usage_log 和 ai_token_usage_daily。</p>
      *
-     * @param log 调用明细
+     * @param log 调用明细（必须包含 userId、bizType、modelName 等核心字段）
      */
     public void recordCall(TokenUsageLog log) {
         if (log == null) return;
@@ -95,14 +116,15 @@ public class TokenStatsService {
         // 1. 写入明细表
         logMapper.insert(log);
 
-        // 2. 聚合到日统计表
+        // 2. 实时聚合到日统计表
         TokenUsageDaily daily = new TokenUsageDaily();
-        daily.setStatDate(log.getCallTime());
+        daily.setStatDate(log.getCallTime() != null ? log.getCallTime() : new Date());
+        daily.setUserId(log.getUserId());
         daily.setModelName(log.getModelName());
+        daily.setBizType(log.getBizType());
+        daily.setSceneId(log.getSceneId());
         daily.setAgentId(log.getAgentId());
         daily.setSkillId(log.getSkillId());
-        daily.setSceneId(log.getSceneId());
-        daily.setModuleKey(log.getModuleKey());
         daily.setCallCount(1);
         daily.setSuccessCount("success".equals(log.getStatus()) ? 1 : 0);
         daily.setFailCount("fail".equals(log.getStatus()) ? 1 : 0);
@@ -110,7 +132,7 @@ public class TokenStatsService {
         daily.setTokensOutput(log.getTokensOutput() != null ? log.getTokensOutput().longValue() : 0L);
         daily.setTokensTotal(daily.getTokensInput() + daily.getTokensOutput());
         daily.setTotalDurationMs(log.getDurationMs() != null ? log.getDurationMs().longValue() : 0L);
-        daily.setTotalCostYuan(log.getCostYuan());
+        daily.setTotalCostYuan(log.getCostYuan() != null ? log.getCostYuan() : BigDecimal.ZERO);
 
         // 尝试更新已有记录，不存在则插入
         int updated = dailyMapper.updateByUniqueKey(daily);
