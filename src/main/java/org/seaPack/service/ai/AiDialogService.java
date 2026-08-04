@@ -112,10 +112,10 @@ public class AiDialogService {
     /**
      * 非流式对话
      */
-    public Map<String, Object> handleSync(AiDialogRequest request) {
+    public Map<String, Object> handleSync(AiDialogRequest request, Long userId) {
         String mode = request.getMode();
         if ("llm_chat".equals(mode)) {
-            return handleLlmChat(request);
+            return handleLlmChat(request, userId);
         }
         throw new IllegalArgumentException("非流式模式不支持: " + mode);
     }
@@ -283,7 +283,7 @@ public class AiDialogService {
      * 非流式 LLM 对话
      */
     @SuppressWarnings("unchecked")
-    private Map<String, Object> handleLlmChat(AiDialogRequest request) {
+    private Map<String, Object> handleLlmChat(AiDialogRequest request, Long userId) {
         // 1. 获取 AI 配置
         String providerName = aiProperties.getActiveProvider();
         AIProperties.ProviderConfig config = aiProperties.getProviders().get(providerName);
@@ -328,7 +328,9 @@ public class AiDialogService {
 
         // 4. 调用 LLM
         try {
+            long llmStart = System.currentTimeMillis();
             Map<String, Object> apiResponse = llmSseHelper.callSync(url, config.getApiKey(), requestBody);
+            long llmDuration = System.currentTimeMillis() - llmStart;
 
             String content = "";
             int promptTokens = 0;
@@ -347,6 +349,23 @@ public class AiDialogService {
             if (usage != null) {
                 promptTokens = usage.get("prompt_tokens") != null ? ((Number) usage.get("prompt_tokens")).intValue() : 0;
                 completionTokens = usage.get("completion_tokens") != null ? ((Number) usage.get("completion_tokens")).intValue() : 0;
+            }
+
+            // 记录本次 LLM 调用的 Token 消耗到统计表
+            try {
+                TokenUsageLog tokenLog = new TokenUsageLog();
+                tokenLog.setCallTime(new Date());
+                tokenLog.setModelName(modelName);
+                tokenLog.setTokensInput(promptTokens);
+                tokenLog.setTokensOutput(completionTokens);
+                tokenLog.setDurationMs((int) llmDuration);
+                tokenLog.setStatus("success");
+                tokenLog.setUserId(userId);
+                tokenLog.setBizType("chat");
+                tokenLog.setRequestId(request.getRequestId());
+                tokenStatsService.recordCall(tokenLog);
+            } catch (Exception ex) {
+                log.error("记录非流式 LLM Token 统计失败: {}", ex.getMessage(), ex);
             }
 
             Map<String, Object> result = new HashMap<>();
@@ -494,7 +513,8 @@ public class AiDialogService {
 
         // 多候选 → LLM 选择
         log.info("候选 Agent {} 个，调用 LLM 动态选择", candidates.size());
-        Map<String, Object> llmSelectResult = agentSelectByLLM(userMessage, candidates, emitter);
+        Map<String, Object> llmSelectResult = agentSelectByLLM(userMessage, candidates, emitter,
+                userId, request.getSceneId(), request.getRequestId());
 
         // LLM 选择失败 → 默认 Agent
         if (llmSelectResult == null) {
@@ -591,15 +611,20 @@ public class AiDialogService {
 
     /**
      * 调用 LLM 分析用户意图，从候选 Agent 中选择合适的 Agent
+     * <p>每次 LLM 调用均记录 Token 消耗到统计表。</p>
      *
      * @param userMessage 用户消息
      * @param candidates  候选 Agent 列表
      * @param emitter     SSE 发射器（用于发送进度）
+     * @param userId      用户ID
+     * @param sceneId     场景ID
+     * @param requestId   请求ID
      * @return 选择结果 { agents: [{id, name, reason}], strategy: "sequential"|"parallel" }，失败返回 null
      */
     @SuppressWarnings("unchecked")
     private Map<String, Object> agentSelectByLLM(String userMessage, List<Agent> candidates,
-                                                  SseEmitter emitter) {
+                                                  SseEmitter emitter,
+                                                  Long userId, Long sceneId, String requestId) {
         long startTime = System.currentTimeMillis();
 
         try {
@@ -656,6 +681,34 @@ public class AiDialogService {
             requestBody.put("temperature", 0.1); // 低温度，确保选择稳定
 
             Map<String, Object> apiResponse = llmSseHelper.callSync(url, config.getApiKey(), requestBody);
+            long duration = System.currentTimeMillis() - startTime;
+
+            // 提取 Token 消耗并记录到统计表
+            int promptTokens = 0;
+            int completionTokens = 0;
+            if (apiResponse != null) {
+                Map<String, Object> usage = (Map<String, Object>) apiResponse.get("usage");
+                if (usage != null) {
+                    promptTokens = usage.get("prompt_tokens") != null ? ((Number) usage.get("prompt_tokens")).intValue() : 0;
+                    completionTokens = usage.get("completion_tokens") != null ? ((Number) usage.get("completion_tokens")).intValue() : 0;
+                }
+            }
+            try {
+                TokenUsageLog tokenLog = new TokenUsageLog();
+                tokenLog.setCallTime(new Date());
+                tokenLog.setModelName(modelName);
+                tokenLog.setTokensInput(promptTokens);
+                tokenLog.setTokensOutput(completionTokens);
+                tokenLog.setDurationMs((int) duration);
+                tokenLog.setStatus("success");
+                tokenLog.setUserId(userId);
+                tokenLog.setBizType("chat");
+                tokenLog.setSceneId(sceneId);
+                tokenLog.setRequestId(requestId);
+                tokenStatsService.recordCall(tokenLog);
+            } catch (Exception ex) {
+                log.error("[Agent选择] 记录 Token 统计失败: {}", ex.getMessage(), ex);
+            }
 
             // 6. 解析响应
             String content = "";
@@ -681,7 +734,6 @@ public class AiDialogService {
             }
 
             Map<String, Object> result = objectMapper.readValue(jsonStr, Map.class);
-            long duration = System.currentTimeMillis() - startTime;
             log.info("LLM Agent 选择完成: 耗时={}ms, 选中={}个 Agent", duration,
                     result.get("agents") != null ? ((List<?>) result.get("agents")).size() : 0);
             return result;

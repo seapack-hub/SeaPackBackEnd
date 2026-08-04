@@ -90,7 +90,8 @@ public class AiDialogController {
     @PostMapping("/chat")
     public ResponseEntity<?> chat(@RequestBody AiDialogRequest request) {
         try {
-            Object result = dialogService.handleSync(request);
+            Long userId = getCurrentUserId();
+            Object result = dialogService.handleSync(request, userId);
             return ResponseEntity.ok(result);
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());

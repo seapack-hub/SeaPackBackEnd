@@ -93,7 +93,8 @@ public class AgentTestChatService {
         // ===== Step 1: 提示词组装 =====
         String systemPrompt;
         try {
-            AgentTraceStepResult stepResult = assemblePrompt(agent, stepIndex, extractMessage(request));
+            AgentTraceStepResult stepResult = assemblePrompt(agent, stepIndex, extractMessage(request),
+                    userId, request.getSceneId(), agent.getId(), request.getRequestId());
             systemPrompt = stepResult.output;
             stepIndex = stepResult.nextStepIndex;
             steps.add(stepResult.step);
@@ -207,15 +208,21 @@ public class AgentTestChatService {
 
     /**
      * LLM 动态选择相关模板
-     * <p>根据用户消息和所有可用模板，调用 LLM 选出最相关的模板。</p>
+     * <p>根据用户消息和所有可用模板，调用 LLM 选出最相关的模板。
+     * 每次 LLM 调用均记录 Token 消耗到统计表。</p>
      *
      * @param userMessage   用户消息
      * @param allTemplates  所有可用的模板列表
      * @param config        AI 配置
+     * @param userId        用户ID
+     * @param sceneId       场景ID
+     * @param agentId       Agent ID
+     * @param requestId     请求ID
      * @return 选中的模板列表
      */
     private List<PromptTemplate> selectPromptsByLLM(String userMessage, List<PromptTemplate> allTemplates,
-                                                     AIProperties.ProviderConfig config) {
+                                                     AIProperties.ProviderConfig config,
+                                                     Long userId, Long sceneId, Long agentId, String requestId) {
         if (allTemplates.size() <= 1) {
             return allTemplates;
         }
@@ -260,8 +267,39 @@ public class AgentTestChatService {
 
         try {
             String url = config.getBaseUrl().replaceAll("/+$", "") + "/chat/completions";
+            long llmStart = System.currentTimeMillis();
             @SuppressWarnings("unchecked")
             Map<String, Object> apiResponse = llmSseHelper.callSync(url, config.getApiKey(), requestBody);
+            long llmDuration = System.currentTimeMillis() - llmStart;
+
+            // 提取 Token 消耗并记录到统计表
+            int promptTokens = 0;
+            int completionTokens = 0;
+            if (apiResponse != null) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> usage = (Map<String, Object>) apiResponse.get("usage");
+                if (usage != null) {
+                    promptTokens = usage.get("prompt_tokens") != null ? ((Number) usage.get("prompt_tokens")).intValue() : 0;
+                    completionTokens = usage.get("completion_tokens") != null ? ((Number) usage.get("completion_tokens")).intValue() : 0;
+                }
+            }
+            try {
+                TokenUsageLog tokenLog = new TokenUsageLog();
+                tokenLog.setCallTime(new Date());
+                tokenLog.setModelName(config.getChatModel());
+                tokenLog.setTokensInput(promptTokens);
+                tokenLog.setTokensOutput(completionTokens);
+                tokenLog.setDurationMs((int) llmDuration);
+                tokenLog.setStatus("success");
+                tokenLog.setUserId(userId);
+                tokenLog.setBizType("agent");
+                tokenLog.setSceneId(sceneId);
+                tokenLog.setAgentId(agentId);
+                tokenLog.setRequestId(requestId);
+                tokenStatsService.recordCall(tokenLog);
+            } catch (Exception ex) {
+                log.error("[模板选择] 记录 Token 统计失败: {}", ex.getMessage(), ex);
+            }
 
             if (apiResponse != null) {
                 @SuppressWarnings("unchecked")
@@ -304,15 +342,17 @@ public class AgentTestChatService {
      * 组装系统提示词
      * <p>将 Agent 基础提示词与关联的提示词模板按顺序拼接。</p>
      */
-    private AgentTraceStepResult assemblePrompt(Agent agent, int stepIndex, String userMessage) {
-        return assemblePrompt(agent, stepIndex, userMessage, null);
+    private AgentTraceStepResult assemblePrompt(Agent agent, int stepIndex, String userMessage,
+                                                 Long userId, Long sceneId, Long agentId, String requestId) {
+        return assemblePrompt(agent, stepIndex, userMessage, null, userId, sceneId, agentId, requestId);
     }
 
     /**
      * 组装系统提示词（支持 SSE 流式进度）
      * <p>将 Agent 基础提示词与 LLM 动态选择的提示词模板按顺序拼接。</p>
      */
-    private AgentTraceStepResult assemblePrompt(Agent agent, int stepIndex, String userMessage, SseEmitter emitter) {
+    private AgentTraceStepResult assemblePrompt(Agent agent, int stepIndex, String userMessage, SseEmitter emitter,
+                                                 Long userId, Long sceneId, Long agentId, String requestId) {
         long stepStart = System.currentTimeMillis();
         StringBuilder systemPromptBuilder = new StringBuilder();
         List<Map<String, Object>> templateDetails = new ArrayList<>();
@@ -376,7 +416,8 @@ public class AgentTestChatService {
                 AIProperties.ProviderConfig config = aiProperties.getProviders().get(providerName);
 
                 if (config != null && userMessage != null && !userMessage.isBlank()) {
-                    selectedTemplates = selectPromptsByLLM(userMessage, allTemplates, config);
+                    selectedTemplates = selectPromptsByLLM(userMessage, allTemplates, config,
+                            userId, sceneId, agentId, requestId);
 
                     if (emitter != null) {
                         SseEvent.send(emitter, "step_progress", Map.of(
@@ -832,7 +873,8 @@ public class AgentTestChatService {
                 isCompleted.set(true);
             });
 
-            AgentTraceStepResult stepResult = assemblePrompt(agent, stepIndex, extractMessage(request), emitter);
+            AgentTraceStepResult stepResult = assemblePrompt(agent, stepIndex, extractMessage(request), emitter,
+                    userId, request.getSceneId(), agent.getId(), request.getRequestId());
             systemPrompt = stepResult.output;
             stepIndex = stepResult.nextStepIndex;
             steps.add(stepResult.step);
