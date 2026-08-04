@@ -848,10 +848,12 @@ public class AgentTestChatService {
         Agent agent = agentMapper.selectById(request.getAgentId());
         if (agent == null) {
             SseEvent.sendError(emitter, "Agent 不存在: " + request.getAgentId());
+            sendDoneAndClose(emitter, response, "Agent 不存在");
             return;
         }
         if (agent.getStatus() == null || agent.getStatus() != 1) {
             SseEvent.sendError(emitter, "Agent 已禁用: " + agent.getName());
+            sendDoneAndClose(emitter, response, "Agent 已禁用");
             return;
         }
 
@@ -889,6 +891,7 @@ public class AgentTestChatService {
         } catch (Exception e) {
             steps.add(buildFailStep(stepIndex++, "prompt_assembly", "提示词组装", e.getMessage()));
             SseEvent.sendError(emitter, "提示词组装失败: " + e.getMessage());
+            sendDoneAndClose(emitter, response, "提示词组装失败");
             return;
         }
 
@@ -990,6 +993,7 @@ public class AgentTestChatService {
         } catch (Exception e) {
             steps.add(buildFailStep(stepIndex++, "llm_call", "LLM 调用", e.getMessage()));
             SseEvent.sendError(emitter, "LLM 调用失败: " + e.getMessage());
+            sendDoneAndClose(emitter, response, "LLM 调用失败");
             return;
         }
 
@@ -1166,6 +1170,22 @@ public class AgentTestChatService {
             return request.getMessages().get(request.getMessages().size() - 1).getContent();
         }
         return "";
+    }
+
+    /**
+     * 发送 done 事件并关闭 SSE 连接
+     * <p>在异常路径中调用，确保前端能收到 done 事件并关闭连接。</p>
+     */
+    private void sendDoneAndClose(SseEmitter emitter, HttpServletResponse response, String errorMessage) {
+        try {
+            SseEvent.send(emitter, SseEvent.TYPE_DONE, Map.of(
+                    "status", "error",
+                    "error", errorMessage != null ? errorMessage : "未知错误"
+            ));
+        } catch (Exception ignored) {}
+        try { response.flushBuffer(); } catch (Exception ignored) {}
+        try { response.getOutputStream().close(); } catch (Exception ignored) {}
+        try { emitter.complete(); } catch (Exception ignored) {}
     }
 
     /** Step 结果内部类 */

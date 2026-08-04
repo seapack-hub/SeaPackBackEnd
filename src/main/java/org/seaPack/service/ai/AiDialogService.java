@@ -105,7 +105,10 @@ public class AiDialogService {
             case "streaming_llm" -> handleLlmStream(request, userId, emitter, response);
             case "agent_stream" -> handleAgentStream(request, userId, authToken, emitter, response);
             case "orchestration" -> handleOrchestration(request, userId, authToken, emitter, response);
-            default -> SseEvent.sendError(emitter, "未知对话模式: " + mode);
+            default -> {
+                SseEvent.sendError(emitter, "未知对话模式: " + mode);
+                sendDoneAndClose(emitter, response, "未知对话模式");
+            }
         }
     }
 
@@ -142,6 +145,7 @@ public class AiDialogService {
             AIProperties.ProviderConfig config = aiProperties.getProviders().get(providerName);
             if (config == null) {
                 SseEvent.sendError(emitter, "AI 配置错误：未找到提供商 [" + providerName + "]");
+                sendDoneAndClose(emitter, response, "AI 配置错误");
                 return;
             }
             String modelName = config.getChatModel();
@@ -270,6 +274,7 @@ public class AiDialogService {
         } catch (Exception e) {
             log.error("LLM 流式对话失败", e);
             SseEvent.sendError(emitter, "LLM 对话失败: " + e.getMessage());
+            sendDoneAndClose(emitter, response, "LLM 对话失败");
         } finally {
             removeCancelFlag(userId);
         }
@@ -910,5 +915,21 @@ public class AiDialogService {
         session.setErrorMessage(errorMessage);
         session.setCreatedBy(userId);
         executionSessionMapper.insert(session);
+    }
+
+    /**
+     * 发送 done 事件并关闭 SSE 连接
+     * <p>在异常路径中调用，确保前端能收到 done 事件并关闭连接。</p>
+     */
+    private void sendDoneAndClose(SseEmitter emitter, HttpServletResponse response, String errorMessage) {
+        try {
+            SseEvent.send(emitter, SseEvent.TYPE_DONE, Map.of(
+                    "status", "error",
+                    "error", errorMessage != null ? errorMessage : "未知错误"
+            ));
+        } catch (Exception ignored) {}
+        try { response.flushBuffer(); } catch (Exception ignored) {}
+        try { response.getOutputStream().close(); } catch (Exception ignored) {}
+        try { emitter.complete(); } catch (Exception ignored) {}
     }
 }
