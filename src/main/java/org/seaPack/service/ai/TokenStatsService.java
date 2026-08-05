@@ -11,12 +11,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Date;
 import java.util.List;
-
 /**
  * Token 用量统计服务
  * <p>提供概览、趋势、模型占比、场景柱状图、费用汇总、用户排行及调用明细查询等功能。
@@ -32,6 +30,9 @@ public class TokenStatsService {
 
     @Autowired
     private TokenUsageLogMapper logMapper;
+
+    @Autowired
+    private TokenQuotaService tokenQuotaService;
 
     /**
      * 概览统计
@@ -138,6 +139,17 @@ public class TokenStatsService {
         int updated = dailyMapper.updateByUniqueKey(daily);
         if (updated == 0) {
             dailyMapper.insert(daily);
+        }
+
+        // 3. 扣减用户额度（记录到 ai_user_token_usage 表，供额度校验使用）
+        try {
+            long totalTokens = daily.getTokensInput() + daily.getTokensOutput();
+            if (totalTokens > 0) {
+                tokenQuotaService.recordUsage(log.getUserId(), totalTokens);
+            }
+        } catch (Exception e) {
+            org.slf4j.LoggerFactory.getLogger(TokenStatsService.class)
+                    .error("额度扣减失败: userId={}", log.getUserId(), e);
         }
     }
 }

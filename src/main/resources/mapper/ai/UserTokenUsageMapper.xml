@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.ai.UserTokenUsageMapper">
+
+    <resultMap id="BaseMap" type="org.seaPack.model.ai.UserTokenUsage">
+        <id property="id" column="id"/>
+        <result property="userId" column="user_id"/>
+        <result property="usageDate" column="usage_date"/>
+        <result property="tokensUsed" column="tokens_used"/>
+        <result property="callCount" column="call_count"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <!-- 按日期区间查询使用量 -->
+    <select id="selectByDateRange" resultMap="BaseMap">
+        SELECT id, user_id, usage_date, tokens_used, call_count, created_at, updated_at
+        FROM ai_user_token_usage
+        WHERE user_id = #{userId}
+          AND usage_date BETWEEN #{startDate} AND #{endDate}
+        ORDER BY usage_date ASC
+    </select>
+
+    <!-- 按日期区间汇总 token 总数 -->
+    <select id="sumByDateRange" resultType="java.lang.Long">
+        SELECT COALESCE(SUM(tokens_used), 0)
+        FROM ai_user_token_usage
+        WHERE user_id = #{userId}
+          AND usage_date BETWEEN #{startDate} AND #{endDate}
+    </select>
+
+    <!-- 原子累加当日使用量（upsert） -->
+    <insert id="incrementUsage">
+        INSERT INTO ai_user_token_usage (user_id, usage_date, tokens_used, call_count, created_at, updated_at)
+        VALUES (#{userId}, #{usageDate}, #{tokens}, 1, NOW(), NOW())
+        ON DUPLICATE KEY UPDATE
+            tokens_used = tokens_used + #{tokens},
+            call_count  = call_count + 1,
+            updated_at  = NOW()
+    </insert>
+
+    <!-- 插入使用量记录 -->
+    <insert id="insert" parameterType="org.seaPack.model.ai.UserTokenUsage"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO ai_user_token_usage (user_id, usage_date, tokens_used, call_count, created_at, updated_at)
+        VALUES (#{userId}, #{usageDate}, #{tokensUsed}, #{callCount}, NOW(), NOW())
+    </insert>
+
+    <!-- 清理指定日期之前的历史数据 -->
+    <delete id="deleteBefore">
+        DELETE FROM ai_user_token_usage
+        WHERE usage_date &lt; #{usageDate}
+    </delete>
+
+</mapper>

@@ -48,6 +48,7 @@ public class AiDialogService {
     private final SceneAgentMapper sceneAgentMapper;
     private final AgentMapper agentMapper;
     private final TokenStatsService tokenStatsService;
+    private final TokenQuotaService tokenQuotaService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -100,6 +101,14 @@ public class AiDialogService {
      */
     public void handleStream(AiDialogRequest request, Long userId, String authToken,
                               SseEmitter emitter, HttpServletResponse response) {
+        // 额度校验：调用大模型前检查用户剩余额度，超限则拒绝并返回提示
+        String quotaError = tokenQuotaService.checkQuota(userId);
+        if (quotaError != null) {
+            SseEvent.sendError(emitter, quotaError);
+            sendDoneAndClose(emitter, response, quotaError);
+            return;
+        }
+
         String mode = request.getMode();
         switch (mode) {
             case "streaming_llm" -> handleLlmStream(request, userId, emitter, response);
@@ -116,6 +125,12 @@ public class AiDialogService {
      * 非流式对话
      */
     public Map<String, Object> handleSync(AiDialogRequest request, Long userId) {
+        // 额度校验：非流式对话同样需要检查
+        String quotaError = tokenQuotaService.checkQuota(userId);
+        if (quotaError != null) {
+            throw new RuntimeException(quotaError);
+        }
+
         String mode = request.getMode();
         if ("llm_chat".equals(mode)) {
             return handleLlmChat(request, userId);
