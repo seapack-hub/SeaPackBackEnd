@@ -36,7 +36,7 @@ class EmailDeliveryTest {
             System.out.println("第 " + round + " 轮邮件发送完成");
 
             if (round < 3) {
-                Thread.sleep(300_000); // 每轮间隔5分钟
+                Thread.sleep(60_000); // 每轮间隔1分钟
             }
         }
     }

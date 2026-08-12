@@ -1,0 +1,42 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.macro.SysMacroIndicatorMetaMapper">
+  <resultMap id="BaseResultMap" type="org.seaPack.model.macro.SysMacroIndicatorMeta">
+    <id column="id" property="id"/>
+    <result column="indicator_code" property="indicatorCode"/>
+    <result column="indicator_name" property="indicatorName"/>
+    <result column="frequency" property="frequency"/>
+    <result column="unit" property="unit"/>
+    <result column="chart_type" property="chartType"/>
+    <result column="chart_color" property="chartColor"/>
+    <result column="parent_code" property="parentCode"/>
+    <result column="sort_order" property="sortOrder"/>
+    <result column="status" property="status"/>
+    <result column="created_at" property="createdAt"/>
+    <result column="updated_at" property="updatedAt"/>
+  </resultMap>
+
+  <select id="selectAll" resultMap="BaseResultMap">
+    SELECT * FROM sys_macro_indicator_meta WHERE status = 1 ORDER BY sort_order ASC
+  </select>
+
+  <select id="selectByFrequency" resultMap="BaseResultMap">
+    SELECT * FROM sys_macro_indicator_meta WHERE frequency = #{frequency} AND status = 1 ORDER BY sort_order ASC
+  </select>
+
+  <select id="selectByCode" resultMap="BaseResultMap">
+    SELECT * FROM sys_macro_indicator_meta WHERE indicator_code = #{indicatorCode} LIMIT 1
+  </select>
+
+  <insert id="insertOrUpdate">
+    INSERT INTO sys_macro_indicator_meta (indicator_code, indicator_name, frequency, unit, chart_type, chart_color, parent_code, sort_order, status)
+    VALUES (#{indicatorCode}, #{indicatorName}, #{frequency}, #{unit}, #{chartType}, #{chartColor}, #{parentCode}, #{sortOrder}, #{status})
+    ON DUPLICATE KEY UPDATE
+      indicator_name = VALUES(indicator_name), unit = VALUES(unit), chart_type = VALUES(chart_type),
+      chart_color = VALUES(chart_color), parent_code = VALUES(parent_code), sort_order = VALUES(sort_order), status = VALUES(status)
+  </insert>
+
+  <delete id="deleteByCode">
+    DELETE FROM sys_macro_indicator_meta WHERE indicator_code = #{indicatorCode}
+  </delete>
+</mapper>

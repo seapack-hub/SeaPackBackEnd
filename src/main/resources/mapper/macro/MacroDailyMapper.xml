@@ -1,0 +1,70 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.macro.MacroDailyMapper">
+  <resultMap id="BaseResultMap" type="org.seaPack.model.macro.MacroDaily">
+    <id column="id" property="id"/>
+    <result column="stat_date" property="statDate"/>
+    <result column="indicator_code" property="indicatorCode"/>
+    <result column="metric_value" property="metricValue"/>
+    <result column="metric_value2" property="metricValue2"/>
+    <result column="mom_change" property="momChange"/>
+    <result column="source" property="source"/>
+    <result column="extra" property="extra"/>
+    <result column="created_at" property="createdAt"/>
+    <result column="updated_at" property="updatedAt"/>
+  </resultMap>
+
+  <sql id="Base_Column_List">
+    id, stat_date, indicator_code, metric_value, metric_value2, mom_change, source, extra, created_at, updated_at
+  </sql>
+
+  <insert id="batchInsertIgnore">
+    INSERT IGNORE INTO macro_daily (stat_date, indicator_code, metric_value, metric_value2, mom_change, source, extra)
+    VALUES
+    <foreach collection="list" item="item" separator=",">
+      (#{item.statDate}, #{item.indicatorCode}, #{item.metricValue}, #{item.metricValue2}, #{item.momChange}, #{item.source}, #{item.extra})
+    </foreach>
+  </insert>
+
+  <select id="selectByIndicatorAndDateRange" resultMap="BaseResultMap">
+    SELECT <include refid="Base_Column_List"/> FROM macro_daily
+    WHERE indicator_code = #{indicatorCode}
+      AND stat_date &gt;= #{startDate} AND stat_date &lt;= #{endDate}
+    ORDER BY stat_date ASC
+  </select>
+
+  <select id="selectByIndicatorsAndDateRange" resultMap="BaseResultMap">
+    SELECT <include refid="Base_Column_List"/> FROM macro_daily
+    WHERE indicator_code IN
+    <foreach collection="indicatorCodes" item="code" open="(" separator="," close=")">
+      #{code}
+    </foreach>
+      AND stat_date &gt;= #{startDate} AND stat_date &lt;= #{endDate}
+    ORDER BY stat_date ASC, indicator_code ASC
+  </select>
+
+  <select id="selectDistinctIndicatorCodes" resultType="java.lang.String">
+    SELECT DISTINCT indicator_code FROM macro_daily ORDER BY indicator_code
+  </select>
+
+  <select id="selectByUniqueKey" resultMap="BaseResultMap">
+    SELECT <include refid="Base_Column_List"/> FROM macro_daily
+    WHERE stat_date = #{statDate} AND indicator_code = #{indicatorCode}
+    LIMIT 1
+  </select>
+
+  <update id="updateMetricValue">
+    UPDATE macro_daily
+    SET metric_value = #{record.metricValue}, metric_value2 = #{record.metricValue2},
+        mom_change = #{record.momChange}, source = #{record.source}, extra = #{record.extra}, updated_at = NOW()
+    WHERE stat_date = #{record.statDate} AND indicator_code = #{record.indicatorCode}
+  </update>
+
+  <delete id="deleteByDateAndIndicator">
+    DELETE FROM macro_daily WHERE stat_date = #{statDate} AND indicator_code = #{indicatorCode}
+  </delete>
+
+  <delete id="deleteByDateRange">
+    DELETE FROM macro_daily WHERE stat_date &gt;= #{startDate} AND stat_date &lt;= #{endDate} AND indicator_code = #{indicatorCode}
+  </delete>
+</mapper>
