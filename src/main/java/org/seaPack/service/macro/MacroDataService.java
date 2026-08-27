@@ -220,4 +220,5 @@ public class MacroDataService {
             default: return monthlyMapper.deleteByDateRange(startDate, endDate, indicatorCode);
         }
     }
+
 }
