@@ -7,6 +7,18 @@
 
 BEGIN;
 
+-- -----------------------------------------------------------
+-- 补充 M0、M1、M2 完整6个指标元数据
+-- -----------------------------------------------------------
+INSERT IGNORE INTO `sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
+('M0',           'M0 余额',            'monthly', '万亿元', 'line', '#409EFF', 1),
+('M1',           'M1 余额',            'monthly', '万亿元', 'line', '#67C23A', 2),
+('M2',           'M2 余额',            'monthly', '万亿元', 'line', '#E6A23C', 3),
+('M0_YOY',       'M0 同比增速',        'monthly', '%',     'line', '#409EFF', 4),
+('M1_YOY',       'M1 同比增速',        'monthly', '%',     'line', '#67C23A', 5),
+('M2_YOY',       'M2 同比增速',        'monthly', '%',     'line', '#E6A23C', 6),
+
+
 INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `data_version`, `source`) VALUES
     ('2000-01-01', 'M0', 1.47, 1, 'PBC'),
     ('2000-01-01', 'M1', 53.1, 1, 'PBC'),

@@ -113,12 +113,5 @@ INSERT IGNORE INTO `sys_macro_indicator_meta` (`indicator_code`, `indicator_name
 ('TOTAL_USD',    '合计（亿美元）',      'monthly', '亿美元', 'bar',  '#909399', 27),
 ('LOAN_NEW',     '当月新增贷款',        'monthly', '亿元',   'bar',  '#409EFF', 28),
 ('LOAN_YOY',     '同比多增',            'monthly', '亿元',   'bar',  '#67C23A', 29),
-('SHIBOR_ON',    'SHIBOR 隔夜',        'daily',   '%',     'line', '#409EFF', 1),
-('SHIBOR_1W',    'SHIBOR 1周',         'daily',   '%',     'line', '#67C23A', 2),
-('SHIBOR_1M',    'SHIBOR 1月',         'daily',   '%',     'line', '#E6A23C', 3),
-('SHIBOR_1Y',    'SHIBOR 1年',         'daily',   '%',     'line', '#F56C6C', 4),
-('MARGIN_BUY',   '融资余额',            'daily',   '亿元',   'line', '#409EFF', 5),
-('SHORT_SELL',   '融券余额',            'daily',   '亿元',   'line', '#F56C6C', 6),
-('MARGIN_TOTAL', '两融合计',            'daily',   '亿元',   'bar',  '#67C23A', 7),
 ('NEW_INVEST',   '新增投资者',          'weekly',  '万人',   'bar',  '#9C27B0', 1),
 ('TOTAL_INVEST', '累计投资者',          'weekly',  '万人',   'line', '#E6A23C', 2);
