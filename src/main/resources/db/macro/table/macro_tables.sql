@@ -84,15 +84,6 @@ CREATE TABLE IF NOT EXISTS `macro_weekly` (
 -- 初始化指标字典数据
 -- -----------------------------------------------------------
 INSERT IGNORE INTO `sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
-('M0',           'M0 余额',            'monthly', '万亿元', 'line', '#409EFF', 1),
-('M1',           'M1 余额',            'monthly', '万亿元', 'line', '#67C23A', 2),
-('M2',           'M2 余额',            'monthly', '万亿元', 'line', '#E6A23C', 3),
-('M0_YOY',       'M0 同比增速',        'monthly', '%',     'line', '#409EFF', 4),
-('M1_YOY',       'M1 同比增速',        'monthly', '%',     'line', '#67C23A', 5),
-('M2_YOY',       'M2 同比增速',        'monthly', '%',     'line', '#E6A23C', 6),
-('SF_NEW',       '社融当月新增',        'monthly', '万亿元', 'bar',  '#409EFF', 7),
-('SF_STOCK',     '社融存量',            'monthly', '万亿元', 'bar',  '#67C23A', 8),
-('SF_YOY',       '社融存量同比',        'monthly', '%',     'line', '#F56C6C', 9),
 ('PMI_MFG',      '制造业 PMI',         'monthly', '—',     'line', '#409EFF', 10),
 ('PMI_NONMFG',   '非制造业 PMI',       'monthly', '—',     'line', '#67C23A', 11),
 ('PMI_COMP',     '综合 PMI',           'monthly', '—',     'line', '#E6A23C', 12),
@@ -104,12 +95,10 @@ INSERT IGNORE INTO `sys_macro_indicator_meta` (`indicator_code`, `indicator_name
 ('LPR_5Y',       '5年期 LPR',          'monthly', '%',     'step', '#F56C6C', 18),
 ('FOREX_USD',    '外汇储备（亿美元）',  'monthly', '亿美元', 'bar',  '#409EFF', 19),
 ('FOREX_SDR',    '外汇储备（亿SDR）',   'monthly', '亿SDR', 'bar',  '#67C23A', 20),
-('FOREX_CHG',    '外汇储备环比变化',    'monthly', '亿美元', 'bar',  '#909399', 21),
 ('IMF_USD',      '基金组织头寸',        'monthly', '亿美元', 'bar',  '#67C23A', 22),
 ('SDR_USD',      '特别提款权',          'monthly', '亿美元', 'bar',  '#E6A23C', 23),
 ('GOLD_USD',     '黄金价值（亿美元）',  'monthly', '亿美元', 'line', '#E6A23C', 24),
 ('GOLD_OZ',      '黄金储备（万盎司）',  'monthly', '万盎司', 'line', '#E6A23C', 25),
-('GOLD_CHG',     '黄金储备环比变化',    'monthly', '万盎司', 'bar',  '#909399', 26),
 ('TOTAL_USD',    '合计（亿美元）',      'monthly', '亿美元', 'bar',  '#909399', 27),
 ('LOAN_NEW',     '当月新增贷款',        'monthly', '亿元',   'bar',  '#409EFF', 28),
 ('LOAN_YOY',     '同比多增',            'monthly', '亿元',   'bar',  '#67C23A', 29),
