@@ -26,6 +26,7 @@ class EmailDeliveryTest {
 
         for (int round = 1; round <= 3; round++) {
             SimpleMailMessage msg = new SimpleMailMessage();
+            msg.setFrom("3270937741@qq.com");
             msg.setTo(recipients);
             msg.setSubject("[Monitor] 系统健康检查 #round-" + round);
             msg.setText("这是一封自动化监控测试邮件。\n\n" +
