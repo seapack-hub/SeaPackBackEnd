@@ -1,4 +1,4 @@
--- ============================================================
+﻿-- ============================================================
 -- 中国官方储备资产数据 — 指标字典与数据插入 (2017年01月 - 2026年07月)
 -- 数据来源: 中国人民银行 / 国家外汇管理局
 -- ============================================================
@@ -6,7 +6,7 @@
 -- -----------------------------------------------------------
 -- 0. 指标元数据字典
 -- -----------------------------------------------------------
-INSERT IGNORE INTO `sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
+INSERT IGNORE INTO sea_pack.`sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
 ('FOREX_USD',    '外汇储备（亿美元）',  'monthly', '亿美元', 'bar',  '#409EFF', 19),
 ('FOREX_SDR',    '外汇储备（亿SDR）',   'monthly', '亿SDR', 'bar',  '#67C23A', 20),
 ('IMF_USD',      '基金组织储备头寸（亿美元）', 'monthly', '亿美元', 'bar',  '#67C23A', 22),
@@ -19,7 +19,7 @@ INSERT IGNORE INTO `sys_macro_indicator_meta` (`indicator_code`, `indicator_name
 -- -----------------------------------------------------------
 
 -- 外汇储备（2017年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2017-01-01', 'FOREX_USD', 29982.04, 22064.63, '央行'),
 ('2017-02-01', 'FOREX_USD', 30051.24, 22196.18, '央行'),
 ('2017-03-01', 'FOREX_USD', 30090.88, 22177.04, '央行'),
@@ -34,7 +34,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2017-12-01', 'FOREX_USD', 31399.49, 22048.12, '央行');
 
 -- 基金组织储备头寸（2017年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2017-01-01', 'IMF_USD', 97.0, 71.39, '央行'),
 ('2017-02-01', 'IMF_USD', 96.65, 71.39, '央行'),
 ('2017-03-01', 'IMF_USD', 96.25, 70.94, '央行'),
@@ -49,7 +49,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2017-12-01', 'IMF_USD', 79.47, 55.8, '央行');
 
 -- 特别提款权（2017年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2017-01-01', 'SDR_USD', 97.67, 71.87, '央行'),
 ('2017-02-01', 'SDR_USD', 97.41, 71.95, '央行'),
 ('2017-03-01', 'SDR_USD', 97.62, 71.95, '央行'),
@@ -64,7 +64,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2017-12-01', 'SDR_USD', 109.81, 77.11, '央行');
 
 -- 黄金价值（2017年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2017-01-01', 'GOLD_USD', 712.92, 524.66, '央行'),
 ('2017-02-01', 'GOLD_USD', 743.76, 549.35, '央行'),
 ('2017-03-01', 'GOLD_USD', 737.39, 543.46, '央行'),
@@ -79,7 +79,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2017-12-01', 'GOLD_USD', 764.73, 536.98, '央行');
 
 -- 黄金储备（2017年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2017-01-01', 'GOLD_OZ', 5924, NULL, '央行'),
 ('2017-02-01', 'GOLD_OZ', 5924, NULL, '央行'),
 ('2017-03-01', 'GOLD_OZ', 5924, NULL, '央行'),
@@ -94,7 +94,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2017-12-01', 'GOLD_OZ', 5924, NULL, '央行');
 
 -- 外汇储备（2018年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2018-01-01', 'FOREX_USD', 31614.57, 21696.57, '央行'),
 ('2018-02-01', 'FOREX_USD', 31344.82, 21678.61, '央行'),
 ('2018-03-01', 'FOREX_USD', 31428.2, 21617.01, '央行'),
@@ -109,7 +109,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2018-12-01', 'FOREX_USD', 30727.12, 22093.26, '央行');
 
 -- 基金组织储备头寸（2018年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2018-01-01', 'IMF_USD', 77.84, 53.42, '央行'),
 ('2018-02-01', 'IMF_USD', 77.02, 53.27, '央行'),
 ('2018-03-01', 'IMF_USD', 77.44, 53.27, '央行'),
@@ -124,7 +124,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2018-12-01', 'IMF_USD', 84.79, 60.97, '央行');
 
 -- 特别提款权（2018年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2018-01-01', 'SDR_USD', 112.51, 77.21, '央行'),
 ('2018-02-01', 'SDR_USD', 111.41, 77.05, '央行'),
 ('2018-03-01', 'SDR_USD', 112.19, 77.17, '央行'),
@@ -139,7 +139,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2018-12-01', 'SDR_USD', 106.9, 76.86, '央行');
 
 -- 黄金价值（2018年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2018-01-01', 'GOLD_USD', 796.75, 546.8, '央行'),
 ('2018-02-01', 'GOLD_USD', 780.64, 539.9, '央行'),
 ('2018-03-01', 'GOLD_USD', 784.19, 539.38, '央行'),
@@ -154,7 +154,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2018-12-01', 'GOLD_USD', 763.31, 548.83, '央行');
 
 -- 黄金储备（2018年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2018-01-01', 'GOLD_OZ', 5924, NULL, '央行'),
 ('2018-02-01', 'GOLD_OZ', 5924, NULL, '央行'),
 ('2018-03-01', 'GOLD_OZ', 5924, NULL, '央行'),
@@ -169,7 +169,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2018-12-01', 'GOLD_OZ', 5956, NULL, '央行');
 
 -- 外汇储备（2019年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2019-01-01', 'FOREX_USD', 30879.24, 22045.61, '央行'),
 ('2019-02-01', 'FOREX_USD', 30901.8, 22104.67, '央行'),
 ('2019-03-01', 'FOREX_USD', 30987.61, 22321.33, '央行'),
@@ -184,7 +184,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2019-12-01', 'FOREX_USD', 31079.24, 22475.17, '央行');
 
 -- 基金组织储备头寸（2019年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2019-01-01', 'IMF_USD', 84.85, 60.58, '央行'),
 ('2019-02-01', 'IMF_USD', 84.68, 60.58, '央行'),
 ('2019-03-01', 'IMF_USD', 84.09, 60.58, '央行'),
@@ -199,7 +199,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2019-12-01', 'IMF_USD', 84.44, 61.06, '央行');
 
 -- 特别提款权（2019年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2019-01-01', 'SDR_USD', 107.86, 77.01, '央行'),
 ('2019-02-01', 'SDR_USD', 107.94, 77.21, '央行'),
 ('2019-03-01', 'SDR_USD', 107.22, 77.23, '央行'),
@@ -214,7 +214,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2019-12-01', 'SDR_USD', 111.26, 80.46, '央行');
 
 -- 黄金价值（2019年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2019-01-01', 'GOLD_USD', 793.19, 566.29, '央行'),
 ('2019-02-01', 'GOLD_USD', 794.98, 568.66, '央行'),
 ('2019-03-01', 'GOLD_USD', 785.25, 565.64, '央行'),
@@ -229,7 +229,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2019-12-01', 'GOLD_USD', 954.06, 689.94, '央行');
 
 -- 黄金储备（2019年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2019-01-01', 'GOLD_OZ', 5994, NULL, '央行'),
 ('2019-02-01', 'GOLD_OZ', 6026, NULL, '央行'),
 ('2019-03-01', 'GOLD_OZ', 6062, NULL, '央行'),
@@ -244,7 +244,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2019-12-01', 'GOLD_OZ', 6264, NULL, '央行');
 
 -- 外汇储备（2020年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2020-01-01', 'FOREX_USD', 31154.97, 22626.05, '央行'),
 ('2020-02-01', 'FOREX_USD', 31067.18, 22622.59, '央行'),
 ('2020-03-01', 'FOREX_USD', 30606.33, 22425.53, '央行'),
@@ -259,7 +259,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2020-12-01', 'FOREX_USD', 32165.22, 22332.79, '央行');
 
 -- 基金组织储备头寸（2020年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2020-01-01', 'IMF_USD', 83.75, 60.82, '央行'),
 ('2020-02-01', 'IMF_USD', 81.2, 59.13, '央行'),
 ('2020-03-01', 'IMF_USD', 80.7, 59.13, '央行'),
@@ -274,7 +274,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2020-12-01', 'IMF_USD', 107.65, 74.74, '央行');
 
 -- 特别提款权（2020年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2020-01-01', 'SDR_USD', 110.96, 80.58, '央行'),
 ('2020-02-01', 'SDR_USD', 110.87, 80.73, '央行'),
 ('2020-03-01', 'SDR_USD', 110.19, 80.74, '央行'),
@@ -289,7 +289,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2020-12-01', 'SDR_USD', 114.95, 79.81, '央行');
 
 -- 黄金价值（2020年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2020-01-01', 'GOLD_USD', 992.4, 720.72, '央行'),
 ('2020-02-01', 'GOLD_USD', 1008.47, 734.35, '央行'),
 ('2020-03-01', 'GOLD_USD', 1007.9, 738.5, '央行'),
@@ -304,7 +304,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2020-12-01', 'GOLD_USD', 1182.46, 821.0, '央行');
 
 -- 黄金储备（2020年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2020-01-01', 'GOLD_OZ', 6264, NULL, '央行'),
 ('2020-02-01', 'GOLD_OZ', 6264, NULL, '央行'),
 ('2020-03-01', 'GOLD_OZ', 6264, NULL, '央行'),
@@ -319,7 +319,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2020-12-01', 'GOLD_OZ', 6264, NULL, '央行');
 
 -- 外汇储备（2021年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2021-01-01', 'FOREX_USD', 32106.71, 22283.92, '央行'),
 ('2021-02-01', 'FOREX_USD', 32049.94, 22268.17, '央行'),
 ('2021-03-01', 'FOREX_USD', 31700.29, 22368.14, '央行'),
@@ -334,7 +334,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2021-12-01', 'FOREX_USD', 32501.66, 23222.21, '央行');
 
 -- 基金组织储备头寸（2021年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2021-01-01', 'IMF_USD', 107.69, 74.74, '央行'),
 ('2021-02-01', 'IMF_USD', 107.52, 74.7, '央行'),
 ('2021-03-01', 'IMF_USD', 102.73, 72.49, '央行'),
@@ -349,7 +349,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2021-12-01', 'IMF_USD', 106.89, 76.37, '央行');
 
 -- 特别提款权（2021年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2021-01-01', 'SDR_USD', 115.09, 79.88, '央行'),
 ('2021-02-01', 'SDR_USD', 115.0, 79.9, '央行'),
 ('2021-03-01', 'SDR_USD', 113.33, 79.97, '央行'),
@@ -364,7 +364,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2021-12-01', 'SDR_USD', 530.65, 379.15, '央行');
 
 -- 黄金价值（2021年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2021-01-01', 'GOLD_USD', 1167.55, 810.35, '央行'),
 ('2021-02-01', 'GOLD_USD', 1091.78, 758.56, '央行'),
 ('2021-03-01', 'GOLD_USD', 1059.33, 747.48, '央行'),
@@ -379,7 +379,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2021-12-01', 'GOLD_USD', 1131.25, 808.27, '央行');
 
 -- 黄金储备（2021年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2021-01-01', 'GOLD_OZ', 6264, NULL, '央行'),
 ('2021-02-01', 'GOLD_OZ', 6264, NULL, '央行'),
 ('2021-03-01', 'GOLD_OZ', 6264, NULL, '央行'),
@@ -394,7 +394,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2021-12-01', 'GOLD_OZ', 6264, NULL, '央行');
 
 -- 外汇储备（2022年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2022-01-01', 'FOREX_USD', 32216.32, 23147.52, '央行'),
 ('2022-02-01', 'FOREX_USD', 32138.27, 23040.44, '央行'),
 ('2022-03-01', 'FOREX_USD', 31879.94, 23061.31, '央行'),
@@ -409,7 +409,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2022-12-01', 'FOREX_USD', 31276.91, 23501.56, '央行');
 
 -- 基金组织储备头寸（2022年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2022-01-01', 'IMF_USD', 106.29, 76.37, '央行'),
 ('2022-02-01', 'IMF_USD', 106.47, 76.33, '央行'),
 ('2022-03-01', 'IMF_USD', 104.71, 75.75, '央行'),
@@ -424,7 +424,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2022-12-01', 'IMF_USD', 108.39, 81.44, '央行');
 
 -- 特别提款权（2022年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2022-01-01', 'SDR_USD', 535.09, 384.46, '央行'),
 ('2022-02-01', 'SDR_USD', 536.31, 384.49, '央行'),
 ('2022-03-01', 'SDR_USD', 531.6, 384.55, '央行'),
@@ -439,7 +439,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2022-12-01', 'SDR_USD', 511.59, 384.41, '央行');
 
 -- 黄金价值（2022年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2022-01-01', 'GOLD_USD', 1124.61, 808.04, '央行'),
 ('2022-02-01', 'GOLD_USD', 1196.4, 857.72, '央行'),
 ('2022-03-01', 'GOLD_USD', 1216.63, 880.09, '央行'),
@@ -454,7 +454,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2022-12-01', 'GOLD_USD', 1172.35, 880.91, '央行');
 
 -- 黄金储备（2022年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2022-01-01', 'GOLD_OZ', 6264, NULL, '央行'),
 ('2022-02-01', 'GOLD_OZ', 6264, NULL, '央行'),
 ('2022-03-01', 'GOLD_OZ', 6264, NULL, '央行'),
@@ -469,7 +469,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2022-12-01', 'GOLD_OZ', 6464, NULL, '央行');
 
 -- 外汇储备（2023年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2023-01-01', 'FOREX_USD', 31844.62, 23615.4, '央行'),
 ('2023-02-01', 'FOREX_USD', 31331.53, 23579.08, '央行'),
 ('2023-03-01', 'FOREX_USD', 31838.72, 23667.85, '央行'),
@@ -484,7 +484,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2023-12-01', 'FOREX_USD', 32379.77, 24133.94, '央行');
 
 -- 基金组织储备头寸（2023年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2023-01-01', 'IMF_USD', 109.82, 81.44, '央行'),
 ('2023-02-01', 'IMF_USD', 108.22, 81.44, '央行'),
 ('2023-03-01', 'IMF_USD', 109.15, 81.14, '央行'),
@@ -499,7 +499,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2023-12-01', 'IMF_USD', 97.47, 72.65, '央行');
 
 -- 特别提款权（2023年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2023-01-01', 'SDR_USD', 519.71, 385.41, '央行'),
 ('2023-02-01', 'SDR_USD', 516.22, 388.49, '央行'),
 ('2023-03-01', 'SDR_USD', 524.69, 390.04, '央行'),
@@ -514,7 +514,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2023-12-01', 'SDR_USD', 535.96, 399.47, '央行');
 
 -- 黄金价值（2023年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2023-01-01', 'GOLD_USD', 1252.83, 929.08, '央行'),
 ('2023-02-01', 'GOLD_USD', 1202.83, 905.21, '央行'),
 ('2023-03-01', 'GOLD_USD', 1316.53, 978.66, '央行'),
@@ -529,7 +529,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2023-12-01', 'GOLD_USD', 1482.26, 1104.79, '央行');
 
 -- 黄金储备（2023年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2023-01-01', 'GOLD_OZ', 6512, NULL, '央行'),
 ('2023-02-01', 'GOLD_OZ', 6592, NULL, '央行'),
 ('2023-03-01', 'GOLD_OZ', 6650, NULL, '央行'),
@@ -544,7 +544,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2023-12-01', 'GOLD_OZ', 7187, NULL, '央行');
 
 -- 外汇储备（2024年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2024-01-01', 'FOREX_USD', 32193.2, 24207.52, '央行'),
 ('2024-02-01', 'FOREX_USD', 32258.17, 24298.76, '央行'),
 ('2024-03-01', 'FOREX_USD', 32456.57, 24513.12, '央行'),
@@ -559,7 +559,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2024-12-01', 'FOREX_USD', 32023.57, 24555.42, '央行');
 
 -- 基金组织储备头寸（2024年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2024-01-01', 'IMF_USD', 98.89, 74.36, '央行'),
 ('2024-02-01', 'IMF_USD', 98.72, 74.36, '央行'),
 ('2024-03-01', 'IMF_USD', 98.45, 74.36, '央行'),
@@ -574,7 +574,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2024-12-01', 'IMF_USD', 97.58, 74.82, '央行');
 
 -- 特别提款权（2024年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2024-01-01', 'SDR_USD', 532.96, 400.76, '央行'),
 ('2024-02-01', 'SDR_USD', 533.69, 402.01, '央行'),
 ('2024-03-01', 'SDR_USD', 532.03, 401.82, '央行'),
@@ -589,7 +589,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2024-12-01', 'SDR_USD', 526.88, 404.01, '央行');
 
 -- 黄金价值（2024年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2024-01-01', 'GOLD_USD', 1482.29, 1114.6, '央行'),
 ('2024-02-01', 'GOLD_USD', 1486.44, 1119.67, '央行'),
 ('2024-03-01', 'GOLD_USD', 1610.69, 1216.49, '央行'),
@@ -604,7 +604,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2024-12-01', 'GOLD_USD', 1913.37, 1467.16, '央行');
 
 -- 黄金储备（2024年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2024-01-01', 'GOLD_OZ', 7219, NULL, '央行'),
 ('2024-02-01', 'GOLD_OZ', 7258, NULL, '央行'),
 ('2024-03-01', 'GOLD_OZ', 7274, NULL, '央行'),
@@ -619,7 +619,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2024-12-01', 'GOLD_OZ', 7329, NULL, '央行');
 
 -- 外汇储备（2025年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2025-01-01', 'FOREX_USD', 32090.36, 24612.47, '央行'),
 ('2025-02-01', 'FOREX_USD', 32272.24, 24654.06, '央行'),
 ('2025-03-01', 'FOREX_USD', 32406.65, 24389.83, '央行'),
@@ -634,7 +634,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2025-12-01', 'FOREX_USD', 33578.69, 24518.89, '央行');
 
 -- 基金组织储备头寸（2025年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2025-01-01', 'IMF_USD', 100.48, 77.07, '央行'),
 ('2025-02-01', 'IMF_USD', 100.87, 77.06, '央行'),
 ('2025-03-01', 'IMF_USD', 101.12, 76.1, '央行'),
@@ -649,7 +649,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2025-12-01', 'IMF_USD', 111.79, 81.63, '央行');
 
 -- 特别提款权（2025年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2025-01-01', 'SDR_USD', 527.12, 404.29, '央行'),
 ('2025-02-01', 'SDR_USD', 530.77, 405.48, '央行'),
 ('2025-03-01', 'SDR_USD', 538.82, 405.53, '央行'),
@@ -664,7 +664,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2025-12-01', 'SDR_USD', 558.24, 407.62, '央行');
 
 -- 黄金价值（2025年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2025-01-01', 'GOLD_USD', 2065.34, 1584.06, '央行'),
 ('2025-02-01', 'GOLD_USD', 2086.43, 1593.91, '央行'),
 ('2025-03-01', 'GOLD_USD', 2295.94, 1727.97, '央行'),
@@ -679,7 +679,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2025-12-01', 'GOLD_USD', 3194.5, 2332.6, '央行');
 
 -- 黄金储备（2025年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2025-01-01', 'GOLD_OZ', 7345, NULL, '央行'),
 ('2025-02-01', 'GOLD_OZ', 7361, NULL, '央行'),
 ('2025-03-01', 'GOLD_OZ', 7370, NULL, '央行'),
@@ -694,7 +694,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2025-12-01', 'GOLD_OZ', 7415, NULL, '央行');
 
 -- 外汇储备（2026年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2026-01-01', 'FOREX_USD', 33990.78, 24597.67, '央行'),
 ('2026-02-01', 'FOREX_USD', 34278.07, 24933.77, '央行'),
 ('2026-03-01', 'FOREX_USD', 33421.23, 24639.84, '央行'),
@@ -704,7 +704,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2026-07-01', 'FOREX_USD', 34187.76, 25070.26, '央行');
 
 -- 基金组织储备头寸（2026年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2026-01-01', 'IMF_USD', 111.98, 81.04, '央行'),
 ('2026-02-01', 'IMF_USD', 111.4, 81.03, '央行'),
 ('2026-03-01', 'IMF_USD', 109.03, 80.38, '央行'),
@@ -714,7 +714,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2026-07-01', 'IMF_USD', 110.42, 80.97, '央行');
 
 -- 特别提款权（2026年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2026-01-01', 'SDR_USD', 562.34, 406.94, '央行'),
 ('2026-02-01', 'SDR_USD', 560.93, 408.02, '央行'),
 ('2026-03-01', 'SDR_USD', 553.43, 408.02, '央行'),
@@ -724,7 +724,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2026-07-01', 'SDR_USD', 557.41, 408.75, '央行');
 
 -- 黄金价值（2026年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2026-01-01', 'GOLD_USD', 3695.82, 2674.51, '央行'),
 ('2026-02-01', 'GOLD_USD', 3875.88, 2819.3, '央行'),
 ('2026-03-01', 'GOLD_USD', 3427.63, 2527.02, '央行'),
@@ -734,7 +734,7 @@ INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `met
 ('2026-07-01', 'GOLD_USD', 3063.54, 2246.53, '央行');
 
 -- 黄金储备（2026年）
-INSERT INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2026-01-01', 'GOLD_OZ', 7419, NULL, '央行'),
 ('2026-02-01', 'GOLD_OZ', 7422, NULL, '央行'),
 ('2026-03-01', 'GOLD_OZ', 7438, NULL, '央行'),

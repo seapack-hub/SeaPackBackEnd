@@ -1,0 +1,23 @@
+CREATE TABLE `blog_article` (
+  `id`          BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `title`       VARCHAR(200) NOT NULL                COMMENT '文章标题',
+  `summary`     VARCHAR(500) NOT NULL DEFAULT ''      COMMENT '摘要',
+  `content_md`  MEDIUMTEXT   NOT NULL                COMMENT 'Markdown正文',
+  `content_html` MEDIUMTEXT  NOT NULL                COMMENT '渲染后的HTML（缓存）',
+  `category`    VARCHAR(50)  NOT NULL                COMMENT '分类key，关联 dict(dictType=blog_category).dictCode',
+  `tag`         VARCHAR(50)  NOT NULL DEFAULT ''      COMMENT '标签名',
+  `tag_type`    VARCHAR(20)  NOT NULL DEFAULT ''      COMMENT '标签颜色类型，可选: success/warning/danger/info',
+  `cover_icon`  VARCHAR(20)  NOT NULL DEFAULT '📝'    COMMENT '封面Emoji图标',
+  `cover_color` VARCHAR(100) NOT NULL DEFAULT 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' COMMENT '封面渐变色',
+  `status`      TINYINT      NOT NULL DEFAULT 0       COMMENT '状态: 0草稿 1已发布',
+  `view_count`  INT          NOT NULL DEFAULT 0       COMMENT '阅读数',
+  `like_count`  INT          NOT NULL DEFAULT 0       COMMENT '点赞数',
+  `is_top`      TINYINT      NOT NULL DEFAULT 0       COMMENT '是否置顶: 0否 1是',
+  `sort`        INT          NOT NULL DEFAULT 0       COMMENT '排序号（置顶文章排序用）',
+  `create_time` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_category` (`category`),
+  KEY `idx_status` (`status`),
+  KEY `idx_create_time` (`create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='博客文章表';

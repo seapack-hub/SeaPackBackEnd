@@ -36,7 +36,7 @@ class EmailDeliveryTest {
             mailSender.send(msg);
             System.out.println("第 " + round + " 轮邮件发送完成");
 
-            if (round < 3) {
+            if (round < 2) {
                 Thread.sleep(60_000); // 每轮间隔1分钟
             }
         }

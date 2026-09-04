@@ -1,0 +1,21 @@
+CREATE TABLE `fund_base_info` (
+  `fund_code` varchar(10) NOT NULL COMMENT '基金代码, 主键',
+  `fund_name` varchar(100) NOT NULL COMMENT '基金简称',
+  `fund_full_name` varchar(200) DEFAULT NULL COMMENT '基金全称',
+  `fund_type` varchar(20) NOT NULL COMMENT '基金类型',
+  `management_company` varchar(100) NOT NULL COMMENT '基金管理公司',
+  `custodian` varchar(100) DEFAULT NULL COMMENT '托管人',
+  `incept_date` date NOT NULL COMMENT '成立日期',
+  `issue_share` decimal(20,4) DEFAULT NULL COMMENT '成立规模(亿元)',
+  `m_fee` decimal(6,4) NOT NULL COMMENT '管理费率',
+  `c_fee` decimal(6,4) NOT NULL COMMENT '托管费率',
+  `s_fee` decimal(6,4) DEFAULT '0.0000' COMMENT '销售服务费率',
+  `latest_asset_size` decimal(20,4) DEFAULT NULL COMMENT '最新资产规模(亿元)',
+  `status` varchar(10) DEFAULT '正常' COMMENT '基金状态',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '记录创建时间',
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '记录更新时间',
+  PRIMARY KEY (`fund_code`),
+  KEY `idx_type` (`fund_type`),
+  KEY `idx_company` (`management_company`),
+  KEY `idx_incept_date` (`incept_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='基金基本信息表';

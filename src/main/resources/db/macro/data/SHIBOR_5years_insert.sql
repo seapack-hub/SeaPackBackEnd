@@ -1,4 +1,4 @@
--- ============================================================
+﻿-- ============================================================
 -- SHIBOR 银行间同业拆放利率 最近5年日频数据
 -- 数据期间: 2021-08-30 ~ 2026-08-27
 -- 期限品种: 隔夜(ON)、1周、2周、1月、3月、6月、9月、1年
@@ -8,7 +8,7 @@
 -- -----------------------------------------------------------
 -- 补充 SHIBOR 完整8个期限的指标元数据
 -- -----------------------------------------------------------
-INSERT IGNORE INTO `sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
+INSERT IGNORE INTO sea_pack.`sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
 ('SHIBOR_ON', 'SHIBOR 隔夜', 'daily', '%', 'line', '#409EFF', 1),
 ('SHIBOR_1W', 'SHIBOR 1周', 'daily', '%', 'line', '#67C23A', 2),
 ('SHIBOR_2W', 'SHIBOR 2周', 'daily', '%', 'line', '#E6A23C', 3),
@@ -21,7 +21,7 @@ INSERT IGNORE INTO `sys_macro_indicator_meta` (`indicator_code`, `indicator_name
 -- -----------------------------------------------------------
 -- 插入 SHIBOR 日频数据到 macro_daily 表
 -- -----------------------------------------------------------
-INSERT INTO `macro_daily` (`stat_date`, `indicator_code`, `metric_value`, `mom_change`, `source`) VALUES
+INSERT INTO sea_pack.`macro_daily` (`stat_date`, `indicator_code`, `metric_value`, `mom_change`, `source`) VALUES
 ('2021-08-30', 'SHIBOR_ON', 2.0767, NULL, '中国外汇交易中心/SHIBOR'),
 ('2021-08-30', 'SHIBOR_1W', 2.1900, NULL, '中国外汇交易中心/SHIBOR'),
 ('2021-08-30', 'SHIBOR_2W', 2.2833, NULL, '中国外汇交易中心/SHIBOR'),
@@ -1023,7 +1023,7 @@ INSERT INTO `macro_daily` (`stat_date`, `indicator_code`, `metric_value`, `mom_c
 ('2022-02-18', 'SHIBOR_9M', 2.6221, 0.0024, '中国外汇交易中心/SHIBOR'),
 ('2022-02-18', 'SHIBOR_1Y', 2.6841, -0.0016, '中国外汇交易中心/SHIBOR');
 
-INSERT INTO `macro_daily` (`stat_date`, `indicator_code`, `metric_value`, `mom_change`, `source`) VALUES
+INSERT INTO sea_pack.`macro_daily` (`stat_date`, `indicator_code`, `metric_value`, `mom_change`, `source`) VALUES
 ('2022-02-21', 'SHIBOR_ON', 1.8757, 0.0360, '中国外汇交易中心/SHIBOR'),
 ('2022-02-21', 'SHIBOR_1W', 2.1733, 0.0037, '中国外汇交易中心/SHIBOR'),
 ('2022-02-21', 'SHIBOR_2W', 2.3602, 0.0055, '中国外汇交易中心/SHIBOR'),
@@ -2025,7 +2025,7 @@ INSERT INTO `macro_daily` (`stat_date`, `indicator_code`, `metric_value`, `mom_c
 ('2022-08-12', 'SHIBOR_9M', 2.4318, -0.0037, '中国外汇交易中心/SHIBOR'),
 ('2022-08-12', 'SHIBOR_1Y', 2.5508, 0.0031, '中国外汇交易中心/SHIBOR');
 
-INSERT INTO `macro_daily` (`stat_date`, `indicator_code`, `metric_value`, `mom_change`, `source`) VALUES
+INSERT INTO sea_pack.`macro_daily` (`stat_date`, `indicator_code`, `metric_value`, `mom_change`, `source`) VALUES
 ('2022-08-15', 'SHIBOR_ON', 1.4576, -0.0254, '中国外汇交易中心/SHIBOR'),
 ('2022-08-15', 'SHIBOR_1W', 1.9648, -0.0084, '中国外汇交易中心/SHIBOR'),
 ('2022-08-15', 'SHIBOR_2W', 2.0856, 0.0013, '中国外汇交易中心/SHIBOR'),
@@ -3027,7 +3027,7 @@ INSERT INTO `macro_daily` (`stat_date`, `indicator_code`, `metric_value`, `mom_c
 ('2023-02-03', 'SHIBOR_9M', 2.5453, 0.0107, '中国外汇交易中心/SHIBOR'),
 ('2023-02-03', 'SHIBOR_1Y', 2.5702, 0.0030, '中国外汇交易中心/SHIBOR');
 
-INSERT INTO `macro_daily` (`stat_date`, `indicator_code`, `metric_value`, `mom_change`, `source`) VALUES
+INSERT INTO sea_pack.`macro_daily` (`stat_date`, `indicator_code`, `metric_value`, `mom_change`, `source`) VALUES
 ('2023-02-06', 'SHIBOR_ON', 2.0961, 0.1499, '中国外汇交易中心/SHIBOR'),
 ('2023-02-06', 'SHIBOR_1W', 2.2223, 0.0440, '中国外汇交易中心/SHIBOR'),
 ('2023-02-06', 'SHIBOR_2W', 2.1624, 0.0552, '中国外汇交易中心/SHIBOR'),
@@ -4029,7 +4029,7 @@ INSERT INTO `macro_daily` (`stat_date`, `indicator_code`, `metric_value`, `mom_c
 ('2023-07-28', 'SHIBOR_9M', 2.5247, 0.0063, '中国外汇交易中心/SHIBOR'),
 ('2023-07-28', 'SHIBOR_1Y', 2.6410, 0.0076, '中国外汇交易中心/SHIBOR');
 
-INSERT INTO `macro_daily` (`stat_date`, `indicator_code`, `metric_value`, `mom_change`, `source`) VALUES
+INSERT INTO sea_pack.`macro_daily` (`stat_date`, `indicator_code`, `metric_value`, `mom_change`, `source`) VALUES
 ('2023-07-31', 'SHIBOR_ON', 1.6171, 0.0058, '中国外汇交易中心/SHIBOR'),
 ('2023-07-31', 'SHIBOR_1W', 2.0782, -0.0170, '中国外汇交易中心/SHIBOR'),
 ('2023-07-31', 'SHIBOR_2W', 2.0786, -0.0002, '中国外汇交易中心/SHIBOR'),
@@ -5031,7 +5031,7 @@ INSERT INTO `macro_daily` (`stat_date`, `indicator_code`, `metric_value`, `mom_c
 ('2024-01-19', 'SHIBOR_9M', 2.4768, -0.0045, '中国外汇交易中心/SHIBOR'),
 ('2024-01-19', 'SHIBOR_1Y', 2.4976, -0.0043, '中国外汇交易中心/SHIBOR');
 
-INSERT INTO `macro_daily` (`stat_date`, `indicator_code`, `metric_value`, `mom_change`, `source`) VALUES
+INSERT INTO sea_pack.`macro_daily` (`stat_date`, `indicator_code`, `metric_value`, `mom_change`, `source`) VALUES
 ('2024-01-22', 'SHIBOR_ON', 1.3306, -0.0115, '中国外汇交易中心/SHIBOR'),
 ('2024-01-22', 'SHIBOR_1W', 1.8940, 0.0102, '中国外汇交易中心/SHIBOR'),
 ('2024-01-22', 'SHIBOR_2W', 1.9632, 0.0063, '中国外汇交易中心/SHIBOR'),
@@ -6033,7 +6033,7 @@ INSERT INTO `macro_daily` (`stat_date`, `indicator_code`, `metric_value`, `mom_c
 ('2024-07-12', 'SHIBOR_9M', 2.1548, 0.0028, '中国外汇交易中心/SHIBOR'),
 ('2024-07-12', 'SHIBOR_1Y', 2.2007, -0.0051, '中国外汇交易中心/SHIBOR');
 
-INSERT INTO `macro_daily` (`stat_date`, `indicator_code`, `metric_value`, `mom_change`, `source`) VALUES
+INSERT INTO sea_pack.`macro_daily` (`stat_date`, `indicator_code`, `metric_value`, `mom_change`, `source`) VALUES
 ('2024-07-15', 'SHIBOR_ON', 0.9118, -0.0148, '中国外汇交易中心/SHIBOR'),
 ('2024-07-15', 'SHIBOR_1W', 1.6700, -0.0134, '中国外汇交易中心/SHIBOR'),
 ('2024-07-15', 'SHIBOR_2W', 1.8081, -0.0001, '中国外汇交易中心/SHIBOR'),
@@ -7035,7 +7035,7 @@ INSERT INTO `macro_daily` (`stat_date`, `indicator_code`, `metric_value`, `mom_c
 ('2025-01-03', 'SHIBOR_9M', 1.9404, -0.0033, '中国外汇交易中心/SHIBOR'),
 ('2025-01-03', 'SHIBOR_1Y', 1.9183, -0.0046, '中国外汇交易中心/SHIBOR');
 
-INSERT INTO `macro_daily` (`stat_date`, `indicator_code`, `metric_value`, `mom_change`, `source`) VALUES
+INSERT INTO sea_pack.`macro_daily` (`stat_date`, `indicator_code`, `metric_value`, `mom_change`, `source`) VALUES
 ('2025-01-06', 'SHIBOR_ON', 1.0174, 0.0082, '中国外汇交易中心/SHIBOR'),
 ('2025-01-06', 'SHIBOR_1W', 1.5969, -0.0216, '中国外汇交易中心/SHIBOR'),
 ('2025-01-06', 'SHIBOR_2W', 1.7682, -0.0218, '中国外汇交易中心/SHIBOR'),
@@ -8037,7 +8037,7 @@ INSERT INTO `macro_daily` (`stat_date`, `indicator_code`, `metric_value`, `mom_c
 ('2025-06-27', 'SHIBOR_9M', 1.7880, -0.0033, '中国外汇交易中心/SHIBOR'),
 ('2025-06-27', 'SHIBOR_1Y', 1.7516, -0.0090, '中国外汇交易中心/SHIBOR');
 
-INSERT INTO `macro_daily` (`stat_date`, `indicator_code`, `metric_value`, `mom_change`, `source`) VALUES
+INSERT INTO sea_pack.`macro_daily` (`stat_date`, `indicator_code`, `metric_value`, `mom_change`, `source`) VALUES
 ('2025-06-30', 'SHIBOR_ON', 1.0668, 0.0147, '中国外汇交易中心/SHIBOR'),
 ('2025-06-30', 'SHIBOR_1W', 1.4610, 0.0130, '中国外汇交易中心/SHIBOR'),
 ('2025-06-30', 'SHIBOR_2W', 1.7234, -0.0106, '中国外汇交易中心/SHIBOR'),
@@ -9039,7 +9039,7 @@ INSERT INTO `macro_daily` (`stat_date`, `indicator_code`, `metric_value`, `mom_c
 ('2025-12-19', 'SHIBOR_9M', 1.6497, 0.0005, '中国外汇交易中心/SHIBOR'),
 ('2025-12-19', 'SHIBOR_1Y', 1.6642, 0.0003, '中国外汇交易中心/SHIBOR');
 
-INSERT INTO `macro_daily` (`stat_date`, `indicator_code`, `metric_value`, `mom_change`, `source`) VALUES
+INSERT INTO sea_pack.`macro_daily` (`stat_date`, `indicator_code`, `metric_value`, `mom_change`, `source`) VALUES
 ('2025-12-22', 'SHIBOR_ON', 1.3328, -0.0155, '中国外汇交易中心/SHIBOR'),
 ('2025-12-22', 'SHIBOR_1W', 1.4874, -0.0032, '中国外汇交易中心/SHIBOR'),
 ('2025-12-22', 'SHIBOR_2W', 1.8779, 0.0053, '中国外汇交易中心/SHIBOR'),
@@ -10041,7 +10041,7 @@ INSERT INTO `macro_daily` (`stat_date`, `indicator_code`, `metric_value`, `mom_c
 ('2026-06-12', 'SHIBOR_9M', 1.4758, 0.0042, '中国外汇交易中心/SHIBOR'),
 ('2026-06-12', 'SHIBOR_1Y', 1.5127, 0.0014, '中国外汇交易中心/SHIBOR');
 
-INSERT INTO `macro_daily` (`stat_date`, `indicator_code`, `metric_value`, `mom_change`, `source`) VALUES
+INSERT INTO sea_pack.`macro_daily` (`stat_date`, `indicator_code`, `metric_value`, `mom_change`, `source`) VALUES
 ('2026-06-15', 'SHIBOR_ON', 1.3967, 0.0048, '中国外汇交易中心/SHIBOR'),
 ('2026-06-15', 'SHIBOR_1W', 1.4886, -0.0072, '中国外汇交易中心/SHIBOR'),
 ('2026-06-15', 'SHIBOR_2W', 1.4931, -0.0078, '中国外汇交易中心/SHIBOR'),

@@ -1,4 +1,4 @@
--- -----------------------------------------------------------
+﻿-- -----------------------------------------------------------
 -- 宏观指标LPR数据SQL文件
 -- 数据来源: 中国人民银行、全国银行间同业拆借中心(chinamoney.com.cn)
 -- 时间范围: 2013-10 ~ 2026-08
@@ -7,7 +7,7 @@
 -- -----------------------------------------------------------
 -- 0. 指标元数据字典
 -- -----------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `sys_macro_indicator_meta` (
+CREATE TABLE IF NOT EXISTS sea_pack.`sys_macro_indicator_meta` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   `indicator_code` VARCHAR(64) NOT NULL COMMENT '指标编码: M0, CPI_YOY, FOREX_USD 等',
   `indicator_name` VARCHAR(128) NOT NULL COMMENT '指标中文名',
@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS `sys_macro_indicator_meta` (
 -- -----------------------------------------------------------
 -- 1. 月频指标（M0/M1/M2、社融、PMI、CPI/PPI、LPR、贷款、储备）
 -- -----------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `macro_monthly` (
+CREATE TABLE IF NOT EXISTS sea_pack.`macro_monthly` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   `stat_date` DATE NOT NULL COMMENT '统计月份（每月1号）',
   `indicator_code` VARCHAR(64) NOT NULL COMMENT '指标编码',
@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS `macro_monthly` (
 -- -----------------------------------------------------------
 -- 2. 插入 LPR 指标元数据
 -- -----------------------------------------------------------
-INSERT IGNORE INTO `sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
+INSERT IGNORE INTO sea_pack.`sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
 ('LPR_1Y',       '1年期 LPR',          'monthly', '%',     'step', '#409EFF', 17),
 ('LPR_5Y',       '5年期 LPR',          'monthly', '%',     'step', '#F56C6C', 18);
 
@@ -56,7 +56,7 @@ INSERT IGNORE INTO `sys_macro_indicator_meta` (`indicator_code`, `indicator_name
 -- -----------------------------------------------------------
 -- 注意：5年期LPR于2019年8月首次发布，在此之前仅有1年期数据。
 -- 2019年8月前为PBOC贷款基准利率，2019年8月后为LPR报价。
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2013-10-01', 'LPR_1Y', 5.71, 'PBOC'),
 ('2013-11-01', 'LPR_1Y', 5.71, 'PBOC'),
 ('2013-12-01', 'LPR_1Y', 5.71, 'PBOC'),

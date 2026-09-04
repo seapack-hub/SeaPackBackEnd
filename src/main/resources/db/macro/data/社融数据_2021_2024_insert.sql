@@ -1,4 +1,4 @@
--- ============================================================
+﻿-- ============================================================
 -- 社会融资规模数据插入脚本 (2021-2024)
 -- 数据来源: 中国人民银行
 -- ============================================================
@@ -6,60 +6,60 @@
 -- -----------------------------------------------------------
 -- 1. 插入社融存量指标元数据
 -- -----------------------------------------------------------
-INSERT IGNORE INTO `sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
+INSERT IGNORE INTO sea_pack.`sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
 ('SF_STOCK', '社会融资规模存量', 'monthly', '万亿元', 'line', '#409EFF', 1);
-INSERT IGNORE INTO `sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
+INSERT IGNORE INTO sea_pack.`sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
 ('SF_RMB_LOAN_STOCK', '人民币贷款(存量)', 'monthly', '万亿元', 'line', '#67C23A', 2);
-INSERT IGNORE INTO `sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
+INSERT IGNORE INTO sea_pack.`sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
 ('SF_FOREIGN_LOAN_STOCK', '外币贷款(折合人民币)(存量)', 'monthly', '万亿元', 'line', '#E6A23C', 3);
-INSERT IGNORE INTO `sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
+INSERT IGNORE INTO sea_pack.`sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
 ('SF_ENTRUDED_LOAN_STOCK', '委托贷款(存量)', 'monthly', '万亿元', 'line', '#909399', 4);
-INSERT IGNORE INTO `sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
+INSERT IGNORE INTO sea_pack.`sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
 ('SF_TRUST_LOAN_STOCK', '信托贷款(存量)', 'monthly', '万亿元', 'line', '#F56C6C', 5);
-INSERT IGNORE INTO `sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
+INSERT IGNORE INTO sea_pack.`sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
 ('SF_ACCEPTANCE_STOCK', '未贴现银行承兑汇票(存量)', 'monthly', '万亿元', 'line', '#E6A23C', 6);
-INSERT IGNORE INTO `sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
+INSERT IGNORE INTO sea_pack.`sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
 ('SF_CORP_BOND_STOCK', '企业债券(存量)', 'monthly', '万亿元', 'line', '#409EFF', 7);
-INSERT IGNORE INTO `sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
+INSERT IGNORE INTO sea_pack.`sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
 ('SF_GOVT_BOND_STOCK', '政府债券(存量)', 'monthly', '万亿元', 'line', '#67C23A', 8);
-INSERT IGNORE INTO `sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
+INSERT IGNORE INTO sea_pack.`sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
 ('SF_EQUITY_STOCK', '非金融企业境内股票(存量)', 'monthly', '万亿元', 'line', '#E6A23C', 9);
-INSERT IGNORE INTO `sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
+INSERT IGNORE INTO sea_pack.`sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
 ('SF_ABS_STOCK', '存款类金融机构资产支持证券(存量)', 'monthly', '万亿元', 'line', '#909399', 10);
-INSERT IGNORE INTO `sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
+INSERT IGNORE INTO sea_pack.`sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
 ('SF_LOAN_WRITEOFF_STOCK', '贷款核销(存量)', 'monthly', '万亿元', 'line', '#F56C6C', 11);
 
 -- -----------------------------------------------------------
 -- 2. 插入社融增量指标元数据
 -- -----------------------------------------------------------
-INSERT IGNORE INTO `sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
+INSERT IGNORE INTO sea_pack.`sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
 ('SF_NEW', '社会融资规模增量', 'monthly', '万亿元', 'line', '#409EFF', 1);
-INSERT IGNORE INTO `sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
+INSERT IGNORE INTO sea_pack.`sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
 ('SF_RMB_LOAN', '人民币贷款(增量)', 'monthly', '万亿元', 'line', '#67C23A', 2);
-INSERT IGNORE INTO `sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
+INSERT IGNORE INTO sea_pack.`sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
 ('SF_FOREIGN_LOAN', '外币贷款(折合人民币)(增量)', 'monthly', '万亿元', 'line', '#E6A23C', 3);
-INSERT IGNORE INTO `sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
+INSERT IGNORE INTO sea_pack.`sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
 ('SF_ENTRUDED_LOAN', '委托贷款(增量)', 'monthly', '万亿元', 'line', '#909399', 4);
-INSERT IGNORE INTO `sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
+INSERT IGNORE INTO sea_pack.`sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
 ('SF_TRUST_LOAN', '信托贷款(增量)', 'monthly', '万亿元', 'line', '#F56C6C', 5);
-INSERT IGNORE INTO `sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
+INSERT IGNORE INTO sea_pack.`sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
 ('SF_ACCEPTANCE', '未贴现银行承兑汇票(增量)', 'monthly', '万亿元', 'line', '#E6A23C', 6);
-INSERT IGNORE INTO `sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
+INSERT IGNORE INTO sea_pack.`sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
 ('SF_CORP_BOND', '企业债券(增量)', 'monthly', '万亿元', 'line', '#409EFF', 7);
-INSERT IGNORE INTO `sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
+INSERT IGNORE INTO sea_pack.`sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
 ('SF_GOVT_BOND', '政府债券(增量)', 'monthly', '万亿元', 'line', '#67C23A', 8);
-INSERT IGNORE INTO `sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
+INSERT IGNORE INTO sea_pack.`sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
 ('SF_EQUITY', '非金融企业境内股票融资(增量)', 'monthly', '万亿元', 'line', '#E6A23C', 9);
-INSERT IGNORE INTO `sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
+INSERT IGNORE INTO sea_pack.`sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
 ('SF_ABS', '存款类金融机构资产支持证券(增量)', 'monthly', '万亿元', 'line', '#909399', 10);
-INSERT IGNORE INTO `sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
+INSERT IGNORE INTO sea_pack.`sys_macro_indicator_meta` (`indicator_code`, `indicator_name`, `frequency`, `unit`, `chart_type`, `chart_color`, `sort_order`) VALUES
 ('SF_LOAN_WRITEOFF', '贷款核销(增量)', 'monthly', '万亿元', 'line', '#F56C6C', 11);
 
 -- -----------------------------------------------------------
 -- 3. 插入社融存量数据 (2021-2024)
 -- 单位: 万亿元, metric_value2存储同比增速(%)
 -- -----------------------------------------------------------
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2021-01-01', 'SF_STOCK', 289.7400, 13.0000, '中国人民银行'),
 ('2021-02-01', 'SF_STOCK', 291.3600, 13.3000, '中国人民银行'),
 ('2021-03-01', 'SF_STOCK', 294.5600, 12.3000, '中国人民银行'),
@@ -73,7 +73,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2021-11-01', 'SF_STOCK', 311.9000, 10.1000, '中国人民银行'),
 ('2021-12-01', 'SF_STOCK', 314.1200, 10.3000, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2022-01-01', 'SF_STOCK', 320.0300, 10.5000, '中国人民银行'),
 ('2022-02-01', 'SF_STOCK', 321.1200, 10.2000, '中国人民银行'),
 ('2022-03-01', 'SF_STOCK', 325.6300, 10.5000, '中国人民银行'),
@@ -87,7 +87,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2022-11-01', 'SF_STOCK', 343.1900, 10.0000, '中国人民银行'),
 ('2022-12-01', 'SF_STOCK', 344.2200, 9.6000, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2023-01-01', 'SF_STOCK', 350.9300, 9.4000, '中国人民银行'),
 ('2023-02-01', 'SF_STOCK', 353.9700, 9.9000, '中国人民银行'),
 ('2023-03-01', 'SF_STOCK', 359.0200, 10.0000, '中国人民银行'),
@@ -101,7 +101,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2023-11-01', 'SF_STOCK', 376.3900, 9.4000, '中国人民银行'),
 ('2023-12-01', 'SF_STOCK', 378.0800, 9.5000, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2024-01-01', 'SF_STOCK', 384.3200, 9.5000, '中国人民银行'),
 ('2024-02-01', 'SF_STOCK', 385.7100, 9.0000, '中国人民银行'),
 ('2024-03-01', 'SF_STOCK', 390.3200, 8.7000, '中国人民银行'),
@@ -115,7 +115,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2024-11-01', 'SF_STOCK', 405.6000, 7.8000, '中国人民银行'),
 ('2024-12-01', 'SF_STOCK', 408.3400, 8.0000, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2021-01-01', 'SF_RMB_LOAN_STOCK', 175.4100, 13.1000, '中国人民银行'),
 ('2021-02-01', 'SF_RMB_LOAN_STOCK', 176.7600, 13.5000, '中国人民银行'),
 ('2021-03-01', 'SF_RMB_LOAN_STOCK', 179.5100, 13.0000, '中国人民银行'),
@@ -129,7 +129,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2021-11-01', 'SF_RMB_LOAN_STOCK', 190.5000, 11.8000, '中国人民银行'),
 ('2021-12-01', 'SF_RMB_LOAN_STOCK', 191.5400, 11.6000, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2022-01-01', 'SF_RMB_LOAN_STOCK', 195.7100, 11.6000, '中国人民银行'),
 ('2022-02-01', 'SF_RMB_LOAN_STOCK', 196.6200, 11.2000, '中国人民银行'),
 ('2022-03-01', 'SF_RMB_LOAN_STOCK', 199.8500, 11.3000, '中国人民银行'),
@@ -143,7 +143,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2022-11-01', 'SF_RMB_LOAN_STOCK', 210.9900, 10.8000, '中国人民银行'),
 ('2022-12-01', 'SF_RMB_LOAN_STOCK', 212.4300, 10.9000, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2023-01-01', 'SF_RMB_LOAN_STOCK', 218.1900, 11.1000, '中国人民银行'),
 ('2023-02-01', 'SF_RMB_LOAN_STOCK', 220.0100, 11.5000, '中国人民银行'),
 ('2023-03-01', 'SF_RMB_LOAN_STOCK', 223.9600, 11.7000, '中国人民银行'),
@@ -157,7 +157,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2023-11-01', 'SF_RMB_LOAN_STOCK', 234.3700, 10.7000, '中国人民银行'),
 ('2023-12-01', 'SF_RMB_LOAN_STOCK', 235.4800, 10.4000, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2024-01-01', 'SF_RMB_LOAN_STOCK', 240.3200, 10.1000, '中国人民银行'),
 ('2024-02-01', 'SF_RMB_LOAN_STOCK', 241.2900, 9.7000, '中国人民银行'),
 ('2024-03-01', 'SF_RMB_LOAN_STOCK', 244.5900, 9.2000, '中国人民银行'),
@@ -171,7 +171,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2024-11-01', 'SF_RMB_LOAN_STOCK', 251.6900, 7.4000, '中国人民银行'),
 ('2024-12-01', 'SF_RMB_LOAN_STOCK', 252.5300, 7.2000, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2021-01-01', 'SF_FOREIGN_LOAN_STOCK', 2.2000, 3.2000, '中国人民银行'),
 ('2021-02-01', 'SF_FOREIGN_LOAN_STOCK', 2.2500, 2.4000, '中国人民银行'),
 ('2021-03-01', 'SF_FOREIGN_LOAN_STOCK', 2.3100, -1.1000, '中国人民银行'),
@@ -185,7 +185,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2021-11-01', 'SF_FOREIGN_LOAN_STOCK', 2.3000, 3.7000, '中国人民银行'),
 ('2021-12-01', 'SF_FOREIGN_LOAN_STOCK', 2.2300, 6.3000, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2022-01-01', 'SF_FOREIGN_LOAN_STOCK', 2.2600, 2.9000, '中国人民银行'),
 ('2022-02-01', 'SF_FOREIGN_LOAN_STOCK', 2.2900, 2.0000, '中国人民银行'),
 ('2022-03-01', 'SF_FOREIGN_LOAN_STOCK', 2.3300, 0.7000, '中国人民银行'),
@@ -199,7 +199,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2022-11-01', 'SF_FOREIGN_LOAN_STOCK', 2.0700, -9.9000, '中国人民银行'),
 ('2022-12-01', 'SF_FOREIGN_LOAN_STOCK', 1.8400, -17.4000, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2023-01-01', 'SF_FOREIGN_LOAN_STOCK', 1.7800, -21.6000, '中国人民银行'),
 ('2023-02-01', 'SF_FOREIGN_LOAN_STOCK', 1.8600, -19.0000, '中国人民银行'),
 ('2023-03-01', 'SF_FOREIGN_LOAN_STOCK', 1.8800, -19.3000, '中国人民银行'),
@@ -213,7 +213,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2023-11-01', 'SF_FOREIGN_LOAN_STOCK', 1.7200, -16.7000, '中国人民银行'),
 ('2023-12-01', 'SF_FOREIGN_LOAN_STOCK', 1.6600, -10.2000, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2024-01-01', 'SF_FOREIGN_LOAN_STOCK', 1.7600, -0.9000, '中国人民银行'),
 ('2024-02-01', 'SF_FOREIGN_LOAN_STOCK', 1.7600, -5.3000, '中国人民银行'),
 ('2024-03-01', 'SF_FOREIGN_LOAN_STOCK', 1.8100, -3.6000, '中国人民银行'),
@@ -227,7 +227,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2024-11-01', 'SF_FOREIGN_LOAN_STOCK', 1.3500, -21.5000, '中国人民银行'),
 ('2024-12-01', 'SF_FOREIGN_LOAN_STOCK', 1.2900, -22.3000, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2021-01-01', 'SF_ENTRUDED_LOAN_STOCK', 11.0500, -3.5000, '中国人民银行'),
 ('2021-02-01', 'SF_ENTRUDED_LOAN_STOCK', 11.0400, -3.2000, '中国人民银行'),
 ('2021-03-01', 'SF_ENTRUDED_LOAN_STOCK', 11.0400, -2.8000, '中国人民银行'),
@@ -241,7 +241,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2021-11-01', 'SF_ENTRUDED_LOAN_STOCK', 10.9200, -1.8000, '中国人民银行'),
 ('2021-12-01', 'SF_ENTRUDED_LOAN_STOCK', 10.8700, -1.6000, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2022-01-01', 'SF_ENTRUDED_LOAN_STOCK', 10.9300, -1.1000, '中国人民银行'),
 ('2022-02-01', 'SF_ENTRUDED_LOAN_STOCK', 10.9200, -1.1000, '中国人民银行'),
 ('2022-03-01', 'SF_ENTRUDED_LOAN_STOCK', 10.9300, -1.0000, '中国人民银行'),
@@ -255,7 +255,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2022-11-01', 'SF_ENTRUDED_LOAN_STOCK', 11.2500, 3.1000, '中国人民银行'),
 ('2022-12-01', 'SF_ENTRUDED_LOAN_STOCK', 11.2400, 3.4000, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2023-01-01', 'SF_ENTRUDED_LOAN_STOCK', 11.3100, 3.5000, '中国人民银行'),
 ('2023-02-01', 'SF_ENTRUDED_LOAN_STOCK', 11.3000, 3.5000, '中国人民银行'),
 ('2023-03-01', 'SF_ENTRUDED_LOAN_STOCK', 11.3200, 3.5000, '中国人民银行'),
@@ -269,7 +269,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2023-11-01', 'SF_ENTRUDED_LOAN_STOCK', 11.2700, 0.2000, '中国人民银行'),
 ('2023-12-01', 'SF_ENTRUDED_LOAN_STOCK', 11.2700, 0.2000, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2024-01-01', 'SF_ENTRUDED_LOAN_STOCK', 11.2300, -0.7000, '中国人民银行'),
 ('2024-02-01', 'SF_ENTRUDED_LOAN_STOCK', 11.2200, -0.7000, '中国人民银行'),
 ('2024-03-01', 'SF_ENTRUDED_LOAN_STOCK', 11.1700, -1.3000, '中国人民银行'),
@@ -283,7 +283,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2024-11-01', 'SF_ENTRUDED_LOAN_STOCK', 11.2100, -0.5000, '中国人民银行'),
 ('2024-12-01', 'SF_ENTRUDED_LOAN_STOCK', 11.2100, -0.5000, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2021-01-01', 'SF_TRUST_LOAN_STOCK', 6.2800, -16.2000, '中国人民银行'),
 ('2021-02-01', 'SF_TRUST_LOAN_STOCK', 6.1900, -16.8000, '中国人民银行'),
 ('2021-03-01', 'SF_TRUST_LOAN_STOCK', 6.0100, -19.2000, '中国人民银行'),
@@ -297,7 +297,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2021-11-01', 'SF_TRUST_LOAN_STOCK', 4.8100, -29.3000, '中国人民银行'),
 ('2021-12-01', 'SF_TRUST_LOAN_STOCK', 4.3600, -31.3000, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2022-01-01', 'SF_TRUST_LOAN_STOCK', 4.2800, -31.9000, '中国人民银行'),
 ('2022-02-01', 'SF_TRUST_LOAN_STOCK', 4.2000, -32.1000, '中国人民银行'),
 ('2022-03-01', 'SF_TRUST_LOAN_STOCK', 4.1800, -30.5000, '中国人民银行'),
@@ -311,7 +311,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2022-11-01', 'SF_TRUST_LOAN_STOCK', 3.8200, -20.6000, '中国人民银行'),
 ('2022-12-01', 'SF_TRUST_LOAN_STOCK', 3.7500, -14.0000, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2023-01-01', 'SF_TRUST_LOAN_STOCK', 3.7400, -12.6000, '中国人民银行'),
 ('2023-02-01', 'SF_TRUST_LOAN_STOCK', 3.7500, -10.9000, '中国人民银行'),
 ('2023-03-01', 'SF_TRUST_LOAN_STOCK', 3.7400, -10.4000, '中国人民银行'),
@@ -325,7 +325,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2023-11-01', 'SF_TRUST_LOAN_STOCK', 3.8700, 1.2000, '中国人民银行'),
 ('2023-12-01', 'SF_TRUST_LOAN_STOCK', 3.9000, 4.2000, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2024-01-01', 'SF_TRUST_LOAN_STOCK', 3.9800, 6.3000, '中国人民银行'),
 ('2024-02-01', 'SF_TRUST_LOAN_STOCK', 4.0300, 7.7000, '中国人民银行'),
 ('2024-03-01', 'SF_TRUST_LOAN_STOCK', 4.1000, 9.6000, '中国人民银行'),
@@ -339,7 +339,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2024-11-01', 'SF_TRUST_LOAN_STOCK', 4.2900, 10.8000, '中国人民银行'),
 ('2024-12-01', 'SF_TRUST_LOAN_STOCK', 4.3000, 10.2000, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2021-01-01', 'SF_ACCEPTANCE_STOCK', 4.0000, 15.1000, '中国人民银行'),
 ('2021-02-01', 'SF_ACCEPTANCE_STOCK', 4.0600, 32.0000, '中国人民银行'),
 ('2021-03-01', 'SF_ACCEPTANCE_STOCK', 3.8300, 14.1000, '中国人民银行'),
@@ -353,7 +353,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2021-11-01', 'SF_ACCEPTANCE_STOCK', 3.1600, -15.3000, '中国人民银行'),
 ('2021-12-01', 'SF_ACCEPTANCE_STOCK', 3.0100, -14.0000, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2022-01-01', 'SF_ACCEPTANCE_STOCK', 3.4800, -12.9000, '中国人民银行'),
 ('2022-02-01', 'SF_ACCEPTANCE_STOCK', 3.0600, -24.7000, '中国人民银行'),
 ('2022-03-01', 'SF_ACCEPTANCE_STOCK', 3.0800, -19.5000, '中国人民银行'),
@@ -367,7 +367,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2022-11-01', 'SF_ACCEPTANCE_STOCK', 2.7200, -13.8000, '中国人民银行'),
 ('2022-12-01', 'SF_ACCEPTANCE_STOCK', 2.6600, -11.6000, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2023-01-01', 'SF_ACCEPTANCE_STOCK', 2.9600, -14.9000, '中国人民银行'),
 ('2023-02-01', 'SF_ACCEPTANCE_STOCK', 2.9500, -3.3000, '中国人民银行'),
 ('2023-03-01', 'SF_ACCEPTANCE_STOCK', 3.1300, 1.6000, '中国人民银行'),
@@ -381,7 +381,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2023-11-01', 'SF_ACCEPTANCE_STOCK', 2.6700, -1.7000, '中国人民银行'),
 ('2023-12-01', 'SF_ACCEPTANCE_STOCK', 2.4900, -6.7000, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2024-01-01', 'SF_ACCEPTANCE_STOCK', 3.0500, 3.0000, '中国人民银行'),
 ('2024-02-01', 'SF_ACCEPTANCE_STOCK', 2.6800, -9.3000, '中国人民银行'),
 ('2024-03-01', 'SF_ACCEPTANCE_STOCK', 3.0300, -3.1000, '中国人民银行'),
@@ -395,7 +395,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2024-11-01', 'SF_ACCEPTANCE_STOCK', 2.2900, -14.4000, '中国人民银行'),
 ('2024-12-01', 'SF_ACCEPTANCE_STOCK', 2.1600, -13.3000, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2021-01-01', 'SF_CORP_BOND_STOCK', 27.8300, 16.3000, '中国人民银行'),
 ('2021-02-01', 'SF_CORP_BOND_STOCK', 27.9300, 15.1000, '中国人民银行'),
 ('2021-03-01', 'SF_CORP_BOND_STOCK', 28.1700, 11.7000, '中国人民银行'),
@@ -409,7 +409,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2021-11-01', 'SF_CORP_BOND_STOCK', 29.7200, 7.7000, '中国人民银行'),
 ('2021-12-01', 'SF_CORP_BOND_STOCK', 29.9300, 8.6000, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2022-01-01', 'SF_CORP_BOND_STOCK', 30.4500, 9.4000, '中国人民银行'),
 ('2022-02-01', 'SF_CORP_BOND_STOCK', 30.7600, 10.1000, '中国人民银行'),
 ('2022-03-01', 'SF_CORP_BOND_STOCK', 31.0600, 10.2000, '中国人民银行'),
@@ -423,7 +423,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2022-11-01', 'SF_CORP_BOND_STOCK', 31.6000, 6.3000, '中国人民银行'),
 ('2022-12-01', 'SF_CORP_BOND_STOCK', 31.0100, 3.6000, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2023-01-01', 'SF_CORP_BOND_STOCK', 31.0200, 1.9000, '中国人民银行'),
 ('2023-02-01', 'SF_CORP_BOND_STOCK', 31.3000, 1.8000, '中国人民银行'),
 ('2023-03-01', 'SF_CORP_BOND_STOCK', 31.4200, 1.2000, '中国人民银行'),
@@ -437,7 +437,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2023-11-01', 'SF_CORP_BOND_STOCK', 31.4800, -0.4000, '中国人民银行'),
 ('2023-12-01', 'SF_CORP_BOND_STOCK', 31.1100, 0.3000, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2024-01-01', 'SF_CORP_BOND_STOCK', 31.4100, 1.3000, '中国人民银行'),
 ('2024-02-01', 'SF_CORP_BOND_STOCK', 31.5300, 0.7000, '中国人民银行'),
 ('2024-03-01', 'SF_CORP_BOND_STOCK', 31.8300, 1.3000, '中国人民银行'),
@@ -451,7 +451,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2024-11-01', 'SF_CORP_BOND_STOCK', 32.2800, 2.5000, '中国人民银行'),
 ('2024-12-01', 'SF_CORP_BOND_STOCK', 32.3000, 3.8000, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2021-01-01', 'SF_GOVT_BOND_STOCK', 46.2900, 20.3000, '中国人民银行'),
 ('2021-02-01', 'SF_GOVT_BOND_STOCK', 46.3900, 20.0000, '中国人民银行'),
 ('2021-03-01', 'SF_GOVT_BOND_STOCK', 46.7100, 18.8000, '中国人民银行'),
@@ -465,7 +465,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2021-11-01', 'SF_GOVT_BOND_STOCK', 51.9000, 14.4000, '中国人民银行'),
 ('2021-12-01', 'SF_GOVT_BOND_STOCK', 53.0600, 15.2000, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2022-01-01', 'SF_GOVT_BOND_STOCK', 53.6700, 15.9000, '中国人民银行'),
 ('2022-02-01', 'SF_GOVT_BOND_STOCK', 53.9400, 16.3000, '中国人民银行'),
 ('2022-03-01', 'SF_GOVT_BOND_STOCK', 54.6500, 17.0000, '中国人民银行'),
@@ -479,7 +479,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2022-11-01', 'SF_GOVT_BOND_STOCK', 59.9100, 15.4000, '中国人民银行'),
 ('2022-12-01', 'SF_GOVT_BOND_STOCK', 60.1900, 13.4000, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2023-01-01', 'SF_GOVT_BOND_STOCK', 60.6000, 12.9000, '中国人民银行'),
 ('2023-02-01', 'SF_GOVT_BOND_STOCK', 61.4100, 13.9000, '中国人民银行'),
 ('2023-03-01', 'SF_GOVT_BOND_STOCK', 62.0200, 13.5000, '中国人民银行'),
@@ -493,7 +493,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2023-11-01', 'SF_GOVT_BOND_STOCK', 68.8600, 14.9000, '中国人民银行'),
 ('2023-12-01', 'SF_GOVT_BOND_STOCK', 69.7900, 16.0000, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2024-01-01', 'SF_GOVT_BOND_STOCK', 70.0900, 15.7000, '中国人民银行'),
 ('2024-02-01', 'SF_GOVT_BOND_STOCK', 70.6900, 15.1000, '中国人民银行'),
 ('2024-03-01', 'SF_GOVT_BOND_STOCK', 71.1500, 14.7000, '中国人民银行'),
@@ -507,7 +507,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2024-11-01', 'SF_GOVT_BOND_STOCK', 79.3300, 15.2000, '中国人民银行'),
 ('2024-12-01', 'SF_GOVT_BOND_STOCK', 81.0900, 16.2000, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2021-01-01', 'SF_EQUITY_STOCK', 8.3500, 12.5000, '中国人民银行'),
 ('2021-02-01', 'SF_EQUITY_STOCK', 8.4200, 12.8000, '中国人民银行'),
 ('2021-03-01', 'SF_EQUITY_STOCK', 8.5000, 13.5000, '中国人民银行'),
@@ -521,7 +521,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2021-11-01', 'SF_EQUITY_STOCK', 9.2800, 14.0000, '中国人民银行'),
 ('2021-12-01', 'SF_EQUITY_STOCK', 9.4600, 14.7000, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2022-01-01', 'SF_EQUITY_STOCK', 9.6100, 15.1000, '中国人民银行'),
 ('2022-02-01', 'SF_EQUITY_STOCK', 9.6600, 14.8000, '中国人民银行'),
 ('2022-03-01', 'SF_EQUITY_STOCK', 9.7600, 14.9000, '中国人民银行'),
@@ -535,7 +535,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2022-11-01', 'SF_EQUITY_STOCK', 10.4900, 13.1000, '中国人民银行'),
 ('2022-12-01', 'SF_EQUITY_STOCK', 10.6400, 12.4000, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2023-01-01', 'SF_EQUITY_STOCK', 10.7300, 11.7000, '中国人民银行'),
 ('2023-02-01', 'SF_EQUITY_STOCK', 10.7900, 11.7000, '中国人民银行'),
 ('2023-03-01', 'SF_EQUITY_STOCK', 10.8500, 11.2000, '中国人民银行'),
@@ -549,7 +549,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2023-11-01', 'SF_EQUITY_STOCK', 11.3800, 8.4000, '中国人民银行'),
 ('2023-12-01', 'SF_EQUITY_STOCK', 11.4300, 7.5000, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2024-01-01', 'SF_EQUITY_STOCK', 11.4700, 6.9000, '中国人民银行'),
 ('2024-02-01', 'SF_EQUITY_STOCK', 11.4800, 6.4000, '中国人民银行'),
 ('2024-03-01', 'SF_EQUITY_STOCK', 11.5100, 6.0000, '中国人民银行'),
@@ -563,7 +563,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2024-11-01', 'SF_EQUITY_STOCK', 11.6700, 2.6000, '中国人民银行'),
 ('2024-12-01', 'SF_EQUITY_STOCK', 11.7200, 2.5000, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2021-01-01', 'SF_ABS_STOCK', 1.8900, 9.3000, '中国人民银行'),
 ('2021-02-01', 'SF_ABS_STOCK', 1.8700, 11.8000, '中国人民银行'),
 ('2021-03-01', 'SF_ABS_STOCK', 1.9200, 15.7000, '中国人民银行'),
@@ -577,7 +577,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2021-11-01', 'SF_ABS_STOCK', 2.1100, 18.8000, '中国人民银行'),
 ('2021-12-01', 'SF_ABS_STOCK', 2.1700, 14.7000, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2022-01-01', 'SF_ABS_STOCK', 2.1500, 13.7000, '中国人民银行'),
 ('2022-02-01', 'SF_ABS_STOCK', 2.1500, 14.5000, '中国人民银行'),
 ('2022-03-01', 'SF_ABS_STOCK', 2.1400, 11.1000, '中国人民银行'),
@@ -591,7 +591,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2022-11-01', 'SF_ABS_STOCK', 2.0000, -5.2000, '中国人民银行'),
 ('2022-12-01', 'SF_ABS_STOCK', 1.9900, -8.6000, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2023-01-01', 'SF_ABS_STOCK', 1.9500, -9.2000, '中国人民银行'),
 ('2023-02-01', 'SF_ABS_STOCK', 1.9200, -10.3000, '中国人民银行'),
 ('2023-03-01', 'SF_ABS_STOCK', 1.9100, -10.6000, '中国人民银行'),
@@ -605,7 +605,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2023-11-01', 'SF_ABS_STOCK', 1.3900, -30.7000, '中国人民银行'),
 ('2023-12-01', 'SF_ABS_STOCK', 1.3600, -31.6000, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2024-01-01', 'SF_ABS_STOCK', 1.3400, -31.5000, '中国人民银行'),
 ('2024-02-01', 'SF_ABS_STOCK', 1.3200, -31.6000, '中国人民银行'),
 ('2024-03-01', 'SF_ABS_STOCK', 1.2600, -34.1000, '中国人民银行'),
@@ -619,7 +619,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2024-11-01', 'SF_ABS_STOCK', 0.8100, -41.9000, '中国人民银行'),
 ('2024-12-01', 'SF_ABS_STOCK', 0.7900, -41.5000, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2021-01-01', 'SF_LOAN_WRITEOFF_STOCK', 5.3200, 30.2000, '中国人民银行'),
 ('2021-02-01', 'SF_LOAN_WRITEOFF_STOCK', 5.3500, 30.3000, '中国人民银行'),
 ('2021-03-01', 'SF_LOAN_WRITEOFF_STOCK', 5.4600, 29.4000, '中国人民银行'),
@@ -633,7 +633,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2021-11-01', 'SF_LOAN_WRITEOFF_STOCK', 6.0400, 22.1000, '中国人民银行'),
 ('2021-12-01', 'SF_LOAN_WRITEOFF_STOCK', 6.3200, 19.5000, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2022-01-01', 'SF_LOAN_WRITEOFF_STOCK', 6.3400, 19.2000, '中国人民银行'),
 ('2022-02-01', 'SF_LOAN_WRITEOFF_STOCK', 6.3600, 18.9000, '中国人民银行'),
 ('2022-03-01', 'SF_LOAN_WRITEOFF_STOCK', 6.5200, 19.4000, '中国人民银行'),
@@ -647,7 +647,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2022-11-01', 'SF_LOAN_WRITEOFF_STOCK', 7.2100, 19.2000, '中国人民银行'),
 ('2022-12-01', 'SF_LOAN_WRITEOFF_STOCK', 7.3400, 16.3000, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2023-01-01', 'SF_LOAN_WRITEOFF_STOCK', 7.5400, 16.6000, '中国人民银行'),
 ('2023-02-01', 'SF_LOAN_WRITEOFF_STOCK', 7.5800, 16.7000, '中国人民银行'),
 ('2023-03-01', 'SF_LOAN_WRITEOFF_STOCK', 7.7000, 15.7000, '中国人民银行'),
@@ -661,7 +661,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2023-11-01', 'SF_LOAN_WRITEOFF_STOCK', 8.3700, 13.6000, '中国人民银行'),
 ('2023-12-01', 'SF_LOAN_WRITEOFF_STOCK', 8.6100, 14.6000, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `metric_value2`, `source`) VALUES
 ('2024-01-01', 'SF_LOAN_WRITEOFF_STOCK', 8.6600, 14.8000, '中国人民银行'),
 ('2024-02-01', 'SF_LOAN_WRITEOFF_STOCK', 8.7000, 14.8000, '中国人民银行'),
 ('2024-03-01', 'SF_LOAN_WRITEOFF_STOCK', 8.8600, 15.1000, '中国人民银行'),
@@ -679,7 +679,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 -- 4. 插入社融增量数据 (2021-2024)
 -- 单位: 万亿元 (原始数据为亿元人民币, 已转换)
 -- -----------------------------------------------------------
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2021-01-01', 'SF_NEW', 5.1884, '中国人民银行'),
 ('2021-01-01', 'SF_RMB_LOAN', 3.8182, '中国人民银行'),
 ('2021-01-01', 'SF_FOREIGN_LOAN', 0.1098, '中国人民银行'),
@@ -692,7 +692,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2021-01-01', 'SF_ABS', -0.0028, '中国人民银行'),
 ('2021-01-01', 'SF_LOAN_WRITEOFF', 0.0280, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2021-02-01', 'SF_NEW', 1.7243, '中国人民银行'),
 ('2021-02-01', 'SF_RMB_LOAN', 1.3413, '中国人民银行'),
 ('2021-02-01', 'SF_FOREIGN_LOAN', 0.0464, '中国人民银行'),
@@ -705,7 +705,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2021-02-01', 'SF_ABS', -0.0177, '中国人民银行'),
 ('2021-02-01', 'SF_LOAN_WRITEOFF', 0.0370, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2021-03-01', 'SF_NEW', 3.3762, '中国人民银行'),
 ('2021-03-01', 'SF_RMB_LOAN', 2.7511, '中国人民银行'),
 ('2021-03-01', 'SF_FOREIGN_LOAN', 0.0282, '中国人民银行'),
@@ -718,7 +718,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2021-03-01', 'SF_ABS', 0.0477, '中国人民银行'),
 ('2021-03-01', 'SF_LOAN_WRITEOFF', 0.1080, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2021-04-01', 'SF_NEW', 1.8570, '中国人民银行'),
 ('2021-04-01', 'SF_RMB_LOAN', 1.2840, '中国人民银行'),
 ('2021-04-01', 'SF_FOREIGN_LOAN', -0.0272, '中国人民银行'),
@@ -731,7 +731,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2021-04-01', 'SF_ABS', 0.0174, '中国人民银行'),
 ('2021-04-01', 'SF_LOAN_WRITEOFF', 0.0456, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2021-05-01', 'SF_NEW', 1.9522, '中国人民银行'),
 ('2021-05-01', 'SF_RMB_LOAN', 1.4294, '中国人民银行'),
 ('2021-05-01', 'SF_FOREIGN_LOAN', 0.0007, '中国人民银行'),
@@ -744,7 +744,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2021-05-01', 'SF_ABS', 0.0247, '中国人民银行'),
 ('2021-05-01', 'SF_LOAN_WRITEOFF', 0.0378, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2021-06-01', 'SF_NEW', 3.7017, '中国人民银行'),
 ('2021-06-01', 'SF_RMB_LOAN', 2.3182, '中国人民银行'),
 ('2021-06-01', 'SF_FOREIGN_LOAN', 0.0701, '中国人民银行'),
@@ -757,7 +757,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2021-06-01', 'SF_ABS', -0.0023, '中国人民银行'),
 ('2021-06-01', 'SF_LOAN_WRITEOFF', 0.1779, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2021-07-01', 'SF_NEW', 1.0752, '中国人民银行'),
 ('2021-07-01', 'SF_RMB_LOAN', 0.8391, '中国人民银行'),
 ('2021-07-01', 'SF_FOREIGN_LOAN', -0.0078, '中国人民银行'),
@@ -770,7 +770,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2021-07-01', 'SF_ABS', -0.0019, '中国人民银行'),
 ('2021-07-01', 'SF_LOAN_WRITEOFF', 0.0269, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2021-08-01', 'SF_NEW', 2.9893, '中国人民银行'),
 ('2021-08-01', 'SF_RMB_LOAN', 1.2713, '中国人民银行'),
 ('2021-08-01', 'SF_FOREIGN_LOAN', 0.0347, '中国人民银行'),
@@ -783,7 +783,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2021-08-01', 'SF_ABS', 0.0268, '中国人民银行'),
 ('2021-08-01', 'SF_LOAN_WRITEOFF', 0.0526, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2021-09-01', 'SF_NEW', 2.9026, '中国人民银行'),
 ('2021-09-01', 'SF_RMB_LOAN', 1.7755, '中国人民银行'),
 ('2021-09-01', 'SF_FOREIGN_LOAN', -0.0019, '中国人民银行'),
@@ -796,7 +796,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2021-09-01', 'SF_ABS', 0.0642, '中国人民银行'),
 ('2021-09-01', 'SF_LOAN_WRITEOFF', 0.1505, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2021-10-01', 'SF_NEW', 1.6176, '中国人民银行'),
 ('2021-10-01', 'SF_RMB_LOAN', 0.7752, '中国人民银行'),
 ('2021-10-01', 'SF_FOREIGN_LOAN', -0.0033, '中国人民银行'),
@@ -809,7 +809,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2021-10-01', 'SF_ABS', -0.0139, '中国人民银行'),
 ('2021-10-01', 'SF_LOAN_WRITEOFF', 0.0348, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2021-11-01', 'SF_NEW', 2.5983, '中国人民银行'),
 ('2021-11-01', 'SF_RMB_LOAN', 1.3021, '中国人民银行'),
 ('2021-11-01', 'SF_FOREIGN_LOAN', -0.0134, '中国人民银行'),
@@ -822,7 +822,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2021-11-01', 'SF_ABS', 0.0742, '中国人民银行'),
 ('2021-11-01', 'SF_LOAN_WRITEOFF', 0.0582, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2021-12-01', 'SF_NEW', 2.3580, '中国人民银行'),
 ('2021-12-01', 'SF_RMB_LOAN', 1.0350, '中国人民银行'),
 ('2021-12-01', 'SF_FOREIGN_LOAN', -0.0649, '中国人民银行'),
@@ -835,7 +835,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2021-12-01', 'SF_ABS', 0.0618, '中国人民银行'),
 ('2021-12-01', 'SF_LOAN_WRITEOFF', 0.2726, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2022-01-01', 'SF_NEW', 6.1759, '中国人民银行'),
 ('2022-01-01', 'SF_RMB_LOAN', 4.1988, '中国人民银行'),
 ('2022-01-01', 'SF_FOREIGN_LOAN', 0.1031, '中国人民银行'),
@@ -848,7 +848,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2022-01-01', 'SF_ABS', -0.0214, '中国人民银行'),
 ('2022-01-01', 'SF_LOAN_WRITEOFF', 0.0204, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2022-02-01', 'SF_NEW', 1.2170, '中国人民银行'),
 ('2022-02-01', 'SF_RMB_LOAN', 0.9084, '中国人民银行'),
 ('2022-02-01', 'SF_FOREIGN_LOAN', 0.0480, '中国人民银行'),
@@ -861,7 +861,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2022-02-01', 'SF_ABS', -0.0053, '中国人民银行'),
 ('2022-02-01', 'SF_LOAN_WRITEOFF', 0.0257, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2022-03-01', 'SF_NEW', 4.6565, '中国人民银行'),
 ('2022-03-01', 'SF_RMB_LOAN', 3.2291, '中国人民银行'),
 ('2022-03-01', 'SF_FOREIGN_LOAN', 0.0239, '中国人民银行'),
@@ -874,7 +874,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2022-03-01', 'SF_ABS', -0.0102, '中国人民银行'),
 ('2022-03-01', 'SF_LOAN_WRITEOFF', 0.1584, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2022-04-01', 'SF_NEW', 0.9327, '中国人民银行'),
 ('2022-04-01', 'SF_RMB_LOAN', 0.3616, '中国人民银行'),
 ('2022-04-01', 'SF_FOREIGN_LOAN', -0.0760, '中国人民银行'),
@@ -887,7 +887,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2022-04-01', 'SF_ABS', -0.0216, '中国人民银行'),
 ('2022-04-01', 'SF_LOAN_WRITEOFF', 0.0484, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2022-05-01', 'SF_NEW', 2.8415, '中国人民银行'),
 ('2022-05-01', 'SF_RMB_LOAN', 1.8230, '中国人民银行'),
 ('2022-05-01', 'SF_FOREIGN_LOAN', -0.0240, '中国人民银行'),
@@ -900,7 +900,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2022-05-01', 'SF_ABS', -0.0191, '中国人民银行'),
 ('2022-05-01', 'SF_LOAN_WRITEOFF', 0.0487, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2022-06-01', 'SF_NEW', 5.1926, '中国人民银行'),
 ('2022-06-01', 'SF_RMB_LOAN', 3.0540, '中国人民银行'),
 ('2022-06-01', 'SF_FOREIGN_LOAN', -0.0291, '中国人民银行'),
@@ -913,7 +913,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2022-06-01', 'SF_ABS', -0.0023, '中国人民银行'),
 ('2022-06-01', 'SF_LOAN_WRITEOFF', 0.1760, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2022-07-01', 'SF_NEW', 0.7785, '中国人民银行'),
 ('2022-07-01', 'SF_RMB_LOAN', 0.4088, '中国人民银行'),
 ('2022-07-01', 'SF_FOREIGN_LOAN', -0.1137, '中国人民银行'),
@@ -926,7 +926,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2022-07-01', 'SF_ABS', -0.0357, '中国人民银行'),
 ('2022-07-01', 'SF_LOAN_WRITEOFF', 0.1021, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2022-08-01', 'SF_NEW', 2.4712, '中国人民银行'),
 ('2022-08-01', 'SF_RMB_LOAN', 1.3344, '中国人民银行'),
 ('2022-08-01', 'SF_FOREIGN_LOAN', -0.0826, '中国人民银行'),
@@ -939,7 +939,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2022-08-01', 'SF_ABS', 0.0004, '中国人民银行'),
 ('2022-08-01', 'SF_LOAN_WRITEOFF', 0.0625, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2022-09-01', 'SF_NEW', 3.5411, '中国人民银行'),
 ('2022-09-01', 'SF_RMB_LOAN', 2.5686, '中国人民银行'),
 ('2022-09-01', 'SF_FOREIGN_LOAN', -0.0713, '中国人民银行'),
@@ -952,7 +952,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2022-09-01', 'SF_ABS', -0.0192, '中国人民银行'),
 ('2022-09-01', 'SF_LOAN_WRITEOFF', 0.1512, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2022-10-01', 'SF_NEW', 0.9134, '中国人民银行'),
 ('2022-10-01', 'SF_RMB_LOAN', 0.4431, '中国人民银行'),
 ('2022-10-01', 'SF_FOREIGN_LOAN', -0.0724, '中国人民银行'),
@@ -965,7 +965,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2022-10-01', 'SF_ABS', -0.0132, '中国人民银行'),
 ('2022-10-01', 'SF_LOAN_WRITEOFF', 0.0326, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2022-11-01', 'SF_NEW', 1.9837, '中国人民银行'),
 ('2022-11-01', 'SF_RMB_LOAN', 1.1448, '中国人民银行'),
 ('2022-11-01', 'SF_FOREIGN_LOAN', -0.0648, '中国人民银行'),
@@ -978,7 +978,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2022-11-01', 'SF_ABS', -0.0233, '中国人民银行'),
 ('2022-11-01', 'SF_LOAN_WRITEOFF', 0.0625, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2022-12-01', 'SF_NEW', 1.3063, '中国人民银行'),
 ('2022-12-01', 'SF_RMB_LOAN', 1.4401, '中国人民银行'),
 ('2022-12-01', 'SF_FOREIGN_LOAN', -0.1665, '中国人民银行'),
@@ -991,7 +991,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2022-12-01', 'SF_ABS', -0.0152, '中国人民银行'),
 ('2022-12-01', 'SF_LOAN_WRITEOFF', 0.1384, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2023-01-01', 'SF_NEW', 5.9956, '中国人民银行'),
 ('2023-01-01', 'SF_RMB_LOAN', 4.9314, '中国人民银行'),
 ('2023-01-01', 'SF_FOREIGN_LOAN', -0.0131, '中国人民银行'),
@@ -1004,7 +1004,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2023-01-01', 'SF_ABS', -0.0333, '中国人民银行'),
 ('2023-01-01', 'SF_LOAN_WRITEOFF', 0.0312, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2023-02-01', 'SF_NEW', 3.1610, '中国人民银行'),
 ('2023-02-01', 'SF_RMB_LOAN', 1.8184, '中国人民银行'),
 ('2023-02-01', 'SF_FOREIGN_LOAN', 0.0310, '中国人民银行'),
@@ -1017,7 +1017,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2023-02-01', 'SF_ABS', -0.0279, '中国人民银行'),
 ('2023-02-01', 'SF_LOAN_WRITEOFF', 0.0367, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2023-03-01', 'SF_NEW', 5.3867, '中国人民银行'),
 ('2023-03-01', 'SF_RMB_LOAN', 3.9487, '中国人民银行'),
 ('2023-03-01', 'SF_FOREIGN_LOAN', 0.0427, '中国人民银行'),
@@ -1030,7 +1030,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2023-03-01', 'SF_ABS', -0.0150, '中国人民银行'),
 ('2023-03-01', 'SF_LOAN_WRITEOFF', 0.1235, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2023-04-01', 'SF_NEW', 1.2249, '中国人民银行'),
 ('2023-04-01', 'SF_RMB_LOAN', 0.4431, '中国人民银行'),
 ('2023-04-01', 'SF_FOREIGN_LOAN', -0.0319, '中国人民银行'),
@@ -1043,7 +1043,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2023-04-01', 'SF_ABS', -0.0376, '中国人民银行'),
 ('2023-04-01', 'SF_LOAN_WRITEOFF', 0.0448, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2023-05-01', 'SF_NEW', 1.5560, '中国人民银行'),
 ('2023-05-01', 'SF_RMB_LOAN', 1.2219, '中国人民银行'),
 ('2023-05-01', 'SF_FOREIGN_LOAN', -0.0338, '中国人民银行'),
@@ -1056,7 +1056,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2023-05-01', 'SF_ABS', -0.0349, '中国人民银行'),
 ('2023-05-01', 'SF_LOAN_WRITEOFF', 0.0516, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2023-06-01', 'SF_NEW', 4.2265, '中国人民银行'),
 ('2023-06-01', 'SF_RMB_LOAN', 3.2413, '中国人民银行'),
 ('2023-06-01', 'SF_FOREIGN_LOAN', -0.0191, '中国人民银行'),
@@ -1069,7 +1069,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2023-06-01', 'SF_ABS', -0.0026, '中国人民银行'),
 ('2023-06-01', 'SF_LOAN_WRITEOFF', 0.1776, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2023-07-01', 'SF_NEW', 0.5366, '中国人民银行'),
 ('2023-07-01', 'SF_RMB_LOAN', 0.0364, '中国人民银行'),
 ('2023-07-01', 'SF_FOREIGN_LOAN', -0.0339, '中国人民银行'),
@@ -1082,7 +1082,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2023-07-01', 'SF_ABS', -0.0296, '中国人民银行'),
 ('2023-07-01', 'SF_LOAN_WRITEOFF', 0.0402, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2023-08-01', 'SF_NEW', 3.1279, '中国人民银行'),
 ('2023-08-01', 'SF_RMB_LOAN', 1.3412, '中国人民银行'),
 ('2023-08-01', 'SF_FOREIGN_LOAN', -0.0201, '中国人民银行'),
@@ -1095,7 +1095,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2023-08-01', 'SF_ABS', -0.0135, '中国人民银行'),
 ('2023-08-01', 'SF_LOAN_WRITEOFF', 0.0596, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2023-09-01', 'SF_NEW', 4.1326, '中国人民银行'),
 ('2023-09-01', 'SF_RMB_LOAN', 2.5369, '中国人民银行'),
 ('2023-09-01', 'SF_FOREIGN_LOAN', -0.0583, '中国人民银行'),
@@ -1108,7 +1108,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2023-09-01', 'SF_ABS', -0.0172, '中国人民银行'),
 ('2023-09-01', 'SF_LOAN_WRITEOFF', 0.1799, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2023-10-01', 'SF_NEW', 1.8441, '中国人民银行'),
 ('2023-10-01', 'SF_RMB_LOAN', 0.4837, '中国人民银行'),
 ('2023-10-01', 'SF_FOREIGN_LOAN', 0.0152, '中国人民银行'),
@@ -1121,7 +1121,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2023-10-01', 'SF_ABS', -0.2530, '中国人民银行'),
 ('2023-10-01', 'SF_LOAN_WRITEOFF', 0.0427, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2023-11-01', 'SF_NEW', 2.4554, '中国人民银行'),
 ('2023-11-01', 'SF_RMB_LOAN', 1.1120, '中国人民银行'),
 ('2023-11-01', 'SF_FOREIGN_LOAN', -0.0357, '中国人民银行'),
@@ -1134,7 +1134,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2023-11-01', 'SF_ABS', -0.1355, '中国人民银行'),
 ('2023-11-01', 'SF_LOAN_WRITEOFF', 0.0742, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2023-12-01', 'SF_NEW', 1.9326, '中国人民银行'),
 ('2023-12-01', 'SF_RMB_LOAN', 1.1092, '中国人民银行'),
 ('2023-12-01', 'SF_FOREIGN_LOAN', -0.0635, '中国人民银行'),
@@ -1147,7 +1147,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2023-12-01', 'SF_ABS', -0.0278, '中国人民银行'),
 ('2023-12-01', 'SF_LOAN_WRITEOFF', 0.2347, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2024-01-01', 'SF_NEW', 6.4734, '中国人民银行'),
 ('2024-01-01', 'SF_RMB_LOAN', 4.8401, '中国人民银行'),
 ('2024-01-01', 'SF_FOREIGN_LOAN', 0.0989, '中国人民银行'),
@@ -1160,7 +1160,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2024-01-01', 'SF_ABS', -0.0203, '中国人民银行'),
 ('2024-01-01', 'SF_LOAN_WRITEOFF', 0.0474, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2024-02-01', 'SF_NEW', 1.4959, '中国人民银行'),
 ('2024-02-01', 'SF_RMB_LOAN', 0.9773, '中国人民银行'),
 ('2024-02-01', 'SF_FOREIGN_LOAN', -0.0009, '中国人民银行'),
@@ -1173,7 +1173,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2024-02-01', 'SF_ABS', -0.0210, '中国人民银行'),
 ('2024-02-01', 'SF_LOAN_WRITEOFF', 0.0488, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2024-03-01', 'SF_NEW', 4.8335, '中国人民银行'),
 ('2024-03-01', 'SF_RMB_LOAN', 3.2920, '中国人民银行'),
 ('2024-03-01', 'SF_FOREIGN_LOAN', 0.0543, '中国人民银行'),
@@ -1186,7 +1186,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2024-03-01', 'SF_ABS', -0.0588, '中国人民银行'),
 ('2024-03-01', 'SF_LOAN_WRITEOFF', 0.1587, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2024-04-01', 'SF_NEW', -0.0658, '中国人民银行'),
 ('2024-04-01', 'SF_RMB_LOAN', 0.3349, '中国人民银行'),
 ('2024-04-01', 'SF_FOREIGN_LOAN', -0.0310, '中国人民银行'),
@@ -1199,7 +1199,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2024-04-01', 'SF_ABS', -0.1967, '中国人民银行'),
 ('2024-04-01', 'SF_LOAN_WRITEOFF', 0.0520, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2024-05-01', 'SF_NEW', 2.0623, '中国人民银行'),
 ('2024-05-01', 'SF_RMB_LOAN', 0.8197, '中国人民银行'),
 ('2024-05-01', 'SF_FOREIGN_LOAN', -0.0487, '中国人民银行'),
@@ -1212,7 +1212,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2024-05-01', 'SF_ABS', -0.0426, '中国人民银行'),
 ('2024-05-01', 'SF_LOAN_WRITEOFF', 0.0734, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2024-06-01', 'SF_NEW', 3.2985, '中国人民银行'),
 ('2024-06-01', 'SF_RMB_LOAN', 2.1927, '中国人民银行'),
 ('2024-06-01', 'SF_FOREIGN_LOAN', -0.0807, '中国人民银行'),
@@ -1225,7 +1225,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2024-06-01', 'SF_ABS', -0.0695, '中国人民银行'),
 ('2024-06-01', 'SF_LOAN_WRITEOFF', 0.2092, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2024-07-01', 'SF_NEW', 0.7707, '中国人民银行'),
 ('2024-07-01', 'SF_RMB_LOAN', -0.0808, '中国人民银行'),
 ('2024-07-01', 'SF_FOREIGN_LOAN', -0.0890, '中国人民银行'),
@@ -1238,7 +1238,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2024-07-01', 'SF_ABS', -0.0490, '中国人民银行'),
 ('2024-07-01', 'SF_LOAN_WRITEOFF', 0.0448, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2024-08-01', 'SF_NEW', 3.0323, '中国人民银行'),
 ('2024-08-01', 'SF_RMB_LOAN', 1.0411, '中国人民银行'),
 ('2024-08-01', 'SF_FOREIGN_LOAN', -0.0612, '中国人民银行'),
@@ -1251,7 +1251,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2024-08-01', 'SF_ABS', -0.0466, '中国人民银行'),
 ('2024-08-01', 'SF_LOAN_WRITEOFF', 0.0758, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2024-09-01', 'SF_NEW', 3.7635, '中国人民银行'),
 ('2024-09-01', 'SF_RMB_LOAN', 1.9742, '中国人民银行'),
 ('2024-09-01', 'SF_FOREIGN_LOAN', -0.0480, '中国人民银行'),
@@ -1264,7 +1264,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2024-09-01', 'SF_ABS', -0.0163, '中国人民银行'),
 ('2024-09-01', 'SF_LOAN_WRITEOFF', 0.2154, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2024-10-01', 'SF_NEW', 1.4120, '中国人民银行'),
 ('2024-10-01', 'SF_RMB_LOAN', 0.2965, '中国人民银行'),
 ('2024-10-01', 'SF_FOREIGN_LOAN', -0.0710, '中国人民银行'),
@@ -1277,7 +1277,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2024-10-01', 'SF_ABS', -0.0200, '中国人民银行'),
 ('2024-10-01', 'SF_LOAN_WRITEOFF', 0.0577, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2024-11-01', 'SF_NEW', 2.3288, '中国人民银行'),
 ('2024-11-01', 'SF_RMB_LOAN', 0.5216, '中国人民银行'),
 ('2024-11-01', 'SF_FOREIGN_LOAN', -0.0468, '中国人民银行'),
@@ -1290,7 +1290,7 @@ INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value
 ('2024-11-01', 'SF_ABS', -0.0112, '中国人民银行'),
 ('2024-11-01', 'SF_LOAN_WRITEOFF', 0.0824, '中国人民银行');
 
-INSERT IGNORE INTO `macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
+INSERT IGNORE INTO sea_pack.`macro_monthly` (`stat_date`, `indicator_code`, `metric_value`, `source`) VALUES
 ('2024-12-01', 'SF_NEW', 2.8537, '中国人民银行'),
 ('2024-12-01', 'SF_RMB_LOAN', 0.8402, '中国人民银行'),
 ('2024-12-01', 'SF_FOREIGN_LOAN', -0.0675, '中国人民银行'),
