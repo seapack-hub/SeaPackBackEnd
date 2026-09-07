@@ -92,4 +92,20 @@ public class AuthController {
         }
         return ResponseEntity.ok(authService.getUserMenus(userId));
     }
+
+    /**
+     * 获取当前用户的按钮权限标识符列表
+     * <p>仅返回 type=3(按钮) 的权限，自动拼接完整路径（目录:菜单:按钮）。
+     * 例如：["sys:dept:add", "sys:dept:edit", "sys:dict:delete"]</p>
+     * <p>前端用于页面内按钮级别的显隐控制。</p>
+     * <p>userId 从 JWT token 中自动解析，无需前端传参。</p>
+     */
+    @GetMapping("/buttons")
+    public ResponseEntity<List<String>> buttons() {
+        Long userId = SecurityUtils.getCurrentUserId();
+        if (userId == null) {
+            return ResponseEntity.status(401).build();
+        }
+        return ResponseEntity.ok(authService.getUserButtonPerms(userId));
+    }
 }

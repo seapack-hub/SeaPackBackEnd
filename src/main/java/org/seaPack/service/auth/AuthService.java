@@ -75,7 +75,8 @@ public class AuthService {
 
     /**
      * 获取当前用户信息及权限
-     * <p>返回用户基本信息、角色列表（roleCode）和权限标识符集合（permKey）。</p>
+     * <p>返回用户基本信息、角色列表（roleCode）和菜单权限标识符集合（permKey）。
+     * 仅返回 type=1(目录) 和 type=2(菜单) 的 permKey，按钮权限通过 /auth/buttons 单独获取。</p>
      *
      * @param userId 用户 ID
      * @return UserInfoVO 包含 roles 和 permissions，用户不存在时返回 null
@@ -93,7 +94,80 @@ public class AuthService {
             List<SysPermission> perms = rolePermissionMapper.selectPermissionsByRoleId(role.getId());
             permSet.addAll(perms);
         }
-        return UserInfoVO.of(userId, user.getUserName(), roles, new ArrayList<>(permSet));
+
+        // 仅返回 type=1(目录) 和 type=2(菜单) 的 permKey
+        List<SysPermission> menuPerms = new ArrayList<>(permSet).stream()
+                .filter(p -> (p.getType() == 1 || p.getType() == 2))
+                .collect(java.util.stream.Collectors.toList());
+        return UserInfoVO.of(userId, user.getUserName(), roles, menuPerms);
+    }
+
+    /**
+     * 获取当前用户的按钮权限标识符列表
+     * <p>仅返回 type=3(按钮) 的权限，且自动拼接完整路径（目录:菜单:按钮）。
+     * 例如：sys:dept:add、sys:dict:edit</p>
+     *
+     * @param userId 用户 ID
+     * @return 按钮权限标识符列表
+     */
+    public List<String> getUserButtonPerms(Long userId) {
+        List<SysRole> roles = userRoleMapper.selectRolesByUserId(userId);
+
+        // 收集用户所有角色下的权限 ID
+        Set<Long> permIds = new HashSet<>();
+        for (SysRole role : roles) {
+            List<Long> ids = rolePermissionMapper.selectPermissionIdsByRoleId(role.getId());
+            permIds.addAll(ids);
+        }
+
+        // 加载所有权限用于构建路径
+        List<SysPermission> allPerms = permissionMapper.selectAllPermissions();
+
+        // 筛选出 type=3 的按钮权限
+        List<String> buttonPerms = new ArrayList<>();
+        for (SysPermission p : allPerms) {
+            if (permIds.contains(p.getId()) && p.getType() == 3 && p.getPermKey() != null) {
+                String fullPath = buildPermKeyPath(p, allPerms);
+                if (fullPath != null && !fullPath.isEmpty()) {
+                    buttonPerms.add(fullPath);
+                }
+            }
+        }
+        return buttonPerms;
+    }
+
+    /**
+     * 递归构建权限标识符完整路径
+     * <p>例如：按钮 permKey="add"，父菜单 permKey="dept"，祖父目录 permKey="sys"
+     * 返回 "sys:dept:add"</p>
+     */
+    private String buildPermKeyPath(SysPermission p, List<SysPermission> allPerms) {
+        if (p.getPermKey() == null || p.getPermKey().isEmpty()) {
+            return null;
+        }
+
+        // 如果没有父节点或父节点是顶级，直接返回当前 permKey
+        if (p.getParentId() == null || p.getParentId() == 0) {
+            return p.getPermKey();
+        }
+
+        // 查找父节点
+        SysPermission parent = allPerms.stream()
+                .filter(a -> a.getId().equals(p.getParentId()))
+                .findFirst()
+                .orElse(null);
+
+        if (parent == null || parent.getPermKey() == null || parent.getPermKey().isEmpty()) {
+            return p.getPermKey();
+        }
+
+        // 递归获取父路径
+        String parentPath = buildPermKeyPath(parent, allPerms);
+        if (parentPath == null || parentPath.isEmpty()) {
+            return p.getPermKey();
+        }
+
+        return parentPath + ":" + p.getPermKey();
     }
 
     /**

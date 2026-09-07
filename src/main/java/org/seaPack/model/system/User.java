@@ -1,6 +1,6 @@
 package org.seaPack.model.system;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.Comment;
@@ -52,7 +52,8 @@ public class User {
     @Comment("创建时间")
     private String createTime;
 
-    @JsonIgnore
+    /** 写入时接收密码，输出时自动忽略 */
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     @Column(name = "password")
     @Comment("密码")
     private String password;
