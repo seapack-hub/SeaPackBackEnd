@@ -5,6 +5,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.seaPack.config.AIProperties;
+import org.seaPack.config.AiProviderIdentities;
 import org.seaPack.dto.ai.*;
 import org.seaPack.mapper.ai.AgentMapper;
 import org.seaPack.mapper.ai.ExecutionSessionMapper;
@@ -192,6 +193,19 @@ public class AiDialogService {
                 }
             }
 
+            // 2.5 注入 provider 身份系统提示词（在消息列表最前面，确保模型知道自己是谁）
+            // 优先从常量类获取，其次从配置文件 system-prompt 覆盖
+            String providerIdentity = AiProviderIdentities.get(providerName);
+            if (providerIdentity == null || providerIdentity.isBlank()) {
+                providerIdentity = config.getSystemPrompt();
+            }
+            if (providerIdentity != null && !providerIdentity.isBlank()) {
+                Map<String, String> identityMsg = new HashMap<>();
+                identityMsg.put("role", "system");
+                identityMsg.put("content", providerIdentity);
+                messagesToSend.add(0, identityMsg);
+            }
+
             // 3. 构建请求体
             Map<String, Object> requestBody = new HashMap<>();
             requestBody.put("model", modelName);
@@ -339,7 +353,20 @@ public class AiDialogService {
                 messagesToSend.add(Map.of("role", "user", "content", question));
             }
         }
-
+        
+        // 2.5 注入 provider 身份系统提示词（在消息列表最前面，确保模型知道自己是谁）
+        // 优先从常量类获取，其次从配置文件 system-prompt 覆盖
+        String providerIdentity = AiProviderIdentities.get(providerName);
+        if (providerIdentity == null || providerIdentity.isBlank()) {
+            providerIdentity = config.getSystemPrompt();
+        }
+        if (providerIdentity != null && !providerIdentity.isBlank()) {
+            Map<String, String> identityMsg = new HashMap<>();
+            identityMsg.put("role", "system");
+            identityMsg.put("content", providerIdentity);
+            messagesToSend.add(0, identityMsg);
+        }
+        
         // 3. 构建请求体（非流式）
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put("model", modelName);

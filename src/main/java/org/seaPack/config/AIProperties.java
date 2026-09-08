@@ -55,5 +55,13 @@ public class AIProperties {
          * 用于文本向量化处理，例如: "text-embedding-ada-002"
          */
         private String embeddingModel;
+
+        /**
+         * 模型身份系统提示词（可选）
+         * 对应配置文件中的: ai.providers.<name>.system-prompt
+         * 用于在通用 LLM 对话中注入模型身份，避免模型自报错误身份。
+         * 例如: "你是 MiMo，小米公司研发的 AI 智能助手。"
+         */
+        private String systemPrompt;
     }
 }
