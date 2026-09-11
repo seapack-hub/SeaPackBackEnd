@@ -30,4 +30,13 @@ public interface KnowledgeDocumentMapper {
     int deleteByKnowledgeId(@Param("knowledgeId") Long knowledgeId);
 
     int countByKnowledgeId(@Param("knowledgeId") Long knowledgeId);
+
+    /**
+     * 更新文档错误信息
+     *
+     * @param id           文档 ID
+     * @param errorMessage 错误信息
+     * @return 影响行数
+     */
+    int updateError(@Param("id") Long id, @Param("errorMessage") String errorMessage);
 }

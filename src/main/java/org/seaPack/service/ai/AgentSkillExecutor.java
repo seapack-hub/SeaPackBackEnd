@@ -43,7 +43,7 @@ public class AgentSkillExecutor {
     @Autowired
     private AIProperties aiProperties;
 
-    @Value("${server.port:8080}")
+    @Value("${server.port:8090}")
     private int serverPort;
 
     private final ObjectMapper objectMapper = new ObjectMapper();

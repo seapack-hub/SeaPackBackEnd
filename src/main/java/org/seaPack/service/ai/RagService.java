@@ -72,7 +72,7 @@ public class RagService {
     public void ingestText(String namespace, String text) {
         EmbeddingStore<TextSegment> store = namespaceStore.computeIfAbsent(namespace, k -> new InMemoryEmbeddingStore<>());
 
-        Document document = new Document(text);
+        Document document = Document.from(text);
 
         DocumentByParagraphSplitter splitter = new DocumentByParagraphSplitter(500, 100);
         List<TextSegment> segments = splitter.split(document);

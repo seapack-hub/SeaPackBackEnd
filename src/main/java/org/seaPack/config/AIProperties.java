@@ -12,11 +12,19 @@ import java.util.Map;
 public class AIProperties {
 
     /**
-     * 当前激活的 AI 提供商名称
+     * 当前激活的 AI 提供商名称（用于文本对话）
      * 对应配置文件中的: ai.active-provider (或 ai.activeProvider)
-     * 例如: "deepseek", "aliyun", "baidu"
+     * 例如: "mimo", "deepseek", "aliyun"
      */
     private String activeProvider;
+
+    /**
+     * 向量化服务使用的 AI 提供商名称
+     * 对应配置文件中的: ai.embedding-provider
+     * 向量模型和文本模型可能来自不同提供商，例如文本用 mimo，向量化用 aliyun
+     * 如果未配置，默认使用 active-provider
+     */
+    private String embeddingProvider;
 
     /**
      * 所有 AI 提供商的配置集合

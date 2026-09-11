@@ -386,6 +386,7 @@ public class AgentTestChatService {
             ));
         }
 
+        //查询关联表
         List<AgentPrompt> enabledPrompts = agentPromptMapper.selectByAgentId(agent.getId()).stream()
                 .filter(p -> p.getEnabled() != null && p.getEnabled() == 1)
                 .sorted(Comparator.comparingInt(p -> p.getSortOrder() != null ? p.getSortOrder() : 0))

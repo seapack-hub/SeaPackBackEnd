@@ -28,11 +28,14 @@
 	</scm>
 	<properties>
 		<java.version>17</java.version>
-		
+
 		<maven.compiler.source>17</maven.compiler.source>
 		<maven.compiler.target>17</maven.compiler.target>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+
+		<!-- LangChain4j 版本 -->
+		<langchain4j.version>1.0.0-beta1</langchain4j.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -232,34 +235,35 @@
 		<dependency>
 			<groupId>dev.langchain4j</groupId>
 			<artifactId>langchain4j</artifactId>
-			<version>0.35.0</version>
+			<version>${langchain4j.version}</version>
 		</dependency>
 
 		<!-- LangChain4j OpenAI 集成 (支持兼容协议) -->
 		<dependency>
 			<groupId>dev.langchain4j</groupId>
 			<artifactId>langchain4j-open-ai</artifactId>
-			<version>0.35.0</version>
+			<version>${langchain4j.version}</version>
 		</dependency>
 
-		<!-- LangChain4j ChromaDB 集成 -->
+		<!-- LangChain4j ChromaDB 集成 (使用独立版本支持 v2 API) -->
 		<dependency>
 			<groupId>dev.langchain4j</groupId>
 			<artifactId>langchain4j-chroma</artifactId>
-			<version>0.35.0</version>
+			<version>1.0.0-beta5</version>
 		</dependency>
 
 		<!-- LangChain4j 的 Spring Boot 整合包（@AiService 就在这里面） -->
 		<dependency>
 			<groupId>dev.langchain4j</groupId>
 			<artifactId>langchain4j-spring-boot-starter</artifactId>
-			<version>0.35.0</version>
+			<version>${langchain4j.version}</version>
 		</dependency>
 
+		<!-- DashScope (阿里云) 已迁移到 community 包 -->
 		<dependency>
 			<groupId>dev.langchain4j</groupId>
-			<artifactId>langchain4j-dashscope</artifactId>
-			<version>0.35.0</version> <!-- 确保版本与你项目中其他 langchain4j 依赖一致 -->
+			<artifactId>langchain4j-community-dashscope</artifactId>
+			<version>${langchain4j.version}</version>
 		</dependency>
 
 		<!--抓取网页的工具-->

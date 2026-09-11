@@ -27,20 +27,35 @@ public class FileParserUtil {
      * @return 解析后的纯文本字符串
      * @throws Exception 解析过程中可能抛出的IO异常、格式不支持异常等
      */
+    /**
+     * 支持的纯文本格式（直接读取内容）
+     */
+    private static final List<String> TEXT_EXTENSIONS = List.of(
+            ".txt", ".md", ".markdown", ".json", ".xml", ".csv",
+            ".java", ".py", ".js", ".ts", ".vue", ".html", ".css",
+            ".sql", ".yml", ".yaml", ".properties", ".sh", ".bat"
+    );
+
     public static String parseFile(InputStream inputStream, String fileName) throws Exception {
         // 将文件名转为小写，统一判断文件后缀，避免大小写干扰（如.TXT、.Pdf）
         String lowerName = fileName.toLowerCase();
 
         try {
-            if (lowerName.endsWith(".txt")) {
-                return parseTxt(inputStream);
-            } else if (lowerName.endsWith(".pdf")) {
-                return parsePdf(inputStream);
-            } else if (lowerName.endsWith(".docx")) {
-                return parseDocx(inputStream);
-            } else {
-                throw new IllegalArgumentException("不支持的文件格式: " + fileName);
+            // 纯文本格式：直接读取内容
+            for (String ext : TEXT_EXTENSIONS) {
+                if (lowerName.endsWith(ext)) {
+                    return parseTxt(inputStream);
+                }
             }
+            // PDF 格式
+            if (lowerName.endsWith(".pdf")) {
+                return parsePdf(inputStream);
+            }
+            // DOCX 格式
+            if (lowerName.endsWith(".docx")) {
+                return parseDocx(inputStream);
+            }
+            throw new IllegalArgumentException("不支持的文件格式: " + fileName);
         } catch (Exception e) {
             // 统一捕获异常，打印详细日志，方便排查是哪个文件出的问题
             log.error("文件解析失败: {}", fileName, e);
