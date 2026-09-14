@@ -6,19 +6,20 @@ import dev.langchain4j.data.document.splitter.DocumentByParagraphSplitter;
 import dev.langchain4j.data.embedding.Embedding;
 import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.model.embedding.EmbeddingModel;
-import dev.langchain4j.rag.content.Content;
-import dev.langchain4j.rag.content.retriever.EmbeddingStoreContentRetriever;
-import dev.langchain4j.rag.query.Query;
+import dev.langchain4j.store.embedding.EmbeddingMatch;
 import dev.langchain4j.store.embedding.EmbeddingStore;
 import lombok.extern.slf4j.Slf4j;
 import org.seaPack.components.FileParserUtil;
 import org.seaPack.config.ChromaDbConfig;
+import org.seaPack.config.VectorProgressManager;
 import org.seaPack.dto.ai.RetrievalResult;
 import org.seaPack.mapper.ai.KnowledgeBaseMapper;
 import org.seaPack.mapper.ai.KnowledgeChunkMapper;
 import org.seaPack.mapper.ai.KnowledgeDocumentMapper;
 import org.seaPack.model.ai.KnowledgeBase;
 import org.seaPack.model.ai.KnowledgeChunk;
+import org.seaPack.model.ai.KnowledgeDocument;
+import org.seaPack.model.ai.TokenUsageLog;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -57,18 +58,24 @@ public class KnowledgeVectorService {
     private final KnowledgeBaseMapper knowledgeBaseMapper;
     private final KnowledgeDocumentMapper documentMapper;
     private final KnowledgeChunkMapper chunkMapper;
+    private final VectorProgressManager progressManager;
+    private final TokenStatsService tokenStatsService;
 
     public KnowledgeVectorService(
             ChromaDbConfig chromaDbConfig,
             @Qualifier("embeddingModel") EmbeddingModel embeddingModel,
             KnowledgeBaseMapper knowledgeBaseMapper,
             KnowledgeDocumentMapper documentMapper,
-            KnowledgeChunkMapper chunkMapper) {
+            KnowledgeChunkMapper chunkMapper,
+            VectorProgressManager progressManager,
+            TokenStatsService tokenStatsService) {
         this.chromaDbConfig = chromaDbConfig;
         this.embeddingModel = embeddingModel;
         this.knowledgeBaseMapper = knowledgeBaseMapper;
         this.documentMapper = documentMapper;
         this.chunkMapper = chunkMapper;
+        this.progressManager = progressManager;
+        this.tokenStatsService = tokenStatsService;
     }
 
     /**
@@ -111,6 +118,12 @@ public class KnowledgeVectorService {
             List<TextSegment> segments = splitter.split(Document.from(text));
             log.info("文档分片完成: docId={}, segments={}", documentId, segments.size());
 
+            // 估算 token 数（分片后累加各片长度更准确）
+            int totalTokens = 0;
+            for (TextSegment seg : segments) {
+                totalTokens += seg.text().length() / 4;
+            }
+
             // 4. 获取该知识库的 EmbeddingStore
             EmbeddingStore<TextSegment> store = chromaDbConfig.getEmbeddingStore(knowledgeId);
 
@@ -150,7 +163,7 @@ public class KnowledgeVectorService {
 
             // 8. 更新文档状态（解析成功、向量化成功）
             documentMapper.updateStatus(documentId, 2, 2);
-            documentMapper.updateStats(documentId, segments.size(), 0L);
+            documentMapper.updateStats(documentId, segments.size(), (long) totalTokens);
 
             // 9. 更新知识库统计
             knowledgeBaseMapper.updateStats(knowledgeId);
@@ -174,10 +187,13 @@ public class KnowledgeVectorService {
      * @param filePath    文件路径
      * @param fileName    文件名
      * @param contentType 文件MIME类型
+     * @param taskToken   进度追踪 token（可为 null，为 null 时不推送进度）
      */
     @Async
-    public void asyncVectorizeFromFile(Long knowledgeId, Long documentId, String filePath, String fileName, String contentType) {
+    public void asyncVectorizeFromFile(Long knowledgeId, Long documentId, String filePath, String fileName, String contentType, String taskToken) {
         log.info("开始异步向量化(从文件路径): knowledgeId={}, docId={}, filePath={}", knowledgeId, documentId, filePath);
+        long startTime = System.currentTimeMillis();
+        int totalTokensUsed = 0;
 
         try {
             // 1. 获取知识库配置
@@ -185,6 +201,9 @@ public class KnowledgeVectorService {
             if (kb == null) {
                 throw new RuntimeException("知识库不存在: " + knowledgeId);
             }
+
+            // 推送进度：开始解析
+            pushProgress(taskToken, "parsing", "正在解析文档...", 10);
 
             // 2. 读取文件内容
             Path path = Paths.get(filePath);
@@ -198,6 +217,10 @@ public class KnowledgeVectorService {
                 text = FileParserUtil.parseFile(inputStream, fileName);
             }
             log.info("文档解析完成: docId={}, textLength={}", documentId, text.length());
+            totalTokensUsed = text.length() / 4; // 粗略估算 token 数
+
+            // 推送进度：解析完成
+            pushProgress(taskToken, "splitting", "解析完成，正在分片...", 30);
 
             // 4. 分片（使用知识库配置的分片参数）
             DocumentByParagraphSplitter splitter = new DocumentByParagraphSplitter(
@@ -205,6 +228,15 @@ public class KnowledgeVectorService {
             );
             List<TextSegment> segments = splitter.split(Document.from(text));
             log.info("文档分片完成: docId={}, segments={}", documentId, segments.size());
+
+            // 估算实际 token 数（分片后会有重叠，用分片内容累加更准确）
+            totalTokensUsed = 0;
+            for (TextSegment seg : segments) {
+                totalTokensUsed += seg.text().length() / 4;
+            }
+
+            // 推送进度：分片完成
+            pushProgress(taskToken, "vectorizing", "分片完成（" + segments.size() + " 片），开始向量化...", 40);
 
             // 5. 获取该知识库的 EmbeddingStore
             EmbeddingStore<TextSegment> store = chromaDbConfig.getEmbeddingStore(knowledgeId);
@@ -237,25 +269,45 @@ public class KnowledgeVectorService {
                 chunk.setChunkIndex(i);
                 chunk.setContent(segment.text());
                 chunks.add(chunk);
+
+                // 推送进度：向量化中（每片更新）
+                int progress = 40 + (int) ((i + 1) * 50.0 / segments.size());
+                pushProgress(taskToken, "vectorizing",
+                        "向量化中（" + (i + 1) + "/" + segments.size() + ")...", progress);
             }
 
             // 7. 批量插入分片记录到 MySQL
             chunkMapper.batchInsert(chunks);
             log.info("分片记录入库完成: docId={}, count={}", documentId, chunks.size());
 
-            // 8. 更新文档状态
+            // 推送进度：入库完成
+            pushProgress(taskToken, "saving", "分片入库完成，正在更新统计...", 95);
+
+            // 8. 更新文档状态（写入实际 token 数）
             documentMapper.updateStatus(documentId, 2, 2);
-            documentMapper.updateStats(documentId, segments.size(), 0L);
+            documentMapper.updateStats(documentId, segments.size(), (long) totalTokensUsed);
 
             // 9. 更新知识库统计
             knowledgeBaseMapper.updateStats(knowledgeId);
 
-            log.info("向量化完成: knowledgeId={}, docId={}, chunks={}", knowledgeId, documentId, chunks.size());
+            // 10. 记录 token 消耗
+            long durationMs = System.currentTimeMillis() - startTime;
+            recordEmbeddingUsage(documentId, knowledgeId, totalTokensUsed, (int) durationMs, "success");
+
+            log.info("向量化完成: knowledgeId={}, docId={}, chunks={}, duration={}ms", knowledgeId, documentId, chunks.size(), durationMs);
+
+            // 推送完成
+            pushComplete(taskToken, true, "向量化完成，共 " + chunks.size() + " 个分片");
 
         } catch (Exception e) {
             log.error("向量化失败: knowledgeId={}, docId={}", knowledgeId, documentId, e);
             documentMapper.updateStatus(documentId, 2, 3);
             documentMapper.updateError(documentId, e.getMessage());
+
+            long durationMs = System.currentTimeMillis() - startTime;
+            recordEmbeddingUsage(documentId, knowledgeId, totalTokensUsed, (int) durationMs, "fail");
+
+            pushComplete(taskToken, false, "向量化失败: " + e.getMessage());
         }
     }
 
@@ -278,25 +330,22 @@ public class KnowledgeVectorService {
         // 1. 获取该知识库的 EmbeddingStore
         EmbeddingStore<TextSegment> store = chromaDbConfig.getEmbeddingStore(knowledgeId);
 
-        // 2. 使用 EmbeddingStoreContentRetriever 进行检索
-        EmbeddingStoreContentRetriever retriever = EmbeddingStoreContentRetriever.builder()
-                .embeddingStore(store)
-                .embeddingModel(embeddingModel)
-                .maxResults(topK)
-                .build();
+        // 2. 将查询文本向量化
+        Embedding queryEmbedding = embeddingModel.embed(query).content();
 
-        // 3. 执行检索
-        Query searchQuery = Query.from(query);
-        List<Content> contents = retriever.retrieve(searchQuery);
+        // 3. 使用底层 findRelevant 进行检索（返回包含相似度分数的 EmbeddingMatch）
+        List<EmbeddingMatch<TextSegment>> matches =
+                store.findRelevant(queryEmbedding, topK, 0.0);
 
-        // 4. 转换为返回格式
+        // 4. 转换为返回格式（含相似度分数）
         List<RetrievalResult> results = new ArrayList<>();
-        for (Content content : contents) {
+        for (EmbeddingMatch<TextSegment> match : matches) {
             RetrievalResult result = new RetrievalResult();
-            result.setContent(content.textSegment().text());
+            result.setContent(match.embedded().text());
+            result.setScore(match.score());
 
             // 从元数据中获取 chunkId（如果存在）
-            String chunkIdStr = content.textSegment().metadata().getString("chunkId");
+            String chunkIdStr = match.embedded().metadata().getString("chunkId");
             if (chunkIdStr != null) {
                 try {
                     result.setChunkId(Long.parseLong(chunkIdStr));
@@ -324,22 +373,80 @@ public class KnowledgeVectorService {
 
         // 获取该文档的所有分片记录
         List<KnowledgeChunk> chunks = chunkMapper.selectByDocumentId(documentId);
+        if (chunks.isEmpty()) {
+            log.info("无分片记录需清理: documentId={}", documentId);
+            return;
+        }
 
-        // 从 ChromaDB 删除向量
-        EmbeddingStore<TextSegment> store = chromaDbConfig.getEmbeddingStore(knowledgeId);
+        // 收集所有 vectorId
+        List<String> vectorIds = new ArrayList<>();
         for (KnowledgeChunk chunk : chunks) {
             if (chunk.getVectorId() != null) {
-                try {
-                    // LangChain4j EmbeddingStore 的 delete 方法
-                    // 注意：delete 方法在 LangChain4j 0.35.0 中可能存在，需要根据实际版本调整
-                    // 如果 delete 方法不可用，可以跳过，后续可以手动清理 ChromaDB 中的孤立数据
-                    log.debug("删除向量: vectorId={}", chunk.getVectorId());
-                } catch (Exception e) {
-                    log.warn("删除向量失败: vectorId={}", chunk.getVectorId(), e);
-                }
+                vectorIds.add(chunk.getVectorId());
             }
         }
 
+        if (vectorIds.isEmpty()) {
+            log.info("无 vectorId 需清理: documentId={}", documentId);
+            return;
+        }
+
+        // 从 ChromaDB 逐个删除向量
+        EmbeddingStore<TextSegment> store = chromaDbConfig.getEmbeddingStore(knowledgeId);
+        int deletedCount = 0;
+        for (String vectorId : vectorIds) {
+            try {
+                store.remove(vectorId);
+                deletedCount++;
+            } catch (Exception e) {
+                log.warn("ChromaDB 单条向量删除失败: vectorId={}, error={}", vectorId, e.getMessage());
+            }
+        }
+        log.info("ChromaDB 向量删除完成: documentId={}, total={}, success={}", documentId, vectorIds.size(), deletedCount);
+
         log.info("向量数据删除完成: knowledgeId={}, documentId={}", knowledgeId, documentId);
+    }
+
+    // ===== 进度推送辅助方法 =====
+
+    private void pushProgress(String taskToken, String phase, String message, int progress) {
+        if (taskToken != null) {
+            progressManager.push(taskToken, phase, message, progress);
+        }
+    }
+
+    private void pushComplete(String taskToken, boolean success, String message) {
+        if (taskToken != null) {
+            progressManager.complete(taskToken, success, message);
+        }
+    }
+
+    // ===== Token 统计 =====
+
+    /**
+     * 记录 Embedding 模型的 token 消耗
+     */
+    private void recordEmbeddingUsage(Long documentId, Long knowledgeId, int tokensUsed, int durationMs, String status) {
+        try {
+            KnowledgeDocument doc = documentMapper.selectById(documentId);
+            Long userId = doc != null ? doc.getCreatedBy() : null;
+            if (userId == null) return;
+
+            TokenUsageLog usageLog = new TokenUsageLog();
+            usageLog.setCallTime(new java.util.Date());
+            usageLog.setModelName("embedding");
+            usageLog.setTokensInput(tokensUsed);
+            usageLog.setTokensOutput(0);
+            usageLog.setDurationMs(durationMs);
+            usageLog.setStatus(status);
+            usageLog.setUserId(userId);
+            usageLog.setBizType("knowledge");
+            usageLog.setSceneId(knowledgeId);
+
+            tokenStatsService.recordCall(usageLog);
+            log.debug("Embedding token 统计已记录: docId={}, tokens={}, status={}", documentId, tokensUsed, status);
+        } catch (Exception e) {
+            log.warn("Embedding token 统计失败: docId={}, error={}", documentId, e.getMessage());
+        }
     }
 }

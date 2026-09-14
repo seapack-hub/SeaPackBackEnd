@@ -24,7 +24,7 @@ class EmailDeliveryTest {
             "3270937741@qq.com"
         };
 
-        for (int round = 1; round <= 3; round++) {
+        for (int round = 1; round <= 1; round++) {
             SimpleMailMessage msg = new SimpleMailMessage();
             msg.setFrom("3270937741@qq.com");
             msg.setTo(recipients);
@@ -35,10 +35,6 @@ class EmailDeliveryTest {
                         "此邮件由个人监控系统自动发送，请勿回复。");
             mailSender.send(msg);
             System.out.println("第 " + round + " 轮邮件发送完成");
-
-            if (round < 2) {
-                Thread.sleep(60_000); // 每轮间隔1分钟
-            }
         }
     }
 }

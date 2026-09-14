@@ -33,9 +33,6 @@
 		<maven.compiler.target>17</maven.compiler.target>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-
-		<!-- LangChain4j 版本 -->
-		<langchain4j.version>1.0.0-beta1</langchain4j.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -231,21 +228,22 @@
 			<version>5.8.25</version>
 		</dependency>
 
+		<!-- AI 大模型模块 -->
 		<!-- LangChain4j 核心 -->
 		<dependency>
 			<groupId>dev.langchain4j</groupId>
 			<artifactId>langchain4j</artifactId>
-			<version>${langchain4j.version}</version>
+			<version>0.35.0</version>
 		</dependency>
 
 		<!-- LangChain4j OpenAI 集成 (支持兼容协议) -->
 		<dependency>
 			<groupId>dev.langchain4j</groupId>
 			<artifactId>langchain4j-open-ai</artifactId>
-			<version>${langchain4j.version}</version>
+			<version>0.35.0</version>
 		</dependency>
 
-		<!-- LangChain4j ChromaDB 集成 (使用独立版本支持 v2 API) -->
+		<!-- LangChain4j ChromaDB 集成 -->
 		<dependency>
 			<groupId>dev.langchain4j</groupId>
 			<artifactId>langchain4j-chroma</artifactId>
@@ -256,14 +254,7 @@
 		<dependency>
 			<groupId>dev.langchain4j</groupId>
 			<artifactId>langchain4j-spring-boot-starter</artifactId>
-			<version>${langchain4j.version}</version>
-		</dependency>
-
-		<!-- DashScope (阿里云) 已迁移到 community 包 -->
-		<dependency>
-			<groupId>dev.langchain4j</groupId>
-			<artifactId>langchain4j-community-dashscope</artifactId>
-			<version>${langchain4j.version}</version>
+			<version>0.35.0</version>
 		</dependency>
 
 		<!--抓取网页的工具-->

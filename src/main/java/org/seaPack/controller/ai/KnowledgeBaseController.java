@@ -128,14 +128,14 @@ public class KnowledgeBaseController {
         return knowledgeBaseService.getDocuments(knowledgeId, pageNum, pageSize);
     }
 
-    /** 上传文档 */
+    /** 上传文档（返回 docId + taskToken，前端可用于订阅进度） */
     @PostMapping("/{knowledgeId}/documents/upload")
     public ResponseEntity<?> uploadDocument(
             @PathVariable Long knowledgeId,
             @RequestParam("file") MultipartFile file) {
         try {
-            KnowledgeDocument doc = knowledgeBaseService.uploadDocument(knowledgeId, file, getCurrentUserId());
-            return ResponseEntity.ok(doc);
+            java.util.Map<String, Object> result = knowledgeBaseService.uploadDocumentWithToken(knowledgeId, file, getCurrentUserId());
+            return ResponseEntity.ok(result);
         } catch (IOException e) {
             return ResponseEntity.badRequest().body("文件上传失败: " + e.getMessage());
         } catch (RuntimeException e) {
@@ -147,14 +147,14 @@ public class KnowledgeBaseController {
     @DeleteMapping("/{knowledgeId}/documents/{docId}")
     public ResponseEntity<?> deleteDocument(@PathVariable Long knowledgeId, @PathVariable Long docId) {
         knowledgeBaseService.deleteDocument(knowledgeId, docId);
-        return ResponseEntity.ok().build();
+        return ResponseEntity.ok(Map.of("code", 200, "message", "删除成功"));
     }
 
-    /** 重新处理文档（重新解析+向量化） */
+    /** 重新处理文档（重新解析+向量化，返回 taskToken 供前端订阅进度） */
     @PostMapping("/{knowledgeId}/documents/{docId}/reprocess")
     public ResponseEntity<?> reprocessDocument(@PathVariable Long knowledgeId, @PathVariable Long docId) {
-        knowledgeBaseService.reprocessDocument(knowledgeId, docId);
-        return ResponseEntity.ok("已重置为待处理状态");
+        Map<String, Object> result = knowledgeBaseService.reprocessDocument(knowledgeId, docId);
+        return ResponseEntity.ok(result);
     }
 
     // ===== 分片管理 =====

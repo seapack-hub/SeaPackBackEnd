@@ -10,6 +10,7 @@ import org.seaPack.mapper.ai.KnowledgeDocumentMapper;
 import org.seaPack.model.ai.KnowledgeBase;
 import org.seaPack.model.ai.KnowledgeChunk;
 import org.seaPack.model.ai.KnowledgeDocument;
+import org.seaPack.config.VectorProgressManager;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -22,6 +23,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -44,6 +46,9 @@ public class KnowledgeBaseService {
 
     @Autowired
     private KnowledgeVectorService knowledgeVectorService;
+
+    @Autowired
+    private VectorProgressManager progressManager;
 
     @Value("${ai.knowledge.upload-dir:uploads/knowledge}")
     private String uploadDir;
@@ -166,9 +171,11 @@ public class KnowledgeBaseService {
     /**
      * 上传文档
      * <p>将文件保存到磁盘，创建文档记录，并触发异步向量化。</p>
+     *
+     * @return 包含 docId 和 taskToken 的 Map，供前端订阅进度
      */
     @Transactional
-    public KnowledgeDocument uploadDocument(Long knowledgeId, MultipartFile file, Long userId) throws IOException {
+    public Map<String, Object> uploadDocumentWithToken(Long knowledgeId, MultipartFile file, Long userId) throws IOException {
         // 校验知识库存在
         KnowledgeBase kb = knowledgeBaseMapper.selectById(knowledgeId);
         if (kb == null) {
@@ -180,8 +187,6 @@ public class KnowledgeBaseService {
         String fileType = getFileExtension(originalFilename);
         String storedName = UUID.randomUUID().toString() + "." + fileType;
 
-        // 构建上传路径：相对路径基于 user.dir（项目运行目录）解析
-        // 这样无论在本地还是云服务器，都会在运行目录下创建 uploads/knowledge/
         Path uploadPath = Paths.get(System.getProperty("user.dir"), uploadDir, String.valueOf(knowledgeId));
         log.info("文件上传目录: {}", uploadPath);
         Files.createDirectories(uploadPath);
@@ -190,34 +195,51 @@ public class KnowledgeBaseService {
         file.transferTo(filePath.toFile());
         log.info("文件保存成功: {}", filePath);
 
-        // 创建文档记录
+        // 创建文档记录（存储相对路径，便于跨环境部署）
         KnowledgeDocument doc = new KnowledgeDocument();
         doc.setKnowledgeId(knowledgeId);
         doc.setFileName(originalFilename);
-        doc.setFilePath(filePath.toString());
+        String relativePath = Paths.get(uploadDir, String.valueOf(knowledgeId), storedName).toString();
+        doc.setFilePath(relativePath);
         doc.setFileSize(file.getSize());
         doc.setFileType(fileType);
         doc.setContentType(file.getContentType());
-        doc.setParseStatus(0); // 待解析
-        doc.setVectorStatus(0); // 待处理
+        doc.setParseStatus(0);
+        doc.setVectorStatus(0);
         doc.setCreatedBy(userId);
 
         documentMapper.insert(doc);
         log.info("文档上传成功: knowledgeId={}, docId={}, fileName={}", knowledgeId, doc.getId(), originalFilename);
 
-        // 触发异步向量化（从已保存的永久文件路径读取，避免临时文件被删除的问题）
+        // 生成 taskToken 用于进度追踪
+        String taskToken = UUID.randomUUID().toString();
+        progressManager.register(taskToken, doc.getId());
+
+        // 触发异步向量化
         try {
             String contentType = file.getContentType() != null ? file.getContentType() : "application/octet-stream";
-            knowledgeVectorService.asyncVectorizeFromFile(knowledgeId, doc.getId(), filePath.toString(), originalFilename, contentType);
+            knowledgeVectorService.asyncVectorizeFromFile(knowledgeId, doc.getId(), filePath.toString(), originalFilename, contentType, taskToken);
             log.info("已触发异步向量化任务: knowledgeId={}, docId={}", knowledgeId, doc.getId());
         } catch (Exception e) {
             log.error("触发异步向量化失败: knowledgeId={}, docId={}", knowledgeId, doc.getId(), e);
-            // 更新文档状态为向量化失败
             documentMapper.updateStatus(doc.getId(), 0, 3);
             documentMapper.updateError(doc.getId(), "触发向量化失败: " + e.getMessage());
+            progressManager.complete(taskToken, false, "触发向量化失败: " + e.getMessage());
         }
 
-        return doc;
+        Map<String, Object> result = new java.util.HashMap<>();
+        result.put("doc", doc);
+        result.put("taskToken", taskToken);
+        return result;
+    }
+
+    /**
+     * 上传文档（兼容旧接口）
+     */
+    @Transactional
+    public KnowledgeDocument uploadDocument(Long knowledgeId, MultipartFile file, Long userId) throws IOException {
+        Map<String, Object> result = uploadDocumentWithToken(knowledgeId, file, userId);
+        return (KnowledgeDocument) result.get("doc");
     }
 
     /** 删除文档（含分片、向量数据和文件） */
@@ -236,7 +258,7 @@ public class KnowledgeBaseService {
             // 删除磁盘文件
             if (doc.getFilePath() != null) {
                 try {
-                    Files.deleteIfExists(Paths.get(doc.getFilePath()));
+                    Files.deleteIfExists(resolveFilePath(doc.getFilePath()));
                 } catch (IOException ignored) {
                 }
             }
@@ -252,9 +274,12 @@ public class KnowledgeBaseService {
      *
      * @param knowledgeId 知识库 ID
      * @param docId       文档 ID
+     * @return 包含 taskToken 的 Map，供前端订阅进度
      */
     @Transactional
-    public int reprocessDocument(Long knowledgeId, Long docId) {
+    public Map<String, Object> reprocessDocument(Long knowledgeId, Long docId) {
+        String taskToken = null;
+
         // 清理旧向量数据
         try {
             knowledgeVectorService.deleteVectorsByDocument(knowledgeId, docId);
@@ -273,12 +298,15 @@ public class KnowledgeBaseService {
         KnowledgeDocument doc = documentMapper.selectById(docId);
         if (doc != null && doc.getFilePath() != null) {
             try {
-                Path filePath = Paths.get(doc.getFilePath());
+                Path filePath = resolveFilePath(doc.getFilePath());
                 if (Files.exists(filePath)) {
                     String contentType = doc.getContentType() != null ? doc.getContentType() : "application/octet-stream";
                     String fileName = doc.getFileName() != null ? doc.getFileName() : "unknown.txt";
+                    // 生成 taskToken
+                    taskToken = UUID.randomUUID().toString();
+                    progressManager.register(taskToken, docId);
                     // 异步向量化（从文件路径）
-                    knowledgeVectorService.asyncVectorizeFromFile(knowledgeId, docId, doc.getFilePath(), fileName, contentType);
+                    knowledgeVectorService.asyncVectorizeFromFile(knowledgeId, docId, doc.getFilePath(), fileName, contentType, taskToken);
                     log.info("已触发重新向量化任务: knowledgeId={}, docId={}", knowledgeId, docId);
                 } else {
                     log.warn("文档文件不存在: {}", doc.getFilePath());
@@ -292,7 +320,10 @@ public class KnowledgeBaseService {
             }
         }
 
-        return 1;
+        Map<String, Object> result = new java.util.HashMap<>();
+        result.put("taskToken", taskToken);
+        result.put("doc", doc);
+        return result;
     }
 
     // ===== 分片管理 =====
@@ -353,6 +384,24 @@ public class KnowledgeBaseService {
     @Transactional
     public void refreshStats(Long knowledgeId) {
         knowledgeBaseMapper.updateStats(knowledgeId);
+    }
+
+    /**
+     * 解析文件路径，兼容旧的绝对路径和新的相对路径
+     * <p>新上传的文档存储相对路径（相对于 user.dir），读取时动态拼接。
+     * 旧数据可能存储了绝对路径，需要兼容处理。</p>
+     *
+     * @param storedPath 数据库中存储的路径
+     * @return 解析后的绝对路径
+     */
+    private Path resolveFilePath(String storedPath) {
+        Path path = Paths.get(storedPath);
+        if (path.isAbsolute()) {
+            // 旧数据：已经是绝对路径，直接使用
+            return path;
+        }
+        // 新数据：相对路径，拼接 user.dir
+        return Paths.get(System.getProperty("user.dir"), storedPath);
     }
 
     /** 获取文件扩展名 */
