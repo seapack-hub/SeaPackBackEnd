@@ -50,6 +50,7 @@ public class SecurityConfig {
                         "/hello",
                         "/hello",
                         "/images/**",
+                        "/files/**",
                         // 内部 API 接口（技能调用等）
                         "/ai/skills/execute/**"
                     ).permitAll()
