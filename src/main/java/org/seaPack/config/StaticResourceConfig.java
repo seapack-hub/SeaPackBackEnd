@@ -31,6 +31,7 @@ public class StaticResourceConfig implements WebMvcConfigurer {
         // AI 生成图片：/images/** → uploads/images/
         String imagesPath = java.nio.file.Paths.get(userDir, storageDir).toAbsolutePath().normalize().toUri()
                 .toString();
+        if (!imagesPath.endsWith("/")) imagesPath += "/";
         registry.addResourceHandler("/images/**")
                 .addResourceLocations(imagesPath)
                 .setCachePeriod(3600);
@@ -38,6 +39,7 @@ public class StaticResourceConfig implements WebMvcConfigurer {
         // 通用上传文件：/files/** → uploads/files/
         String filesPath = java.nio.file.Paths.get(userDir, fileUploadDir).toAbsolutePath().normalize().toUri()
                 .toString();
+        if (!filesPath.endsWith("/")) filesPath += "/";
         registry.addResourceHandler("/files/**")
                 .addResourceLocations(filesPath)
                 .setCachePeriod(3600);

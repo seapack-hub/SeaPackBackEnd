@@ -335,7 +335,7 @@ public class KnowledgeVectorService {
 
         // 3. 使用底层 findRelevant 进行检索（返回包含相似度分数的 EmbeddingMatch）
         List<EmbeddingMatch<TextSegment>> matches =
-                store.findRelevant(queryEmbedding, topK, 0.0);
+                store.findRelevant(queryEmbedding, topK, 0.5);
 
         // 4. 转换为返回格式（含相似度分数）
         List<RetrievalResult> results = new ArrayList<>();
