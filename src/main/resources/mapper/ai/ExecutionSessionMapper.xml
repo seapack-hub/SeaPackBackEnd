@@ -35,8 +35,17 @@
         model_name, status, is_deleted, error_message, created_by, created_at
     </sql>
 
+    <!-- 列表查询：排除 trace_snapshot / history_messages / output_result 等大字段，避免排序 OOM -->
+    <sql id="ListColumns">
+        id, biz_type, biz_id, biz_name, conversation_id, scene_id,
+        request_id, retry_count,
+        user_message,
+        total_duration_ms, tokens_prompt, tokens_completion, tokens_total,
+        model_name, status, is_deleted, error_message, created_by, created_at
+    </sql>
+
     <select id="selectList" resultMap="BaseMap">
-        SELECT <include refid="BaseColumns"/>
+        SELECT <include refid="ListColumns"/>
         FROM ai_execution_session
         <where>
             is_deleted = 0
@@ -49,7 +58,7 @@
     </select>
 
     <select id="selectListByBizIds" resultMap="BaseMap">
-        SELECT <include refid="BaseColumns"/>
+        SELECT <include refid="ListColumns"/>
         FROM ai_execution_session
         <where>
             is_deleted = 0

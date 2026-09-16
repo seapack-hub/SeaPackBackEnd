@@ -207,6 +207,13 @@
 			<version>2.0.27</version>
 		</dependency>
 
+		<!-- Markdown 解析（Markdown→HTML，供文档生成使用） -->
+		<dependency>
+			<groupId>com.vladsch.flexmark</groupId>
+			<artifactId>flexmark-all</artifactId>
+			<version>0.64.8</version>
+		</dependency>
+
 
 		<dependency>
 			<groupId>org.apache.commons</groupId>

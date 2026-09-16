@@ -65,148 +65,6 @@ public class AgentTestChatService {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
-     * 执行测试对话（含完整链路追踪）
-     * <p>核心流程：加载 Agent → 提示词组装 → 知识库检索 → 技能调用 → LLM 调用 → 保存测试会话。</p>
-     *
-     * @param request 测试对话请求
-     * @param userId  当前用户 ID
-     * @return 测试对话响应（含链路追踪快照）
-     */
-    @Transactional
-    public AgentTestChatResponse testChat(AiDialogRequest request, Long userId) {
-        long totalStart = System.currentTimeMillis();
-        List<AgentTraceStep> steps = new ArrayList<>();
-        int stepIndex = 1;
-
-        // 1. 加载 Agent 并校验状态
-        Agent agent = agentMapper.selectById(request.getAgentId());
-        if (agent == null) {
-            throw new RuntimeException("Agent 不存在: " + request.getAgentId());
-        }
-        if (agent.getStatus() == null || agent.getStatus() != 1) {
-            throw new RuntimeException("Agent 已禁用: " + agent.getName());
-        }
-
-        // 2. 解析场景级配置覆盖
-        applySceneConfig(agent, request.getSceneId());
-
-        // ===== Step 1: 提示词组装 =====
-        String systemPrompt;
-        try {
-            AgentTraceStepResult stepResult = assemblePrompt(agent, stepIndex, extractMessage(request),
-                    userId, request.getSceneId(), agent.getId(), request.getRequestId());
-            systemPrompt = stepResult.output;
-            stepIndex = stepResult.nextStepIndex;
-            steps.add(stepResult.step);
-        } catch (Exception e) {
-            steps.add(buildFailStep(stepIndex++, "prompt_assembly", "提示词组装", e.getMessage()));
-            return buildErrorResponse(agent, request, steps, totalStart, userId, e);
-        }
-
-        // ===== Step 2: 知识库检索 =====
-        String knowledgeContext = "";
-        try {
-            AgentTraceStepResult stepResult = retrieveKnowledge(agent, extractMessage(request), stepIndex);
-            knowledgeContext = stepResult.output;
-            stepIndex = stepResult.nextStepIndex;
-            steps.add(stepResult.step);
-
-            if (knowledgeContext != null && !knowledgeContext.isBlank()) {
-                systemPrompt += "\n\n【参考知识】\n" + knowledgeContext;
-            }
-        } catch (Exception e) {
-            steps.add(buildFailStep(stepIndex++, "knowledge_retrieval", "知识库检索", e.getMessage()));
-        }
-
-        // ===== Step 3: 技能调用 =====
-        String skillContext = "";
-        try {
-            SkillExecuteResult skillResult = skillExecutor.executeSkills(agent.getId(), extractMessage(request));
-            skillContext = skillResult.getOutput();
-
-            AgentTraceStep step = new AgentTraceStep();
-            step.setStepIndex(stepIndex++);
-            step.setStepType("skill_execution");
-            step.setStepName("技能调用");
-            step.setStatus(skillResult.getExecutedCount() > 0 ? "success" : "skip");
-            step.setDurationMs(skillResult.getDurationMs());
-            step.setOutput(skillContext);
-
-            // 填充 metadata
-            Map<String, Object> skillMeta = new HashMap<>();
-            skillMeta.put("totalSkillCount", skillResult.getTotalSkillCount());
-            skillMeta.put("executedCount", skillResult.getExecutedCount());
-            skillMeta.put("failedCount", skillResult.getFailedCount());
-            skillMeta.put("skillNames", skillResult.getSkillNames());
-            step.setMetadata(skillMeta);
-
-            steps.add(step);
-
-            if (skillContext != null && !skillContext.isBlank()) {
-                systemPrompt += "\n\n【技能执行结果】\n" + skillContext;
-            }
-        } catch (Exception e) {
-            steps.add(buildFailStep(stepIndex++, "skill_execution", "技能调用", e.getMessage()));
-        }
-
-        // ===== Step 4: LLM 调用 =====
-        String replyContent;
-        int promptTokens;
-        int completionTokens;
-        String modelName;
-        try {
-            AgentTraceStepResult stepResult = callLLM(agent, systemPrompt, request, stepIndex);
-            replyContent = stepResult.output;
-            promptTokens = stepResult.tokensPrompt;
-            completionTokens = stepResult.tokensCompletion;
-            modelName = stepResult.modelName;
-            stepIndex = stepResult.nextStepIndex;
-            steps.add(stepResult.step);
-        } catch (Exception e) {
-            steps.add(buildFailStep(stepIndex++, "llm_call", "LLM 调用", e.getMessage()));
-            return buildErrorResponse(agent, request, steps, totalStart, userId, e);
-        }
-
-        // 记录本次 LLM 调用的 Token 消耗到统计表
-        try {
-            long llmDuration = System.currentTimeMillis() - totalStart;
-            TokenUsageLog tokenLog = new TokenUsageLog();
-            tokenLog.setCallTime(new Date());
-            tokenLog.setModelName(modelName);
-            tokenLog.setTokensInput(promptTokens);
-            tokenLog.setTokensOutput(completionTokens);
-            tokenLog.setDurationMs((int) llmDuration);
-            tokenLog.setStatus("success");
-            tokenLog.setUserId(userId);
-            tokenLog.setBizType("agent");
-            tokenLog.setSceneId(request.getSceneId());
-            tokenLog.setAgentId(agent.getId());
-            tokenLog.setRequestId(request.getRequestId());
-            tokenStatsService.recordCall(tokenLog);
-        } catch (Exception e) {
-            log.error("记录 Token 统计失败: {}", e.getMessage(), e);
-        }
-
-        // ===== 组装链路追踪快照 =====
-        long totalDuration = System.currentTimeMillis() - totalStart;
-        AgentTraceSnapshot snapshot = buildTraceSnapshot(agent, steps, totalDuration, promptTokens, completionTokens);
-
-        // ===== 保存测试会话 =====
-        saveTestSession(agent, request, replyContent, snapshot, (int) totalDuration,
-                promptTokens, completionTokens, modelName, "success", null, userId);
-
-        agentMapper.incrementUseCount(agent.getId());
-
-        AgentTestChatResponse response = new AgentTestChatResponse();
-        response.setContent(replyContent);
-        response.setTokensPrompt(promptTokens);
-        response.setTokensCompletion(completionTokens);
-        response.setDurationMs((int) totalDuration);
-        response.setTraceSnapshot(snapshot);
-        return response;
-    }
-
-    /**
      * LLM 动态选择相关模板
      * <p>根据用户消息和所有可用模板，调用 LLM 选出最相关的模板。
      * 每次 LLM 调用均记录 Token 消耗到统计表。</p>
@@ -337,15 +195,6 @@ public class AgentTestChatService {
     }
 
     // ===== Step 1: 提示词组装 =====
-
-    /**
-     * 组装系统提示词
-     * <p>将 Agent 基础提示词与关联的提示词模板按顺序拼接。</p>
-     */
-    private AgentTraceStepResult assemblePrompt(Agent agent, int stepIndex, String userMessage,
-                                                 Long userId, Long sceneId, Long agentId, String requestId) {
-        return assemblePrompt(agent, stepIndex, userMessage, null, userId, sceneId, agentId, requestId);
-    }
 
     /**
      * 组装系统提示词（支持 SSE 流式进度）
@@ -499,13 +348,6 @@ public class AgentTestChatService {
     // ===== Step 2: 知识库检索 =====
 
     /**
-     * 从 Agent 关联的知识库中检索相关内容
-     */
-    private AgentTraceStepResult retrieveKnowledge(Agent agent, String query, int stepIndex) {
-        return retrieveKnowledge(agent, query, stepIndex, null);
-    }
-
-    /**
      * 从 Agent 关联的知识库中检索相关内容（支持 SSE 流式进度）
      */
     private AgentTraceStepResult retrieveKnowledge(Agent agent, String query, int stepIndex, SseEmitter emitter) {
@@ -553,7 +395,9 @@ public class AgentTestChatService {
                     totalChunks++;
 
                     Map<String, Object> chunkDetail = new HashMap<>();
-                    chunkDetail.put("content", r.getContent());
+                    // 截断内容，避免 metadata 中存储过多文本
+                    String content = r.getContent();
+                    chunkDetail.put("content", content.length() > 200 ? content.substring(0, 200) + "..." : content);
                     chunkDetail.put("score", r.getScore());
                     chunkDetails.add(chunkDetail);
                 }
@@ -582,6 +426,14 @@ public class AgentTestChatService {
             }
         }
 
+        // 发送检索完成
+        if (emitter != null) {
+            SseEvent.send(emitter, "step_progress", Map.of(
+                    "stepIndex", stepIndex,
+                    "message", "知识库检索完成，共命中 " + totalChunks + " 条"
+            ));
+        }
+
         AgentTraceStep step = new AgentTraceStep();
         step.setStepIndex(stepIndex);
         step.setStepType("knowledge_retrieval");
@@ -602,117 +454,7 @@ public class AgentTestChatService {
         return result;
     }
 
-    // ===== Step 4: LLM 调用 =====
-
-    /**
-     * 调用 LLM API
-     * <p>构建消息列表并调用 LLM，返回响应内容和 Token 统计。</p>
-     */
-    private AgentTraceStepResult callLLM(Agent agent, String systemPrompt,
-                                          AiDialogRequest request, int stepIndex) {
-        long llmStart = System.currentTimeMillis();
-        String modelName = agent.getModelCode() != null ? agent.getModelCode() :
-                aiProperties.getProviders().get(aiProperties.getActiveProvider()).getChatModel();
-
-        List<Map<String, String>> messages = new ArrayList<>();
-        Map<String, String> systemMsg = new HashMap<>();
-        systemMsg.put("role", "system");
-        systemMsg.put("content", systemPrompt);
-        messages.add(systemMsg);
-
-        // 添加历史消息（如果启用记忆）
-        if (agent.getMemoryEnabled() != null && agent.getMemoryEnabled() == 1
-                && request.getHistory() != null && !request.getHistory().isEmpty()) {
-            int window = agent.getMemoryWindow() != null ? agent.getMemoryWindow() : 20;
-            List<Map<String, String>> history = new ArrayList<>(request.getHistory());
-            if (history.size() > window * 2) {
-                history = history.subList(history.size() - window * 2, history.size());
-            }
-            messages.addAll(history);
-        }
-
-        Map<String, String> userMsg = new HashMap<>();
-        userMsg.put("role", "user");
-        userMsg.put("content", extractMessage(request));
-        messages.add(userMsg);
-
-        String providerName = aiProperties.getActiveProvider();
-        AIProperties.ProviderConfig config = aiProperties.getProviders().get(providerName);
-        if (config == null) {
-            throw new RuntimeException("AI 配置错误：未找到提供商 [" + providerName + "]");
-        }
-
-        String url = config.getBaseUrl().replaceAll("/+$", "") + "/chat/completions";
-        Map<String, Object> requestBody = new HashMap<>();
-        requestBody.put("model", modelName);
-        requestBody.put("messages", messages);
-        requestBody.put("stream", false);
-        if (agent.getTemperature() != null) {
-            requestBody.put("temperature", agent.getTemperature());
-        }
-        if (agent.getMaxTokens() != null) {
-            requestBody.put("max_tokens", agent.getMaxTokens());
-        }
-
-        Map<String, Object> apiResponse;
-        try {
-            apiResponse = llmSseHelper.callSync(url, config.getApiKey(), requestBody);
-        } catch (Exception e) {
-            throw new RuntimeException("LLM 调用失败: " + e.getMessage(), e);
-        }
-
-        String replyContent = "";
-        int promptTokens = 0;
-        int completionTokens = 0;
-
-        if (apiResponse != null) {
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> choices = (List<Map<String, Object>>) apiResponse.get("choices");
-            if (choices != null && !choices.isEmpty()) {
-                Map<String, Object> choice = choices.get(0);
-                @SuppressWarnings("unchecked")
-                Map<String, String> message = (Map<String, String>) choice.get("message");
-                if (message != null && message.get("content") != null) {
-                    replyContent = message.get("content");
-                }
-            }
-
-            @SuppressWarnings("unchecked")
-            Map<String, Object> usage = (Map<String, Object>) apiResponse.get("usage");
-            if (usage != null) {
-                promptTokens = usage.get("prompt_tokens") != null ? (Integer) usage.get("prompt_tokens") : 0;
-                completionTokens = usage.get("completion_tokens") != null ? (Integer) usage.get("completion_tokens") : 0;
-            }
-        }
-
-        long llmDuration = System.currentTimeMillis() - llmStart;
-        AgentTraceStep step = new AgentTraceStep();
-        step.setStepIndex(stepIndex);
-        step.setStepType("llm_call");
-        step.setStepName("LLM 调用");
-        step.setStatus("success");
-        step.setDurationMs(llmDuration);
-        step.setInput(systemPrompt);
-        step.setOutput(replyContent);
-        Map<String, Object> llmMeta = new HashMap<>();
-        llmMeta.put("model", modelName);
-        llmMeta.put("tokensPrompt", promptTokens);
-        llmMeta.put("tokensCompletion", completionTokens);
-        llmMeta.put("temperature", agent.getTemperature());
-        step.setMetadata(llmMeta);
-
-        AgentTraceStepResult result = new AgentTraceStepResult();
-        result.step = step;
-        result.output = replyContent;
-        result.tokensPrompt = promptTokens;
-        result.tokensCompletion = completionTokens;
-        result.modelName = modelName;
-        result.nextStepIndex = stepIndex + 1;
-        return result;
-    }
-
     // ===== 辅助方法 =====
-
     private AgentTraceStep buildFailStep(int stepIndex, String stepType, String stepName, String errorMessage) {
         AgentTraceStep step = new AgentTraceStep();
         step.setStepIndex(stepIndex);
@@ -840,6 +582,22 @@ public class AgentTestChatService {
      * @param emitter SSE 发射器
      */
     public void testChatStream(AiDialogRequest request, Long userId, SseEmitter emitter, String authToken, HttpServletResponse response) {
+        testChatStream(request, userId, emitter, authToken, response, null);
+    }
+
+    /**
+     * 执行测试对话（SSE 流式返回，支持取消标志）
+     * <p>核心流程：加载 Agent → 提示词组装 → 知识库检索 → 技能调用 → LLM 流式调用 → 保存测试会话。
+     * 每个步骤执行前检查 cancelFlag，若已取消则提前终止并发送 done 事件。</p>
+     *
+     * @param request    测试对话请求
+     * @param userId     当前用户 ID
+     * @param emitter    SSE 发射器
+     * @param authToken  认证 Token
+     * @param response   HTTP 响应
+     * @param cancelFlag 取消标志（可选，null 则不检查）
+     */
+    public void testChatStream(AiDialogRequest request, Long userId, SseEmitter emitter, String authToken, HttpServletResponse response, AtomicBoolean cancelFlag) {
         long totalStart = System.currentTimeMillis();
         List<AgentTraceStep> steps = new ArrayList<>();
         int stepIndex = 1;
@@ -897,6 +655,12 @@ public class AgentTestChatService {
         }
 
         // ===== Step 2: 知识库检索 =====
+        // 检查取消标志：Step 1 完成后、Step 2 开始前
+        if (isUserCancelled(cancelFlag)) {
+            log.info("Agent 对话在知识库检索前被用户取消");
+            sendCancelledDone(emitter, response, totalStart);
+            return;
+        }
         String knowledgeContext = "";
         try {
             SseEvent.send(emitter, "step_start", Map.of(
@@ -927,6 +691,12 @@ public class AgentTestChatService {
         }
 
         // ===== Step 3: 技能调用 =====
+        // 检查取消标志：Step 2 完成后、Step 3 开始前
+        if (isUserCancelled(cancelFlag)) {
+            log.info("Agent 对话在技能调用前被用户取消");
+            sendCancelledDone(emitter, response, totalStart);
+            return;
+        }
         String skillContext = "";
         try {
             SseEvent.send(emitter, "step_start", Map.of(
@@ -935,7 +705,7 @@ public class AgentTestChatService {
                     "stepName", "技能调用"
             ));
 
-            SkillExecuteResult skillResult = skillExecutor.executeSkills(agent.getId(), extractMessage(request), authToken, emitter);
+            SkillExecuteResult skillResult = skillExecutor.executeSkills(agent.getId(), extractMessage(request), authToken, emitter, stepIndex);
             skillContext = skillResult.getOutput();
 
             AgentTraceStep step = new AgentTraceStep();
@@ -973,6 +743,12 @@ public class AgentTestChatService {
         }
 
         // ===== Step 4: LLM 流式调用 =====
+        // 检查取消标志：Step 3 完成后、Step 4 开始前
+        if (isUserCancelled(cancelFlag)) {
+            log.info("Agent 对话在 LLM 调用前被用户取消");
+            sendCancelledDone(emitter, response, totalStart);
+            return;
+        }
         SseEvent.send(emitter, "step_start", Map.of(
                 "stepIndex", stepIndex,
                 "stepType", "llm_call",
@@ -984,7 +760,7 @@ public class AgentTestChatService {
         int completionTokens;
         String modelName;
         try {
-            AgentTraceStepResult stepResult = callLLMStream(agent, systemPrompt, request, stepIndex, emitter, isCompleted);
+            AgentTraceStepResult stepResult = callLLMStream(agent, systemPrompt, request, stepIndex, emitter, isCompleted, cancelFlag);
             replyContent = stepResult.output;
             promptTokens = stepResult.tokensPrompt;
             completionTokens = stepResult.tokensCompletion;
@@ -1056,13 +832,14 @@ public class AgentTestChatService {
         }
     }
 
+    // --第四步----
     /**
      * 流式调用 LLM API
      * <p>构建消息列表并调用 LLM，逐 token 发送 SSE 事件。</p>
      */
     private AgentTraceStepResult callLLMStream(Agent agent, String systemPrompt,
                                                 AiDialogRequest request, int stepIndex,
-                                                SseEmitter emitter, AtomicBoolean isCompleted) {
+                                                SseEmitter emitter, AtomicBoolean isCompleted, AtomicBoolean cancelFlag) {
         long llmStart = System.currentTimeMillis();
         String modelName = agent.getModelCode() != null ? agent.getModelCode() :
                 aiProperties.getProviders().get(aiProperties.getActiveProvider()).getChatModel();
@@ -1115,7 +892,9 @@ public class AgentTestChatService {
         try {
             // 使用 LlmSseHelper 实现流式请求
             HttpURLConnection connection = llmSseHelper.createConnection(url, config.getApiKey(), requestBody);
-            llmSseHelper.readChunks(connection, isCompleted, chunk -> {
+            // 优先使用 cancelFlag（来自 AiDialogService），其次使用 isCompleted（SSE 断连）
+            AtomicBoolean llmCancelFlag = cancelFlag != null ? cancelFlag : isCompleted;
+            llmSseHelper.readChunks(connection, llmCancelFlag, chunk -> {
                 if (chunk.isDone()) return;
                 if (chunk.hasDeltaContent()) {
                     replyContentBuilder.append(chunk.getDeltaContent());
@@ -1184,6 +963,29 @@ public class AgentTestChatService {
                     "error", errorMessage != null ? errorMessage : "未知错误"
             ));
         } catch (Exception ignored) {}
+        try { response.flushBuffer(); } catch (Exception ignored) {}
+        try { response.getOutputStream().close(); } catch (Exception ignored) {}
+        try { emitter.complete(); } catch (Exception ignored) {}
+    }
+
+    /**
+     * 检查用户是否已取消对话
+     */
+    private boolean isUserCancelled(AtomicBoolean cancelFlag) {
+        return cancelFlag != null && cancelFlag.get();
+    }
+
+    /**
+     * 发送取消完成事件并关闭 SSE 连接
+     */
+    private void sendCancelledDone(SseEmitter emitter, HttpServletResponse response, long totalStart) {
+        long totalDuration = System.currentTimeMillis() - totalStart;
+        SseEvent.send(emitter, "done", Map.of(
+                "status", "cancelled",
+                "durationMs", totalDuration,
+                "totalDurationMs", totalDuration,
+                "message", "用户已取消对话"
+        ));
         try { response.flushBuffer(); } catch (Exception ignored) {}
         try { response.getOutputStream().close(); } catch (Exception ignored) {}
         try { emitter.complete(); } catch (Exception ignored) {}

@@ -444,7 +444,7 @@ public class AiDialogService {
         // 注册取消标志（AiDialogService 统一管理）
         AtomicBoolean cancelFlag = registerCancelFlag(userId);
         try {
-            agentTestChatService.testChatStream(request, userId, emitter, authToken, response);
+            agentTestChatService.testChatStream(request, userId, emitter, authToken, response, cancelFlag);
         } finally {
             removeCancelFlag(userId);
         }

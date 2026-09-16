@@ -5,6 +5,8 @@ import org.seaPack.dto.market.InstrumentDto;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import jakarta.annotation.PostConstruct;
+import java.io.File;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
@@ -23,6 +25,19 @@ public class InstrumentService {
     /** Parquet 文件存放的目录路径 */
     @Value("${stock.instrument.parquet.dir}")
     private String parquetDir;
+
+    @PostConstruct
+    public void resolveParquetDir() {
+        File dir = new File(parquetDir);
+        if (!dir.exists() && System.getProperty("os.name").toLowerCase().contains("win")) {
+            String lastSegment = dir.getName();
+            String winPath = "D:\\stockInfo\\" + lastSegment;
+            if (new File(winPath).exists()) {
+                log.info("Parquet 目录不存在于 {}，自动切换到 Windows 路径: {}", parquetDir, winPath);
+                parquetDir = winPath;
+            }
+        }
+    }
 
     /** Parquet 文件名 */
     private static final String FILE_NAME = "a_stock_instruments.parquet";

@@ -5,6 +5,8 @@ import org.seaPack.dto.market.StockDailyKlineDto;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import jakarta.annotation.PostConstruct;
+import java.io.File;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
@@ -23,6 +25,19 @@ public class StockDailyService {
     /** Parquet 文件存放的基础目录 */
     @Value("${stock.parquet.dir}")
     private String parquetDir;
+
+    @PostConstruct
+    public void resolveParquetDir() {
+        File dir = new File(parquetDir);
+        if (!dir.exists() && System.getProperty("os.name").toLowerCase().contains("win")) {
+            String lastSegment = dir.getName();
+            String winPath = "D:\\stockInfo\\" + lastSegment;
+            if (new File(winPath).exists()) {
+                log.info("Parquet 目录不存在于 {}，自动切换到 Windows 路径: {}", parquetDir, winPath);
+                parquetDir = winPath;
+            }
+        }
+    }
 
     /**
      * 查询指定股票在日期范围内的日 K 线数据

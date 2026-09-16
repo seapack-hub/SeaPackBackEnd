@@ -1,16 +1,21 @@
 package org.seaPack.controller.ai;
 
 import com.github.pagehelper.PageInfo;
+import jakarta.servlet.http.HttpServletResponse;
 import org.seaPack.config.security.SecurityUtils;
+import org.seaPack.dto.ai.SkillTestRequest;
 import org.seaPack.model.ai.Skill;
 import org.seaPack.model.ai.SkillParam;
 import org.seaPack.service.ai.SkillParamService;
 import org.seaPack.service.ai.SkillService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
+import java.util.concurrent.Executor;
 
 /**
  * AI 技能控制器
@@ -25,6 +30,9 @@ public class SkillController {
 
     @Autowired
     private SkillParamService paramService;
+
+    @Autowired
+    private Executor sseExecutor;
 
     /** 全量技能列表（不分页） */
     @GetMapping("/all")
@@ -117,6 +125,59 @@ public class SkillController {
     public ResponseEntity<?> deleteParam(@PathVariable Long skillId, @PathVariable Long paramId) {
         paramService.deleteById(paramId);
         return ResponseEntity.ok("删除成功");
+    }
+
+    // ===== 技能调试 =====
+
+    /**
+     * 技能调试（SSE 流式）
+     * <p>根据技能 ID 和测试参数，调用技能 endpoint 并流式返回结果。</p>
+     */
+    @PostMapping("/test-stream")
+    public SseEmitter testStream(@RequestBody SkillTestRequest request,
+                                  HttpServletResponse response) {
+        // 设置 SSE 响应头
+        response.setContentType(MediaType.TEXT_EVENT_STREAM_VALUE);
+        response.setCharacterEncoding("UTF-8");
+        response.setHeader("Cache-Control", "no-cache");
+        response.setHeader("X-Accel-Buffering", "no");
+
+        SseEmitter emitter = new SseEmitter(600000L);
+
+        // 获取认证 Token
+        String authToken = null;
+        try {
+            org.springframework.web.context.request.ServletRequestAttributes attrs =
+                    (org.springframework.web.context.request.ServletRequestAttributes)
+                            org.springframework.web.context.request.RequestContextHolder.getRequestAttributes();
+            if (attrs != null) {
+                authToken = attrs.getRequest().getHeader("Authorization");
+            }
+        } catch (Exception ignored) {}
+
+        // 使用公共线程池异步执行
+        final String token = authToken;
+        sseExecutor.execute(() -> {
+            try {
+                skillService.testSkillStream(
+                        request.getSkillId(),
+                        request.getParams(),
+                        token,
+                        emitter
+                );
+            } catch (Exception e) {
+                try { emitter.completeWithError(e); } catch (Exception ignored) {}
+            }
+        });
+
+        // 注册生命周期回调
+        emitter.onCompletion(() -> {});
+        emitter.onTimeout(() -> {
+            try { emitter.complete(); } catch (Exception ignored) {}
+        });
+        emitter.onError(e -> {});
+
+        return emitter;
     }
 
 }

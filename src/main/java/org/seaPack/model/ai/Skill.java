@@ -9,7 +9,8 @@ import java.util.Date;
 
 /**
  * AI 技能定义实体（核心表）
- * <p>对应 ai_skill 表，定义了一个可配置的 AI 工具，支持工具调用、RAG、混合三种技能类型。</p>
+ * <p>对应 ai_skill 表，定义了一个可配置的 AI 工具。
+ * skill_type 同时兼任执行器类型（http/llm/script/file_gen/rag/hybrid）。</p>
  */
 @Entity
 @Data
@@ -47,12 +48,16 @@ public class Skill {
     private String description;
 
     @Column(name = "skill_type")
-    @Comment("技能类型：tool(工具调用) / rag(知识库检索) / hybrid(混合)")
+    @Comment("执行器类型：http(HTTP调用) / llm(大模型) / script(脚本) / file_gen(文件生成) / rag(知识检索) / hybrid(混合)")
     private String skillType;
 
     @Column(name = "endpoint")
     @Comment("技能调用端点（API地址或自定义处理类路径）")
     private String endpoint;
+
+    @Column(name = "output_type")
+    @Comment("输出类型：json(JSON数据) / file(文件下载) / stream_text(流式文本) / markdown")
+    private String outputType;
 
     @Column(name = "timeout_ms")
     @Comment("调用超时时间（毫秒）")

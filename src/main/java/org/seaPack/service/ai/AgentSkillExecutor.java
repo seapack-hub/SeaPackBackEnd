@@ -57,7 +57,7 @@ public class AgentSkillExecutor {
      * @return 技能执行结果（含输出文本和统计元数据）
      */
     public SkillExecuteResult executeSkills(Long agentId, String userMessage) {
-        return executeSkills(agentId, userMessage, null);
+        return executeSkills(agentId, userMessage, null, null, 0);
     }
 
     /**
@@ -70,7 +70,7 @@ public class AgentSkillExecutor {
      * @return 技能执行结果（含输出文本和统计元数据）
      */
     public SkillExecuteResult executeSkills(Long agentId, String userMessage, String authToken) {
-        return executeSkills(agentId, userMessage, authToken, null);
+        return executeSkills(agentId, userMessage, authToken, null, 0);
     }
 
     /**
@@ -84,6 +84,21 @@ public class AgentSkillExecutor {
      * @return 技能执行结果（含输出文本和统计元数据）
      */
     public SkillExecuteResult executeSkills(Long agentId, String userMessage, String authToken, org.springframework.web.servlet.mvc.method.annotation.SseEmitter emitter) {
+        return executeSkills(agentId, userMessage, authToken, emitter, 0);
+    }
+
+    /**
+     * 执行 Agent 关联的技能（支持 SSE 流式进度 + 步骤索引）
+     * <p>流程：获取已启用技能 → LLM 智能选择 → 逐个提取参数并调用 endpoint → 返回汇总结果。</p>
+     *
+     * @param agentId     Agent ID
+     * @param userMessage 用户原始消息
+     * @param authToken   Bearer Token（用于内部API调用的认证，SSE 异步线程中需手动传入）
+     * @param emitter     SSE 发射器（可选，用于发送流式进度）
+     * @param stepIndex   当前步骤索引（用于 SSE 事件中的 stepIndex 字段）
+     * @return 技能执行结果（含输出文本和统计元数据）
+     */
+    public SkillExecuteResult executeSkills(Long agentId, String userMessage, String authToken, org.springframework.web.servlet.mvc.method.annotation.SseEmitter emitter, int stepIndex) {
         long start = System.currentTimeMillis();
         StringBuilder skillBuilder = new StringBuilder();
         int executedCount = 0;
@@ -100,7 +115,7 @@ public class AgentSkillExecutor {
 
         if (emitter != null) {
             sendSseEvent(emitter, "step_progress", Map.of(
-                    "stepIndex", 0,
+                    "stepIndex", stepIndex,
                     "message", "共找到 " + enabledSkills.size() + " 个已启用技能"
             ));
         }
@@ -121,7 +136,7 @@ public class AgentSkillExecutor {
         if (config != null) {
             if (emitter != null) {
                 sendSseEvent(emitter, "step_progress", Map.of(
-                        "stepIndex", 0,
+                        "stepIndex", stepIndex,
                         "message", "正在通过 LLM 智能选择技能..."
                 ));
             }
@@ -132,7 +147,7 @@ public class AgentSkillExecutor {
 
             if (emitter != null) {
                 sendSseEvent(emitter, "step_progress", Map.of(
-                        "stepIndex", 0,
+                        "stepIndex", stepIndex,
                         "message", "LLM 选中 " + enabledSkills.size() + " 个技能"
                 ));
             }
@@ -155,7 +170,7 @@ public class AgentSkillExecutor {
 
             if (emitter != null) {
                 sendSseEvent(emitter, "step_progress", Map.of(
-                        "stepIndex", 0,
+                        "stepIndex", stepIndex,
                         "message", "正在调用技能: " + skill.getName()
                 ));
             }
@@ -178,7 +193,7 @@ public class AgentSkillExecutor {
                 // LLM 提取参数
                 if (emitter != null) {
                     sendSseEvent(emitter, "step_progress", Map.of(
-                            "stepIndex", 0,
+                            "stepIndex", stepIndex,
                             "message", "正在为技能 [" + skill.getName() + "] 提取参数..."
                     ));
                 }
@@ -188,7 +203,7 @@ public class AgentSkillExecutor {
 
                 if (emitter != null) {
                     sendSseEvent(emitter, "step_detail", Map.of(
-                            "stepIndex", 0,
+                            "stepIndex", stepIndex,
                             "detailType", "skill_params",
                             "skillName", skill.getName(),
                             "params", extractedParams
@@ -311,7 +326,7 @@ public class AgentSkillExecutor {
 
                         if (emitter != null) {
                             sendSseEvent(emitter, "step_detail", Map.of(
-                                    "stepIndex", 0,
+                                    "stepIndex", stepIndex,
                                     "detailType", "skill_result",
                                     "skillName", skill.getName(),
                                     "status", "success",
@@ -334,7 +349,7 @@ public class AgentSkillExecutor {
 
                 if (emitter != null) {
                     sendSseEvent(emitter, "step_detail", Map.of(
-                            "stepIndex", 0,
+                            "stepIndex", stepIndex,
                             "detailType", "skill_result",
                             "skillName", skill.getName(),
                             "status", "failed",
@@ -388,12 +403,21 @@ public class AgentSkillExecutor {
 
         String url = config.getBaseUrl().replaceAll("/+$", "") + "/chat/completions";
 
+        String today = java.time.LocalDate.now().toString();
         String systemPrompt = "你是一个参数提取器。根据以下 JSON Schema 定义的参数结构，从用户消息中提取对应的参数值。\n" +
                 "规则：\n" +
                 "1. 只返回一个 JSON 对象，不要返回任何其他文字、解释或 markdown 标记\n" +
                 "2. 如果用户消息中没有提到某个参数，不要包含该字段\n" +
                 "3. 参数类型必须与 Schema 定义一致（字符串、整数等）\n" +
-                "4. 如果无法从用户消息中提取任何参数，返回空对象 {}\n\n" +
+                "4. 如果无法从用户消息中提取任何参数，返回空对象 {}\n" +
+                "5. 日期时间智能填充：当 Schema 中包含日期类参数（如 startDate/endDate/start_date/end_date/timeStart/timeEnd），" +
+                "且用户使用相对时间描述（最近、近期、近半年、近一个月、latest 等）但未给出具体日期时，自动补充合理默认值：\n" +
+                "   - 最近/近期/最新/近半年 → startDate = 6个月前, endDate = 今天\n" +
+                "   - 近一个月 → startDate = 1个月前, endDate = 今天\n" +
+                "   - 近三个月/一季度 → startDate = 3个月前, endDate = 今天\n" +
+                "   - 近一年 → startDate = 1年前, endDate = 今天\n" +
+                "   - 日期格式统一 yyyy-MM-dd，今天是 " + today + "\n" +
+                "6. 分页类参数（pageNum/pageSize）未指定时不要填充，由系统自动补充\n\n" +
                 "Schema 定义：\n" + inputSchema;
 
         List<Map<String, String>> messages = new ArrayList<>();
