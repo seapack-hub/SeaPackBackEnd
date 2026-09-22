@@ -94,7 +94,7 @@ public class AiExecuteHelper {
 
         // 发送请求
         HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setContentType(new MediaType("application", "json", java.nio.charset.StandardCharsets.UTF_8));
         headers.set("Authorization", "Bearer " + config.getApiKey());
 
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
@@ -187,7 +187,7 @@ public class AiExecuteHelper {
 
         // 发送请求
         HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setContentType(new MediaType("application", "json", java.nio.charset.StandardCharsets.UTF_8));
         headers.set("Authorization", "Bearer " + config.getApiKey());
 
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);

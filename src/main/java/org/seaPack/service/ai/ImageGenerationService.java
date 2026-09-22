@@ -207,7 +207,7 @@ public class ImageGenerationService {
 
         // 构造请求头 —— 使用图片生成专用的 API Key
         HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setContentType(new MediaType("application", "json", java.nio.charset.StandardCharsets.UTF_8));
         String imageApiKey = System.getenv("IMAGE_GEN_API_KEY");
         if (imageApiKey == null || imageApiKey.isEmpty()) {
             // 回退到 deepseek 配置

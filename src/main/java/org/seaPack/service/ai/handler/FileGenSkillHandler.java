@@ -64,7 +64,7 @@ public class FileGenSkillHandler implements SkillHandler {
 
         // 构建 Headers
         HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setContentType(new MediaType("application", "json", java.nio.charset.StandardCharsets.UTF_8));
         if (isInternal && authToken != null && !authToken.isBlank()) {
             headers.set("Authorization", authToken);
             log.info("文件生成技能[{}] 转发 Token: len={}, prefix={}",

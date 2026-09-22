@@ -55,7 +55,7 @@ public class HttpSkillHandler implements SkillHandler {
 
         // 构建 Headers
         HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setContentType(new MediaType("application", "json", java.nio.charset.StandardCharsets.UTF_8));
         if (isInternalCall && authToken != null && !authToken.isBlank()) {
             headers.set("Authorization", authToken);
         }
@@ -79,9 +79,9 @@ public class HttpSkillHandler implements SkillHandler {
 
         // 先试 POST，失败则 GET 降级
         boolean isGetRequest = false;
-        HttpEntity<Map<String, Object>> postEntity = new HttpEntity<>(flatParams, headers);
         ResponseEntity<Map> responseEntity = null;
         try {
+            HttpEntity<Map<String, Object>> postEntity = new HttpEntity<>(flatParams, headers);
             responseEntity = silentRt.exchange(url, HttpMethod.POST, postEntity, Map.class);
         } catch (Exception postEx) {
             log.info("技能调试[{}] POST异常: {}，降级GET", skill.getName(), postEx.getMessage());

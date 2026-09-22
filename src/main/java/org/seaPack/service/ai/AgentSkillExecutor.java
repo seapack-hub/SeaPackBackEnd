@@ -237,7 +237,7 @@ public class AgentSkillExecutor {
 
                 // 构建 Headers
                 HttpHeaders headers = new HttpHeaders();
-                headers.setContentType(MediaType.APPLICATION_JSON);
+                headers.setContentType(new MediaType("application", "json", java.nio.charset.StandardCharsets.UTF_8));
                 if (isInternalCall) {
                     // 优先使用传入的 authToken，其次从请求上下文中获取
                     if (authToken != null && !authToken.isBlank()) {
@@ -439,7 +439,7 @@ public class AgentSkillExecutor {
 
         try {
             HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.setContentType(new MediaType("application", "json", java.nio.charset.StandardCharsets.UTF_8));
             headers.set("Authorization", "Bearer " + config.getApiKey());
 
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
@@ -533,7 +533,7 @@ public class AgentSkillExecutor {
         try {
             String url = config.getBaseUrl().replaceAll("/+$", "") + "/chat/completions";
             HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.setContentType(new MediaType("application", "json", java.nio.charset.StandardCharsets.UTF_8));
             headers.set("Authorization", "Bearer " + config.getApiKey());
 
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
