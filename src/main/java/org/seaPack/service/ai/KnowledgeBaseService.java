@@ -3,10 +3,15 @@ package org.seaPack.service.ai;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 import lombok.extern.slf4j.Slf4j;
+import org.seaPack.dto.ai.AgentTraceStep;
+import org.seaPack.dto.ai.AgentTraceStepResult;
 import org.seaPack.dto.ai.RetrievalResult;
+import org.seaPack.dto.ai.SseEvent;
+import org.seaPack.mapper.ai.AgentKnowledgeMapper;
 import org.seaPack.mapper.ai.KnowledgeBaseMapper;
 import org.seaPack.mapper.ai.KnowledgeChunkMapper;
 import org.seaPack.mapper.ai.KnowledgeDocumentMapper;
+import org.seaPack.model.ai.AgentKnowledge;
 import org.seaPack.model.ai.KnowledgeBase;
 import org.seaPack.model.ai.KnowledgeChunk;
 import org.seaPack.model.ai.KnowledgeDocument;
@@ -16,15 +21,19 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * AI 知识库核心服务
@@ -49,6 +58,9 @@ public class KnowledgeBaseService {
 
     @Autowired
     private VectorProgressManager progressManager;
+
+    @Autowired
+    private AgentKnowledgeMapper agentKnowledgeMapper;
 
     @Value("${ai.knowledge.upload-dir:uploads/knowledge}")
     private String uploadDir;
@@ -410,5 +422,122 @@ public class KnowledgeBaseService {
             return "txt";
         }
         return filename.substring(filename.lastIndexOf(".") + 1).toLowerCase();
+    }
+
+    // ===== Agent 知识库检索 =====
+
+    /**
+     * 从 Agent 关联的知识库中检索相关内容（支持 SSE 流式进度）
+     *
+     * @param agent      当前 Agent
+     * @param query      用户查询
+     * @param stepIndex  当前步骤序号
+     * @param emitter    SSE 发射器
+     * @return 步骤执行结果
+     */
+    public AgentTraceStepResult retrieveKnowledge(org.seaPack.model.ai.Agent agent, String query, int stepIndex, SseEmitter emitter) {
+        long stepStart = System.currentTimeMillis();
+        StringBuilder knowledgeBuilder = new StringBuilder();
+        int totalChunks = 0;
+        List<Map<String, Object>> knowledgeDetails = new ArrayList<>();
+
+        if (emitter != null) {
+            SseEvent.send(emitter, "step_progress", Map.of(
+                    "stepIndex", stepIndex,
+                    "stepType", "knowledge_retrieval",
+                    "message", "正在检索关联的知识库..."
+            ));
+        }
+
+        List<AgentKnowledge> enabledKnowledge = agentKnowledgeMapper.selectByAgentId(agent.getId()).stream()
+                .filter(k -> k.getEnabled() != null && k.getEnabled() == 1)
+                .sorted(Comparator.comparingInt(k -> k.getSortOrder() != null ? k.getSortOrder() : 0))
+                .collect(Collectors.toList());
+
+        for (AgentKnowledge ak : enabledKnowledge) {
+            String knowledgeName = ak.getKnowledgeName() != null ? ak.getKnowledgeName() : "知识库";
+
+            if (emitter != null) {
+                SseEvent.send(emitter, "step_progress", Map.of(
+                        "stepIndex", stepIndex,
+                        "stepType", "knowledge_retrieval",
+                        "message", "正在检索知识库: " + knowledgeName
+                ));
+            }
+
+            int topK = ak.getRetrievalCount() != null ? ak.getRetrievalCount() : 3;
+            List<RetrievalResult> results = retrieve(ak.getKnowledgeId(), query, topK);
+
+            Map<String, Object> knowledgeDetail = new HashMap<>();
+            knowledgeDetail.put("knowledgeId", ak.getKnowledgeId());
+            knowledgeDetail.put("knowledgeName", knowledgeName);
+            knowledgeDetail.put("retrievalCount", topK);
+            knowledgeDetail.put("actualCount", results.size());
+
+            if (!results.isEmpty()) {
+                knowledgeBuilder.append("【").append(knowledgeName).append("】\n");
+                List<Map<String, Object>> chunkDetails = new ArrayList<>();
+                for (RetrievalResult r : results) {
+                    knowledgeBuilder.append("- ").append(r.getContent()).append("\n");
+                    totalChunks++;
+
+                    Map<String, Object> chunkDetail = new HashMap<>();
+                    String content = r.getContent();
+                    chunkDetail.put("content", content.length() > 200 ? content.substring(0, 200) + "..." : content);
+                    chunkDetail.put("score", r.getScore());
+                    chunkDetails.add(chunkDetail);
+                }
+                knowledgeBuilder.append("\n");
+                knowledgeDetail.put("chunks", chunkDetails);
+            } else {
+                knowledgeDetail.put("message", "未检索到相关内容");
+            }
+            knowledgeDetails.add(knowledgeDetail);
+
+            if (emitter != null) {
+                SseEvent.send(emitter, "step_detail", Map.of(
+                        "stepIndex", stepIndex,
+                        "stepType", "knowledge_retrieval",
+                        "detailType", "knowledge_result",
+                        "knowledgeId", ak.getKnowledgeId(),
+                        "knowledgeName", knowledgeName,
+                        "foundCount", results.size(),
+                        "chunks", results.isEmpty() ? List.of() : results.stream()
+                                .map(r -> Map.<String, Object>of(
+                                        "contentPreview", r.getContent().length() > 200
+                                                ? r.getContent().substring(0, 200) + "..."
+                                                : r.getContent(),
+                                        "score", r.getScore() != null ? r.getScore() : 0.0
+                                )).collect(Collectors.toList())
+                ));
+            }
+        }
+
+        if (emitter != null) {
+            SseEvent.send(emitter, "step_progress", Map.of(
+                    "stepIndex", stepIndex,
+                    "stepType", "knowledge_retrieval",
+                    "message", "知识库检索完成，共命中 " + totalChunks + " 条"
+            ));
+        }
+
+        AgentTraceStep step = new AgentTraceStep();
+        step.setStepIndex(stepIndex);
+        step.setStepType("knowledge_retrieval");
+        step.setStepName("知识库检索");
+        step.setStatus(totalChunks > 0 ? "success" : "skip");
+        step.setDurationMs(System.currentTimeMillis() - stepStart);
+        step.setOutput(knowledgeBuilder.toString());
+        Map<String, Object> meta = new HashMap<>();
+        meta.put("knowledgeCount", enabledKnowledge.size());
+        meta.put("chunkCount", totalChunks);
+        meta.put("knowledgeDetails", knowledgeDetails);
+        step.setMetadata(meta);
+
+        AgentTraceStepResult result = new AgentTraceStepResult();
+        result.step = step;
+        result.output = knowledgeBuilder.toString();
+        result.nextStepIndex = stepIndex + 1;
+        return result;
     }
 }
