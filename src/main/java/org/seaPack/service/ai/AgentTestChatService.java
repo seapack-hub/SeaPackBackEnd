@@ -690,65 +690,20 @@ public class AgentTestChatService {
             log.warn("知识库检索失败，继续执行: {}", e.getMessage());
         }
 
-        // ===== Step 3: 技能调用 =====
-        // 检查取消标志：Step 2 完成后、Step 3 开始前
-        if (isUserCancelled(cancelFlag)) {
-            log.info("Agent 对话在技能调用前被用户取消");
-            sendCancelledDone(emitter, response, totalStart);
-            return;
-        }
-        String skillContext = "";
-        try {
-            SseEvent.send(emitter, "step_start", Map.of(
-                    "stepIndex", stepIndex,
-                    "stepType", "skill_execution",
-                    "stepName", "技能调用"
-            ));
-
-            SkillExecuteResult skillResult = skillExecutor.executeSkills(agent.getId(), extractMessage(request), authToken, emitter, stepIndex);
-            skillContext = skillResult.getOutput();
-
-            AgentTraceStep step = new AgentTraceStep();
-            step.setStepIndex(stepIndex++);
-            step.setStepType("skill_execution");
-            step.setStepName("技能调用");
-            step.setStatus(skillResult.getExecutedCount() > 0 ? "success" : "skip");
-            step.setDurationMs(skillResult.getDurationMs());
-            step.setOutput(skillContext);
-
-            // 填充 metadata
-            Map<String, Object> skillMeta = new HashMap<>();
-            skillMeta.put("totalSkillCount", skillResult.getTotalSkillCount());
-            skillMeta.put("executedCount", skillResult.getExecutedCount());
-            skillMeta.put("failedCount", skillResult.getFailedCount());
-            skillMeta.put("skillNames", skillResult.getSkillNames());
-            step.setMetadata(skillMeta);
-
-            steps.add(step);
-
-            if (skillContext != null && !skillContext.isBlank()) {
-                systemPrompt += "\n\n【技能执行结果】\n" + skillContext;
-            }
-
-            SseEvent.send(emitter, "step_done", Map.of(
-                    "stepIndex", step.getStepIndex(),
-                    "stepType", "skill_execution",
-                    "stepName", "技能调用",
-                    "status", step.getStatus(),
-                    "durationMs", step.getDurationMs()
-            ));
-        } catch (Exception e) {
-            steps.add(buildFailStep(stepIndex++, "skill_execution", "技能调用", e.getMessage()));
-            log.warn("技能调用失败，继续执行: {}", e.getMessage());
-        }
-
-        // ===== Step 4: LLM 流式调用 =====
-        // 检查取消标志：Step 3 完成后、Step 4 开始前
+        // ===== Step 3: LLM 调用（含 Function Calling）=====
+        // 合并了原 Step3（技能调用）和 Step4（LLM 调用）
+        // 原流程：LLM→选择技能→LLM→提取参数→执行技能→拼入prompt→LLM生成回复（4次LLM调用）
+        // 新流程：LLM→tool_calls→执行技能→结果作为tool消息→LLM生成回复（2-3次LLM调用）
         if (isUserCancelled(cancelFlag)) {
             log.info("Agent 对话在 LLM 调用前被用户取消");
             sendCancelledDone(emitter, response, totalStart);
             return;
         }
+
+        // 获取 Agent 关联技能的 Function Calling tools 定义
+        List<Map<String, Object>> toolDefinitions = skillExecutor.getToolDefinitions(agent.getId());
+        log.info("Agent tools 定义数量: agentId={}, tools={}", agent.getId(), toolDefinitions.size());
+
         SseEvent.send(emitter, "step_start", Map.of(
                 "stepIndex", stepIndex,
                 "stepType", "llm_call",
@@ -760,7 +715,9 @@ public class AgentTestChatService {
         int completionTokens;
         String modelName;
         try {
-            AgentTraceStepResult stepResult = callLLMStream(agent, systemPrompt, request, stepIndex, emitter, isCompleted, cancelFlag);
+            AgentTraceStepResult stepResult = callLLMStreamWithTools(
+                    agent, systemPrompt, request, stepIndex, emitter,
+                    isCompleted, cancelFlag, toolDefinitions, authToken);
             replyContent = stepResult.output;
             promptTokens = stepResult.tokensPrompt;
             completionTokens = stepResult.tokensCompletion;
@@ -832,26 +789,33 @@ public class AgentTestChatService {
         }
     }
 
-    // --第四步----
+    // ==== Function Calling: LLM 流式调用（支持 tool_calls）====
     /**
-     * 流式调用 LLM API
-     * <p>构建消息列表并调用 LLM，逐 token 发送 SSE 事件。</p>
+     * 流式调用 LLM API，支持 Function Calling
+     * <p>当 LLM 返回 tool_calls 时，自动执行技能并将结果追加到消息列表，
+     * 然后再次调用 LLM 直到获得最终文本回复（最多 3 轮 tool 循环）。</p>
      */
-    private AgentTraceStepResult callLLMStream(Agent agent, String systemPrompt,
-                                                AiDialogRequest request, int stepIndex,
-                                                SseEmitter emitter, AtomicBoolean isCompleted, AtomicBoolean cancelFlag) {
+    @SuppressWarnings("unchecked")
+    private AgentTraceStepResult callLLMStreamWithTools(Agent agent, String systemPrompt,
+                                                        AiDialogRequest request, int stepIndex,
+                                                        SseEmitter emitter, AtomicBoolean isCompleted,
+                                                        AtomicBoolean cancelFlag,
+                                                        List<Map<String, Object>> toolDefinitions,
+                                                        String authToken) {
         long llmStart = System.currentTimeMillis();
         String modelName = agent.getModelCode() != null ? agent.getModelCode() :
                 aiProperties.getProviders().get(aiProperties.getActiveProvider()).getChatModel();
-        log.info("Agent LLM 流式调用开始: agentId={}, model={}, systemPrompt长度={}",
-                agent.getId(), modelName, systemPrompt != null ? systemPrompt.length() : 0);
-
-        List<Map<String, String>> messages = new ArrayList<>();
-        Map<String, String> systemMsg = new HashMap<>();
+        log.info("Agent LLM 流式调用开始 (Function Calling): agentId={}, model={}, tools={}",
+                agent.getId(), modelName, toolDefinitions.size());
+    
+        // 构建初始消息列表
+        List<Map<String, Object>> messages = new ArrayList<>();
+    
+        Map<String, Object> systemMsg = new HashMap<>();
         systemMsg.put("role", "system");
         systemMsg.put("content", systemPrompt);
         messages.add(systemMsg);
-
+        
         // 添加历史消息（如果启用记忆）
         if (agent.getMemoryEnabled() != null && agent.getMemoryEnabled() == 1
                 && request.getHistory() != null && !request.getHistory().isEmpty()) {
@@ -860,63 +824,159 @@ public class AgentTestChatService {
             if (history.size() > window * 2) {
                 history = history.subList(history.size() - window * 2, history.size());
             }
-            messages.addAll(history);
+            for (Map<String, String> h : history) {
+                messages.add(new HashMap<>(h));
+            }
         }
-
-        Map<String, String> userMsg = new HashMap<>();
+        
+        Map<String, Object> userMsg = new HashMap<>();
         userMsg.put("role", "user");
         userMsg.put("content", extractMessage(request));
         messages.add(userMsg);
-
+    
         String providerName = aiProperties.getActiveProvider();
         AIProperties.ProviderConfig config = aiProperties.getProviders().get(providerName);
         if (config == null) {
             throw new RuntimeException("AI 配置错误：未找到提供商 [" + providerName + "]");
         }
-
-        String url = config.getBaseUrl().replaceAll("/+$", "") + "/chat/completions";
-        Map<String, Object> requestBody = new HashMap<>();
-        requestBody.put("model", modelName);
-        requestBody.put("messages", messages);
-        requestBody.put("stream", true); // 启用流式输出
-        if (agent.getTemperature() != null) {
-            requestBody.put("temperature", agent.getTemperature());
-        }
-        if (agent.getMaxTokens() != null) {
-            requestBody.put("max_tokens", agent.getMaxTokens());
-        }
-
+    
         StringBuilder replyContentBuilder = new StringBuilder();
         int[] tokenUsage = {0, 0}; // [promptTokens, completionTokens]
+        int totalToolRounds = 0;
+        final int MAX_TOOL_ROUNDS = 3;
+        // 记录每次 function call 的详情（用于链路追踪）
+        List<Map<String, Object>> functionCallsHistory = new ArrayList<>();
+    
+        // ===== 多轮 tool 调用循环 =====
+        while (totalToolRounds <= MAX_TOOL_ROUNDS) {
+            String baseUrl = config.getBaseUrl();
+            if (baseUrl.endsWith("/")) {
+                baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
+            }
+            String url = baseUrl + "/chat/completions";
+            Map<String, Object> requestBody = new HashMap<>();
+            requestBody.put("model", modelName);
+            requestBody.put("messages", messages);
+            requestBody.put("stream", true);
+            if (agent.getTemperature() != null) {
+                requestBody.put("temperature", agent.getTemperature());
+            }
+            if (agent.getMaxTokens() != null) {
+                requestBody.put("max_tokens", agent.getMaxTokens());
+            }
+    
+            // 仅在有 tools 定义时传入
+            if (toolDefinitions != null && !toolDefinitions.isEmpty()) {
+                requestBody.put("tools", toolDefinitions);
+            }
+    
+            // 用于累积流式 tool_calls
+            LlmSseHelper.ToolCallAccumulator toolAccumulator = new LlmSseHelper.ToolCallAccumulator();
+            StringBuilder textContentBuilder = new StringBuilder();
+            String[] finishReasonHolder = {null};
+            
+            try {
+                HttpURLConnection connection = llmSseHelper.createConnection(url, config.getApiKey(), requestBody);
+                AtomicBoolean llmCancelFlag = cancelFlag != null ? cancelFlag : isCompleted;
+                llmSseHelper.readChunks(connection, llmCancelFlag, chunk -> {
+                    if (chunk.isDone()) return;
 
-        try {
-            // 使用 LlmSseHelper 实现流式请求
-            HttpURLConnection connection = llmSseHelper.createConnection(url, config.getApiKey(), requestBody);
-            // 优先使用 cancelFlag（来自 AiDialogService），其次使用 isCompleted（SSE 断连）
-            AtomicBoolean llmCancelFlag = cancelFlag != null ? cancelFlag : isCompleted;
-            llmSseHelper.readChunks(connection, llmCancelFlag, chunk -> {
-                if (chunk.isDone()) return;
-                if (chunk.hasDeltaContent()) {
-                    replyContentBuilder.append(chunk.getDeltaContent());
-                    SseEvent.send(emitter, SseEvent.TYPE_CONTENT, SseEvent.content(chunk.getDeltaContent()));
+                    // 累积文本内容
+                    if (chunk.hasDeltaContent()) {
+                        textContentBuilder.append(chunk.getDeltaContent());
+                        // 流式推送文本 token
+                        SseEvent.send(emitter, SseEvent.TYPE_CONTENT, SseEvent.content(chunk.getDeltaContent()));
+                    }
+
+                    // 累积 tool_calls
+                    if (chunk.hasToolCalls()) {
+                        toolAccumulator.addDelta(chunk.getToolCallsDelta());
+                        log.debug("[LLM Stream] chunk含tool_calls: deltaCount={}, finishReason={}",
+                                chunk.getToolCallsDelta().size(), chunk.getFinishReason());
+                    }
+
+                    // 记录 finish_reason
+                    if (chunk.getFinishReason() != null) {
+                        finishReasonHolder[0] = chunk.getFinishReason();
+                        log.debug("[LLM Stream] finish_reason={}", chunk.getFinishReason());
+                    }
+
+                    // 更新 token 用量
+                    if (chunk.hasUsage()) {
+                        tokenUsage[0] = chunk.getPromptTokens() != null ? chunk.getPromptTokens() : tokenUsage[0];
+                        tokenUsage[1] = chunk.getCompletionTokens() != null ? chunk.getCompletionTokens() : tokenUsage[1];
+                    }
+                });
+                connection.disconnect();
+                log.info("[LLM Stream] readChunks完成: hasToolCalls={}, finishReason={}",
+                        toolAccumulator.hasToolCalls(), finishReasonHolder[0]);
+            } catch (Exception e) {
+                log.error("LLM 流式调用失败 (round={}, url={}, model={}): {}", totalToolRounds, url, modelName, e.getMessage(), e);
+                throw new RuntimeException("LLM 流式调用失败 (round=" + totalToolRounds + "): " + e.getMessage(), e);
+            }
+            
+            String finishReason = finishReasonHolder[0];
+    
+            // 判断是否为 tool_calls 响应
+            boolean hasToolCalls = toolAccumulator.hasToolCalls();
+            if (hasToolCalls) {
+                totalToolRounds++;
+                List<Map<String, Object>> toolCalls = toolAccumulator.getToolCalls();
+                log.info("LLM 返回 tool_calls: round={}, count={}, finishReason={}", totalToolRounds, toolCalls.size(), finishReason);
+    
+                // 将 assistant 的 tool_calls 消息追加到 messages
+                Map<String, Object> assistantToolMsg = new HashMap<>();
+                assistantToolMsg.put("role", "assistant");
+                assistantToolMsg.put("tool_calls", toolCalls);
+                messages.add(assistantToolMsg);
+    
+                // 执行 tool_calls，获取 tool role 消息
+                List<Map<String, String>> toolMessages = skillExecutor.executeToolCalls(toolCalls, authToken, emitter, stepIndex);
+                for (Map<String, String> tm : toolMessages) {
+                    messages.add(new HashMap<>(tm));
                 }
-                if (chunk.hasUsage()) {
-                    tokenUsage[0] = chunk.getPromptTokens() != null ? chunk.getPromptTokens() : tokenUsage[0];
-                    tokenUsage[1] = chunk.getCompletionTokens() != null ? chunk.getCompletionTokens() : tokenUsage[1];
+    
+                log.info("tool_calls 执行完成，准备下一轮 LLM 调用: round={}, toolResults={}",
+                        totalToolRounds, toolMessages.size());
+
+                                // 记录本次 function call 历史（用于链路追踪）
+                for (int i = 0; i < toolCalls.size(); i++) {
+                    Map<String, Object> tc = toolCalls.get(i);
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> function = (Map<String, Object>) tc.get("function");
+                    String funcName = function != null ? (String) function.get("name") : "unknown";
+                    String funcArgs = function != null ? (String) function.get("arguments") : "{}";
+                    String toolResult = i < toolMessages.size() ? toolMessages.get(i).get("content") : "{}";
+                    Map<String, Object> fcRecord = new LinkedHashMap<>();
+                    fcRecord.put("round", totalToolRounds);
+                    fcRecord.put("functionName", funcName);
+                    fcRecord.put("arguments", funcArgs);
+                    fcRecord.put("result", toolResult);
+                    functionCallsHistory.add(fcRecord);
                 }
-            });
-            connection.disconnect();
-        } catch (Exception e) {
-            throw new RuntimeException("LLM 流式调用失败: " + e.getMessage(), e);
+
+                // 继续循环，下一次 LLM 调用将携带 tool 执行结果
+                continue;
+            }
+    
+            // 不是 tool_calls，说明 LLM 生成了最终文本回复
+            replyContentBuilder.append(textContentBuilder);
+            break;
         }
-
+    
+        if (totalToolRounds > MAX_TOOL_ROUNDS) {
+            log.warn("Agent tool 调用轮次达到上限: max={}", MAX_TOOL_ROUNDS);
+        }
+    
         long llmDuration = System.currentTimeMillis() - llmStart;
-        log.info("Agent LLM 流式调用完成: model={}, tokens={}/{}, output长度={}, 耗时={}ms",
-                modelName, tokenUsage[0], tokenUsage[1], replyContentBuilder.length(), llmDuration);
+        log.info("Agent LLM 流式调用完成 (Function Calling): model={}, toolRounds={}, tokens={}/{}, output长度={}, 耗时={}ms",
+                modelName, totalToolRounds, tokenUsage[0], tokenUsage[1],
+                replyContentBuilder.length(), llmDuration);
+    
         AgentTraceStep step = new AgentTraceStep();
         step.setStepIndex(stepIndex);
         step.setStepType("llm_call");
-        step.setStepName("LLM 调用");
+        step.setStepName("LLM 调用" + (totalToolRounds > 0 ? " (Function Calling x" + totalToolRounds + ")" : ""));
         step.setStatus("success");
         step.setDurationMs(llmDuration);
         step.setInput(systemPrompt);
@@ -926,8 +986,13 @@ public class AgentTestChatService {
         llmMeta.put("tokensPrompt", tokenUsage[0]);
         llmMeta.put("tokensCompletion", tokenUsage[1]);
         llmMeta.put("temperature", agent.getTemperature());
+        llmMeta.put("toolRounds", totalToolRounds);
+        llmMeta.put("toolDefinitionsCount", toolDefinitions != null ? toolDefinitions.size() : 0);
+        if (!functionCallsHistory.isEmpty()) {
+            llmMeta.put("functionCalls", functionCallsHistory);
+        }
         step.setMetadata(llmMeta);
-
+    
         AgentTraceStepResult result = new AgentTraceStepResult();
         result.step = step;
         result.output = replyContentBuilder.toString();

@@ -51,6 +51,7 @@ public class SecurityConfig {
                         "/hello",
                         "/images/**",
                         "/files/**",
+                        "/error",
                         // 内部 API 接口（技能调用等）
                         "/ai/skills/execute/**"
                     ).permitAll()
