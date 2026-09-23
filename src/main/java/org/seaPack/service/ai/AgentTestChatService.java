@@ -867,6 +867,8 @@ public class AgentTestChatService {
         final int MAX_TOOL_ROUNDS = 3;
         // 记录每次 function call 的详情（用于链路追踪）
         List<Map<String, Object>> functionCallsHistory = new ArrayList<>();
+        // 记录每个技能执行的子步骤（用于结构化链路追踪）
+        List<AgentTraceStep> childSteps = new ArrayList<>();
     
         // ===== 多轮 tool 调用循环 =====
         while (totalToolRounds <= MAX_TOOL_ROUNDS) {
@@ -974,6 +976,19 @@ public class AgentTestChatService {
                     fcRecord.put("arguments", funcArgs);
                     fcRecord.put("result", toolResult);
                     functionCallsHistory.add(fcRecord);
+
+                    // 创建子步骤（结构化链路追踪）
+                    AgentTraceStep childStep = new AgentTraceStep();
+                    childStep.setStepType("skill_execution");
+                    childStep.setStepName(funcName);
+                    childStep.setStatus("success");
+                    childStep.setInput(funcArgs);
+                    childStep.setOutput(toolResult);
+                    Map<String, Object> childMeta = new LinkedHashMap<>();
+                    childMeta.put("round", totalToolRounds);
+                    childMeta.put("skillCode", funcName);
+                    childStep.setMetadata(childMeta);
+                    childSteps.add(childStep);
                 }
 
                 // 继续循环，下一次 LLM 调用将携带 tool 执行结果
@@ -987,6 +1002,50 @@ public class AgentTestChatService {
     
         if (totalToolRounds > MAX_TOOL_ROUNDS) {
             log.warn("Agent tool 调用轮次达到上限: max={}", MAX_TOOL_ROUNDS);
+        }
+
+        // ===== 兜底：tool 循环耗尽后 replyContent 为空时，再调一次不带 tools 的纯文本生成 =====
+        if (replyContentBuilder.isEmpty() && totalToolRounds > 0) {
+            log.info("replyContent 为空，发起兜底 LLM 纯文本调用（不带 tools）");
+            try {
+                String baseUrl = config.getBaseUrl();
+                if (baseUrl.endsWith("/")) {
+                    baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
+                }
+                String fallbackUrl = baseUrl + "/chat/completions";
+
+                // 构建不带 tools 的请求体
+                Map<String, Object> fallbackBody = new HashMap<>();
+                fallbackBody.put("model", modelName);
+                fallbackBody.put("messages", messages);
+                fallbackBody.put("stream", true);
+                if (agent.getTemperature() != null) {
+                    fallbackBody.put("temperature", agent.getTemperature());
+                }
+                if (agent.getMaxTokens() != null) {
+                    fallbackBody.put("max_tokens", agent.getMaxTokens());
+                }
+                // 注意：不传 tools 参数，强制 LLM 生成文本
+
+                HttpURLConnection fallbackConn = llmSseHelper.createConnection(fallbackUrl, config.getApiKey(), fallbackBody);
+                AtomicBoolean fallbackCancel = cancelFlag != null ? cancelFlag : isCompleted;
+                llmSseHelper.readChunks(fallbackConn, fallbackCancel, chunk -> {
+                    if (chunk.isDone()) return;
+                    if (chunk.hasDeltaContent()) {
+                        replyContentBuilder.append(chunk.getDeltaContent());
+                        SseEvent.send(emitter, SseEvent.TYPE_CONTENT, SseEvent.content(chunk.getDeltaContent()));
+                    }
+                    if (chunk.hasUsage()) {
+                        tokenUsage[0] = chunk.getPromptTokens() != null ? chunk.getPromptTokens() : tokenUsage[0];
+                        tokenUsage[1] = chunk.getCompletionTokens() != null ? chunk.getCompletionTokens() : tokenUsage[1];
+                    }
+                });
+                fallbackConn.disconnect();
+                log.info("兜底 LLM 调用完成: output长度={}", replyContentBuilder.length());
+            } catch (Exception e) {
+                log.error("兜底 LLM 调用失败: {}", e.getMessage(), e);
+                replyContentBuilder.append("抱歉，处理过程中出现异常，请稍后重试。");
+            }
         }
     
         long llmDuration = System.currentTimeMillis() - llmStart;
@@ -1013,6 +1072,10 @@ public class AgentTestChatService {
             llmMeta.put("functionCalls", functionCallsHistory);
         }
         step.setMetadata(llmMeta);
+        // 设置子步骤（结构化链路追踪）
+        if (!childSteps.isEmpty()) {
+            step.setChildren(childSteps);
+        }
     
         AgentTraceStepResult result = new AgentTraceStepResult();
         result.step = step;

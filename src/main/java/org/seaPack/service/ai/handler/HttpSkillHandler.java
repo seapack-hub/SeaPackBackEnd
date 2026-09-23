@@ -13,6 +13,9 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URI;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -48,6 +51,10 @@ public class HttpSkillHandler implements SkillHandler {
 
         // 展平参数
         Map<String, Object> flatParams = flattenParams(params != null ? params : new HashMap<>());
+
+        // 日期参数兜底：自动填充缺失日期 + 范围截断
+        applyDateDefaults(flatParams);
+
         if (isInternalCall) {
             flatParams.putIfAbsent("pageNum", 1);
             flatParams.putIfAbsent("pageSize", 10);
@@ -130,5 +137,108 @@ public class HttpSkillHandler implements SkillHandler {
             return flattened;
         }
         return params;
+    }
+
+    /**
+     * 日期参数兜底逻辑
+     * <p>检测 startDate/endDate/startTime/endTime 等日期参数，
+     * 自动填充缺失值并截断超大范围（默认最大 90 天）。</p>
+     */
+    private void applyDateDefaults(Map<String, Object> params) {
+        if (params == null || params.isEmpty()) return;
+
+        // 识别日期参数名（支持多种命名约定）
+        String endDateKey = findDateKey(params, "endDate", "end_date", "endTime", "end_time");
+        String startDateKey = findDateKey(params, "startDate", "start_date", "startTime", "start_time");
+
+        // 如果没有日期参数，跳过
+        if (endDateKey == null && startDateKey == null) return;
+
+        LocalDate today = LocalDate.now();
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+        final int MAX_DAYS = 90;
+
+        // 解析 endDate：缺失则默认今天
+        LocalDate endDate = null;
+        if (endDateKey != null) {
+            endDate = parseDate(params.get(endDateKey));
+        }
+        if (endDate == null) {
+            endDate = today;
+            if (endDateKey != null) {
+                params.put(endDateKey, endDate.format(fmt));
+            }
+        }
+
+        // 解析 startDate：缺失则默认 endDate - 30 天
+        LocalDate startDate = null;
+        if (startDateKey != null) {
+            startDate = parseDate(params.get(startDateKey));
+        }
+        if (startDate == null) {
+            startDate = endDate.minusDays(30);
+            if (startDateKey != null) {
+                params.put(startDateKey, startDate.format(fmt));
+            }
+        }
+
+        // 范围截断：超过 MAX_DAYS 则向前压缩
+        long days = ChronoUnit.DAYS.between(startDate, endDate);
+        if (days > MAX_DAYS) {
+            LocalDate newStart = endDate.minusDays(MAX_DAYS);
+            if (startDateKey != null) {
+                params.put(startDateKey, newStart.format(fmt));
+                log.info("[HttpSkill] 日期范围截断: {} ~ {} → {} ~ {} (最大 {} 天)",
+                        startDate.format(fmt), endDate.format(fmt),
+                        newStart.format(fmt), endDate.format(fmt), MAX_DAYS);
+            }
+        }
+    }
+
+    /**
+     * 在 params 中查找匹配的日期参数名
+     */
+    private String findDateKey(Map<String, Object> params, String... candidates) {
+        for (String key : candidates) {
+            if (params.containsKey(key)) {
+                return key;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 尝试解析日期值（支持 String 和数值型时间戳）
+     */
+    private LocalDate parseDate(Object value) {
+        if (value == null) return null;
+        String str = value.toString().trim();
+        if (str.isEmpty() || "auto".equalsIgnoreCase(str)) return null;
+
+        // 尝试 yyyy-MM-dd 格式
+        try {
+            return LocalDate.parse(str, DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+        } catch (Exception ignored) {}
+
+        // 尝试 yyyy/MM/dd 格式
+        try {
+            return LocalDate.parse(str, DateTimeFormatter.ofPattern("yyyy/MM/dd"));
+        } catch (Exception ignored) {}
+
+        // 尝试时间戳（毫秒）
+        try {
+            long ts = Long.parseLong(str);
+            if (ts > 9999999999L) {
+                // 毫秒时间戳
+                return java.time.Instant.ofEpochMilli(ts)
+                        .atZone(java.time.ZoneId.systemDefault()).toLocalDate();
+            } else {
+                // 秒时间戳
+                return java.time.Instant.ofEpochSecond(ts)
+                        .atZone(java.time.ZoneId.systemDefault()).toLocalDate();
+            }
+        } catch (Exception ignored) {}
+
+        return null;
     }
 }

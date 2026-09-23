@@ -35,4 +35,7 @@ public class AgentTraceStep {
 
     /** 步骤元数据 */
     private Map<String, Object> metadata;
+
+    /** 子步骤列表（如 llm_call 内部的多次技能执行） */
+    private List<AgentTraceStep> children;
 }
