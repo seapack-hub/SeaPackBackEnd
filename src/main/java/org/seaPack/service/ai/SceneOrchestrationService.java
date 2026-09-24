@@ -151,6 +151,8 @@ public class SceneOrchestrationService {
         copy.setCode(source.getCode() + "_copy");
         copy.setDescription(source.getDescription());
         copy.setStrategy(source.getStrategy());
+        copy.setMaxRounds(source.getMaxRounds());
+        copy.setContextStrategy(source.getContextStrategy());
         copy.setStatus(source.getStatus());
         copy.setSortOrder(source.getSortOrder());
         copy.setCreatedBy(source.getCreatedBy());
