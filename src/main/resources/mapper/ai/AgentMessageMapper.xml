@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.ai.AgentMessageMapper">
+
+    <resultMap id="BaseMap" type="org.seaPack.model.ai.AgentMessage">
+        <id property="id" column="id"/>
+        <result property="sessionId" column="session_id"/>
+        <result property="roundIndex" column="round_index"/>
+        <result property="senderType" column="sender_type"/>
+        <result property="senderAgentId" column="sender_agent_id"/>
+        <result property="receiverType" column="receiver_type"/>
+        <result property="receiverAgentId" column="receiver_agent_id"/>
+        <result property="messageType" column="message_type"/>
+        <result property="content" column="content"/>
+        <result property="metadata" column="metadata"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <sql id="BaseColumns">
+        id, session_id, round_index, sender_type, sender_agent_id,
+        receiver_type, receiver_agent_id, message_type,
+        content, metadata, created_at
+    </sql>
+
+    <select id="selectBySessionId" resultMap="BaseMap">
+        SELECT <include refid="BaseColumns"/>
+        FROM ai_agent_message
+        WHERE session_id = #{sessionId}
+        ORDER BY created_at ASC
+    </select>
+
+    <select id="selectBySessionAndRound" resultMap="BaseMap">
+        SELECT <include refid="BaseColumns"/>
+        FROM ai_agent_message
+        WHERE session_id = #{sessionId} AND round_index = #{roundIndex}
+        ORDER BY created_at ASC
+    </select>
+
+    <insert id="insert" parameterType="org.seaPack.model.ai.AgentMessage"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO ai_agent_message (session_id, round_index, sender_type, sender_agent_id,
+                                       receiver_type, receiver_agent_id, message_type,
+                                       content, metadata, created_at)
+        VALUES (#{sessionId}, #{roundIndex, jdbcType=INTEGER}, #{senderType},
+                #{senderAgentId, jdbcType=BIGINT}, #{receiverType},
+                #{receiverAgentId, jdbcType=BIGINT}, #{messageType},
+                #{content, jdbcType=LONGVARCHAR},
+                #{metadata, jdbcType=VARCHAR}, NOW())
+    </insert>
+
+    <insert id="batchInsert" parameterType="list">
+        INSERT INTO ai_agent_message (session_id, round_index, sender_type, sender_agent_id,
+                                       receiver_type, receiver_agent_id, message_type,
+                                       content, metadata, created_at)
+        VALUES
+        <foreach collection="list" item="item" separator=",">
+            (#{item.sessionId}, #{item.roundIndex, jdbcType=INTEGER}, #{item.senderType},
+             #{item.senderAgentId, jdbcType=BIGINT}, #{item.receiverType},
+             #{item.receiverAgentId, jdbcType=BIGINT}, #{item.messageType},
+             #{item.content, jdbcType=LONGVARCHAR},
+             #{item.metadata, jdbcType=VARCHAR}, NOW())
+        </foreach>
+    </insert>
+
+    <delete id="deleteBySessionId">
+        DELETE FROM ai_agent_message WHERE session_id = #{sessionId}
+    </delete>
+
+</mapper>

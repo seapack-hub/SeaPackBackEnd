@@ -35,8 +35,12 @@ public class SceneOrchestrationStep {
     @Comment("步骤名称（展示用）")
     private String stepName;
 
+    @Column(name = "node_type")
+    @Comment("节点类型：agent-执行Agent | condition-条件判断 | aggregate-结果汇总 | handoff-交接")
+    private String nodeType;
+
     @Column(name = "agent_id")
-    @Comment("关联Agent ID")
+    @Comment("关联Agent ID（node_type=agent时必填）")
     private Long agentId;
 
     /** Agent 名称（非数据库字段，关联查询填充） */
@@ -51,9 +55,29 @@ public class SceneOrchestrationStep {
     @Comment("输入映射：引用上一步输出的表达式")
     private String inputMapping;
 
+    @Column(name = "input_mode")
+    @Comment("输入来源：user_input-用户原始输入 | prev_output-上一步输出 | shared_state-共享状态 | supervisor_instruction-Supervisor指令")
+    private String inputMode;
+
+    @Column(name = "output_target")
+    @Comment("输出去向：next_step-下一步 | supervisor-回传Supervisor | shared_state-写入共享状态 | all_peers-广播")
+    private String outputTarget;
+
     @Column(name = "`condition`")
     @Comment("执行条件表达式")
     private String condition;
+
+    @Column(name = "branch_true_step")
+    @Comment("条件为真时跳转到的 step_index（仅 condition 节点有效）")
+    private Integer branchTrueStep;
+
+    @Column(name = "branch_false_step")
+    @Comment("条件为假时跳转到的 step_index（仅 condition 节点有效）")
+    private Integer branchFalseStep;
+
+    @Column(name = "description")
+    @Comment("节点描述，供动态规划时 LLM 理解节点用途")
+    private String description;
 
     @Column(name = "retry_count")
     @Comment("失败重试次数")

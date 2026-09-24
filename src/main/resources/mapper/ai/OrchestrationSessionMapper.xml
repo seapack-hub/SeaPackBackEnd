@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.ai.OrchestrationSessionMapper">
+
+    <resultMap id="BaseMap" type="org.seaPack.model.ai.OrchestrationSession">
+        <id property="id" column="id"/>
+        <result property="sceneId" column="scene_id"/>
+        <result property="orchestrationId" column="orchestration_id"/>
+        <result property="userId" column="user_id"/>
+        <result property="conversationId" column="conversation_id"/>
+        <result property="requestId" column="request_id"/>
+        <result property="userMessage" column="user_message"/>
+        <result property="strategy" column="strategy"/>
+        <result property="status" column="status"/>
+        <result property="currentRound" column="current_round"/>
+        <result property="maxRounds" column="max_rounds"/>
+        <result property="totalDurationMs" column="total_duration_ms"/>
+        <result property="tokensPrompt" column="tokens_prompt"/>
+        <result property="tokensCompletion" column="tokens_completion"/>
+        <result property="finalOutput" column="final_output"/>
+        <result property="errorMessage" column="error_message"/>
+        <result property="metadata" column="metadata"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <sql id="BaseColumns">
+        id, scene_id, orchestration_id, user_id, conversation_id, request_id,
+        user_message, strategy, status, current_round, max_rounds,
+        total_duration_ms, tokens_prompt, tokens_completion,
+        final_output, error_message, metadata, created_at, updated_at
+    </sql>
+
+    <select id="selectById" resultMap="BaseMap">
+        SELECT <include refid="BaseColumns"/>
+        FROM ai_orchestration_session
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectByConversationId" resultMap="BaseMap">
+        SELECT <include refid="BaseColumns"/>
+        FROM ai_orchestration_session
+        WHERE conversation_id = #{conversationId}
+    </select>
+
+    <select id="selectBySceneId" resultMap="BaseMap">
+        SELECT <include refid="BaseColumns"/>
+        FROM ai_orchestration_session
+        WHERE scene_id = #{sceneId}
+        ORDER BY created_at DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countBySceneId" resultType="int">
+        SELECT COUNT(*) FROM ai_orchestration_session
+        WHERE scene_id = #{sceneId}
+    </select>
+
+    <insert id="insert" parameterType="org.seaPack.model.ai.OrchestrationSession"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO ai_orchestration_session (scene_id, orchestration_id, user_id, conversation_id,
+                                               request_id, user_message, strategy, status,
+                                               current_round, max_rounds, total_duration_ms,
+                                               tokens_prompt, tokens_completion,
+                                               final_output, error_message, metadata,
+                                               created_at, updated_at)
+        VALUES (#{sceneId}, #{orchestrationId, jdbcType=BIGINT}, #{userId, jdbcType=BIGINT},
+                #{conversationId}, #{requestId},
+                #{userMessage, jdbcType=LONGVARCHAR},
+                #{strategy}, #{status},
+                #{currentRound, jdbcType=INTEGER}, #{maxRounds, jdbcType=INTEGER},
+                #{totalDurationMs, jdbcType=BIGINT},
+                #{tokensPrompt, jdbcType=INTEGER}, #{tokensCompletion, jdbcType=INTEGER},
+                #{finalOutput, jdbcType=LONGVARCHAR},
+                #{errorMessage, jdbcType=LONGVARCHAR},
+                #{metadata, jdbcType=VARCHAR},
+                NOW(), NOW())
+    </insert>
+
+    <update id="update" parameterType="org.seaPack.model.ai.OrchestrationSession">
+        UPDATE ai_orchestration_session
+        <set>
+            <if test="orchestrationId != null">orchestration_id = #{orchestrationId},</if>
+            <if test="strategy != null">strategy = #{strategy},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="currentRound != null">current_round = #{currentRound},</if>
+            <if test="totalDurationMs != null">total_duration_ms = #{totalDurationMs},</if>
+            <if test="tokensPrompt != null">tokens_prompt = #{tokensPrompt},</if>
+            <if test="tokensCompletion != null">tokens_completion = #{tokensCompletion},</if>
+            <if test="finalOutput != null">final_output = #{finalOutput},</if>
+            <if test="errorMessage != null">error_message = #{errorMessage},</if>
+            <if test="metadata != null">metadata = #{metadata},</if>
+            updated_at = NOW(),
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM ai_orchestration_session WHERE id = #{id}
+    </delete>
+
+    <delete id="deleteBySceneId">
+        DELETE FROM ai_orchestration_session WHERE scene_id = #{sceneId}
+    </delete>
+
+</mapper>

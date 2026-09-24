@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.ai.OrchestrationStateMapper">
+
+    <resultMap id="BaseMap" type="org.seaPack.model.ai.OrchestrationState">
+        <id property="id" column="id"/>
+        <result property="sessionId" column="session_id"/>
+        <result property="stateKey" column="state_key"/>
+        <result property="stateValue" column="state_value"/>
+        <result property="version" column="version"/>
+        <result property="updatedBy" column="updated_by"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <sql id="BaseColumns">
+        id, session_id, state_key, state_value, version, updated_by, created_at, updated_at
+    </sql>
+
+    <select id="selectBySessionId" resultMap="BaseMap">
+        SELECT <include refid="BaseColumns"/>
+        FROM ai_orchestration_state
+        WHERE session_id = #{sessionId}
+        ORDER BY created_at ASC
+    </select>
+
+    <select id="selectBySessionAndKey" resultMap="BaseMap">
+        SELECT <include refid="BaseColumns"/>
+        FROM ai_orchestration_state
+        WHERE session_id = #{sessionId} AND state_key = #{stateKey}
+    </select>
+
+    <insert id="insert" parameterType="org.seaPack.model.ai.OrchestrationState"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO ai_orchestration_state (session_id, state_key, state_value, version,
+                                             updated_by, created_at, updated_at)
+        VALUES (#{sessionId}, #{stateKey}, #{stateValue, jdbcType=LONGVARCHAR},
+                1, #{updatedBy, jdbcType=BIGINT}, NOW(), NOW())
+    </insert>
+
+    <update id="updateWithVersion" parameterType="org.seaPack.model.ai.OrchestrationState">
+        UPDATE ai_orchestration_state
+        SET state_value = #{stateValue, jdbcType=LONGVARCHAR},
+            version = version + 1,
+            updated_by = #{updatedBy, jdbcType=BIGINT},
+            updated_at = NOW()
+        WHERE session_id = #{sessionId}
+          AND state_key = #{stateKey}
+          AND version = #{version}
+    </update>
+
+    <update id="upsert" parameterType="org.seaPack.model.ai.OrchestrationState">
+        INSERT INTO ai_orchestration_state (session_id, state_key, state_value, version, updated_by, created_at, updated_at)
+        VALUES (#{sessionId}, #{stateKey}, #{stateValue, jdbcType=LONGVARCHAR}, 1, #{updatedBy, jdbcType=BIGINT}, NOW(), NOW())
+        ON DUPLICATE KEY UPDATE
+            state_value = VALUES(state_value),
+            version = version + 1,
+            updated_by = VALUES(updated_by),
+            updated_at = NOW()
+    </update>
+
+    <delete id="deleteBySessionId">
+        DELETE FROM ai_orchestration_state WHERE session_id = #{sessionId}
+    </delete>
+
+    <delete id="deleteBySessionAndKey">
+        DELETE FROM ai_orchestration_state WHERE session_id = #{sessionId} AND state_key = #{stateKey}
+    </delete>
+
+</mapper>

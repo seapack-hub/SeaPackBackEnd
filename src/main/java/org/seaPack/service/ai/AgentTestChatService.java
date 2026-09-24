@@ -342,4 +342,180 @@ public class AgentTestChatService {
         }
         return "";
     }
+
+    // =====================================================================
+    //  可复用的 Agent 执行方法（供编排服务调用）
+    // =====================================================================
+
+    /**
+     * 单步 Agent 执行结果
+     */
+    public static class AgentStepResult {
+        /** Agent 最终输出文本 */
+        public String output;
+        /** 输入 Token 数 */
+        public int tokensPrompt;
+        /** 输出 Token 数 */
+        public int tokensCompletion;
+        /** 使用的模型名 */
+        public String modelName;
+        /** 总耗时（毫秒） */
+        public long durationMs;
+        /** 本次执行产生的链路步骤（含 prompt_assembly、knowledge_retrieval、skill_execution、llm_call） */
+        public List<AgentTraceStep> steps;
+        /** 是否成功 */
+        public boolean success;
+        /** 错误信息（失败时有值） */
+        public String errorMessage;
+    }
+
+    /**
+     * 执行单个 Agent 步骤（完整流水线：提示词组装 → 知识库检索 → LLM with tools）
+     * <p>供编排服务 OrchestrationExecuteService 调用，不保存会话，不发送编排级 SSE 事件。
+     * Agent 内部的 SSE 事件（step_start/step_detail/step_done/content）仍会正常推送。</p>
+     *
+     * @param agentId       Agent ID
+     * @param userMessage   用户输入（或上一步的输出）
+     * @param history       对话历史
+     * @param sceneId       场景 ID（用于配置覆盖）
+     * @param conversationId 会话 ID
+     * @param requestId     请求 ID
+     * @param emitter       SSE 发射器（可为 null，为 null 时跳过所有 SSE 推送）
+     * @param cancelFlag    取消标记
+     * @param authToken     认证令牌（用于技能执行）
+     * @return 执行结果
+     */
+    public AgentStepResult callAgentStep(Long agentId, String userMessage,
+                                          List<Map<String, String>> history,
+                                          Long sceneId, String conversationId, String requestId,
+                                          SseEmitter emitter, AtomicBoolean cancelFlag, String authToken) {
+        AgentStepResult result = new AgentStepResult();
+        result.steps = new ArrayList<>();
+        long stepStart = System.currentTimeMillis();
+
+        try {
+            // 1. 加载 Agent 并应用场景级配置
+            Agent agent = agentMapper.selectById(agentId);
+            if (agent == null) {
+                result.success = false;
+                result.errorMessage = "Agent 不存在: agentId=" + agentId;
+                return result;
+            }
+            applySceneConfig(agent, sceneId);
+
+            // 2. 加载 Agent 关联的技能定义
+            List<Map<String, Object>> toolDefinitions = new ArrayList<>();
+            try {
+                toolDefinitions = skillExecutor.getToolDefinitions(agentId);
+            } catch (Exception e) {
+                log.error("Agent[{}] 加载技能定义失败: {}", agent.getName(), e.getMessage(), e);
+            }
+
+            // 3. Step 1: 提示词组装
+            int stepIndex = 0;
+            if (emitter != null) {
+                SseEvent.send(emitter, "step_start", Map.of(
+                        "stepIndex", stepIndex,
+                        "stepType", "prompt_assembly",
+                        "stepName", "提示词组装"
+                ));
+            }
+            AgentTraceStepResult promptResult = agentPromptService.assemblePrompt(agent, stepIndex,
+                    userMessage, emitter, null, sceneId, agentId, requestId,
+                    !toolDefinitions.isEmpty());
+            String systemPrompt = promptResult.output;
+            result.steps.add(promptResult.step);
+            if (emitter != null) {
+                SseEvent.send(emitter, "step_done", Map.of(
+                        "stepIndex", stepIndex,
+                        "status", "success",
+                        "durationMs", promptResult.step.getDurationMs()
+                ));
+            }
+            stepIndex++;
+
+            // 4. Step 2: 知识库检索
+            boolean hasKnowledge = agentKnowledgeMapper.selectByAgentId(agentId).stream()
+                    .anyMatch(k -> k.getEnabled() != null && k.getEnabled() == 1);
+            String knowledgeContext = null;
+            if (hasKnowledge) {
+                if (emitter != null) {
+                    SseEvent.send(emitter, "step_start", Map.of(
+                            "stepIndex", stepIndex,
+                            "stepType", "knowledge_retrieval",
+                            "stepName", "知识库检索"
+                    ));
+                }
+                AgentTraceStepResult kbResult = knowledgeBaseService.retrieveKnowledge(agent, userMessage, stepIndex, emitter);
+                knowledgeContext = kbResult.output;
+                result.steps.add(kbResult.step);
+                if (emitter != null) {
+                    SseEvent.send(emitter, "step_done", Map.of(
+                            "stepIndex", stepIndex,
+                            "status", kbResult.step.getStatus(),
+                            "durationMs", kbResult.step.getDurationMs()
+                    ));
+                }
+                stepIndex++;
+            }
+
+            // 5. Step 3 & 4: LLM with tools
+            AiDialogRequest dialogRequest = new AiDialogRequest();
+            dialogRequest.setAgentId(agentId);
+            dialogRequest.setQuestion(userMessage);
+            dialogRequest.setHistory(history);
+            dialogRequest.setSceneId(sceneId);
+            dialogRequest.setConversationId(conversationId);
+            dialogRequest.setRequestId(requestId);
+
+            int toolStepIndex = stepIndex;
+            int llmStepIndex = hasKnowledge ? stepIndex + 1 : stepIndex;
+            if (!toolDefinitions.isEmpty()) {
+                llmStepIndex = stepIndex + 1;
+            }
+            AgentTraceStepResult llmResult = agentLlmCaller.callLLMStreamWithTools(agent, systemPrompt,
+                    knowledgeContext, dialogRequest, toolStepIndex, llmStepIndex, emitter,
+                    new AtomicBoolean(false), cancelFlag, toolDefinitions, authToken);
+
+            if (llmResult.extraSteps != null && !llmResult.extraSteps.isEmpty()) {
+                result.steps.addAll(llmResult.extraSteps);
+            }
+            result.steps.add(llmResult.step);
+
+            if (emitter != null) {
+                SseEvent.send(emitter, "step_done", Map.of(
+                        "stepIndex", llmStepIndex,
+                        "status", "success",
+                        "durationMs", llmResult.step.getDurationMs(),
+                        "tokensPrompt", llmResult.tokensPrompt,
+                        "tokensCompletion", llmResult.tokensCompletion
+                ));
+            }
+
+            // 6. 安全检测
+            if (agentLlmCaller.containsSystemPromptLeakage(llmResult.output, systemPrompt)) {
+                log.warn("Agent[{}] 检测到系统提示词泄漏，已拦截", agent.getName());
+                llmResult.output = "抱歉，我无法提供相关回答。请换个问题试试。";
+            }
+
+            // 7. 填充结果
+            result.output = llmResult.output;
+            result.tokensPrompt = llmResult.tokensPrompt;
+            result.tokensCompletion = llmResult.tokensCompletion;
+            result.modelName = llmResult.modelName;
+            result.durationMs = System.currentTimeMillis() - stepStart;
+            result.success = true;
+
+            log.info("callAgentStep 完成: agent={}, duration={}ms, output长度={}",
+                    agent.getName(), result.durationMs, result.output != null ? result.output.length() : 0);
+
+        } catch (Exception e) {
+            log.error("callAgentStep 异常: agentId={}, {}", agentId, e.getMessage(), e);
+            result.success = false;
+            result.errorMessage = e.getMessage();
+            result.durationMs = System.currentTimeMillis() - stepStart;
+        }
+
+        return result;
+    }
 }

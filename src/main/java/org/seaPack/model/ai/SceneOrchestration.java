@@ -41,8 +41,20 @@ public class SceneOrchestration {
     private String description;
 
     @Column(name = "strategy")
-    @Comment("执行策略：sequential-顺序执行 | parallel-并行执行 | llm_tool-LLM决策工具调用 | auto-自动")
+    @Comment("执行策略：sequential-顺序 | parallel-并行 | supervisor-总控调度 | crew-角色协作 | dynamic-动态规划")
     private String strategy;
+
+    @Column(name = "supervisor_agent_id")
+    @Comment("Supervisor Agent ID，有值时由该Agent动态调度，无值时按步骤执行")
+    private Long supervisorAgentId;
+
+    @Column(name = "max_rounds")
+    @Comment("Agent间最大协作轮次（防止死循环），默认5")
+    private Integer maxRounds;
+
+    @Column(name = "context_strategy")
+    @Comment("上下文传递策略：text_only-纯文本 | structured-结构化JSON | shared_state-共享状态对象")
+    private String contextStrategy;
 
     @Column(name = "status")
     @Comment("状态：1启用 0禁用")
