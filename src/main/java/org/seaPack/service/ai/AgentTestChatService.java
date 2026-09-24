@@ -18,14 +18,14 @@ import jakarta.servlet.http.HttpServletResponse;
 
 /**
  * Agent 测试对话服务（编排层）
- * <p>负责测试对话的完整链路编排，将具体职责委托给各个子服务：</p>
- * <ul>
- *   <li>{@link AgentPlanService} - 意图规划（LLM 动态编排）</li>
- *   <li>{@link AgentPromptService} - 提示词组装（加载模板 + 安全约束）</li>
- *   <li>{@link KnowledgeBaseService} - 知识库检索</li>
- *   <li>{@link AgentLlmCaller} - LLM 流式调用（含 Function Calling）</li>
- *   <li>{@link AgentTraceHelper} - 链路追踪构建</li>
- * </ul>
+ * <p>负责测试对话的完整链路编排，固定四步流程：</p>
+ * <ol>
+ *   <li>提示词组装（加载 Agent 基础提示词 + 启用的模板 + 工具约束规则）</li>
+ *   <li>知识库检索（有知识库则检索）</li>
+ *   <li>LLM 流式调用（始终传 tools，由 LLM 自主决定调用）</li>
+ *   <li>构建响应并保存会话</li>
+ * </ol>
+ * <p>Agent 是"执行者"，不做意图分类。路由决策应在 Agent 之外完成。</p>
  */
 @Slf4j
 @Service
@@ -48,9 +48,6 @@ public class AgentTestChatService {
 
     @Autowired
     private SceneAgentConfigMapper sceneAgentConfigMapper;
-
-    @Autowired
-    private AgentPlanService agentPlanService;
 
     @Autowired
     private AgentPromptService agentPromptService;
@@ -76,7 +73,7 @@ public class AgentTestChatService {
 
     /**
      * 执行测试对话（SSE 流式返回，支持取消标志）
-     * <p>核心流程：意图规划 → [提示词组装] → [知识库检索] → LLM 流式调用 → 保存测试会话。</p>
+     * <p>固定四步流程：提示词组装 → 知识库检索 → LLM 流式调用 → 保存测试会话。</p>
      */
     public void testChatStream(AiDialogRequest request, Long userId, SseEmitter emitter,
                                String authToken, HttpServletResponse response, AtomicBoolean cancelFlag) {
@@ -97,6 +94,7 @@ public class AgentTestChatService {
 
             List<AgentTraceStep> steps = new ArrayList<>();
             long totalDuration;
+            String userMsg = extractMessage(request);
 
             // 2. 加载 Agent 关联的技能定义
             List<Map<String, Object>> toolDefinitions = new ArrayList<>();
@@ -107,147 +105,37 @@ public class AgentTestChatService {
                 log.error("Agent[{}] 加载技能定义失败: {}", agent.getName(), e.getMessage(), e);
             }
 
-            // 3. 意图规划（本地规则优先 + LLM 兜底）
-            String userMsg = extractMessage(request);
-            log.info("Agent[{}] 开始意图规划: message={}", agent.getName(),
-                    request.getQuestion() != null ? request.getQuestion().substring(0, Math.min(50, request.getQuestion().length())) : "N/A");
-
-            // 推送：规划开始
-            if (emitter != null) {
-                SseEvent.send(emitter, "step_start", Map.of(
-                        "stepIndex", 0,
-                        "stepType", "plan",
-                        "stepName", "意图规划",
-                        "message", "正在分析用户意图..."
-                ));
-                SseEvent.send(emitter, "step_progress", Map.of(
-                        "stepIndex", 0,
-                        "stepType", "plan",
-                        "message", "用户消息: " + (userMsg.length() > 80 ? userMsg.substring(0, 80) + "..." : userMsg)
-                ));
-            }
-
-            // 3.1 本地规则快速判断闲聊（省掉一次 LLM 调用）
-            Map<String, Object> plan = detectQuickIntent(userMsg, toolDefinitions);
-            String planStrategy;
-            if (plan != null) {
-                planStrategy = "本地规则匹配";
-                if (emitter != null) {
-                    SseEvent.send(emitter, "step_progress", Map.of(
-                            "stepIndex", 0,
-                            "stepType", "plan",
-                            "message", "策略: 本地规则快速判断"
-                    ));
-                    SseEvent.send(emitter, "step_progress", Map.of(
-                            "stepIndex", 0,
-                            "stepType", "plan",
-                            "message", "判定结果: " + plan.get("reason") + " → 跳过 LLM 规划"
-                    ));
-                }
-            } else {
-                planStrategy = "LLM 智能分析";
-                if (emitter != null) {
-                    SseEvent.send(emitter, "step_progress", Map.of(
-                            "stepIndex", 0,
-                            "stepType", "plan",
-                            "message", "策略: 本地规则未命中，调用 LLM 进行意图分析..."
-                    ));
-                }
-                // 未命中本地规则，走 LLM 规划
-                plan = agentPlanService.planSteps(agent, userMsg, toolDefinitions,
-                        userId, request.getSceneId(), agent.getId(), request.getRequestId());
-                if (emitter != null) {
-                    SseEvent.send(emitter, "step_progress", Map.of(
-                            "stepIndex", 0,
-                            "stepType", "plan",
-                            "message", "LLM 分析完成，分类结果: " + plan.get("intent")
-                    ));
-                }
-            }
-
-            @SuppressWarnings("unchecked")
-            List<String> plannedSteps = (List<String>) plan.getOrDefault("steps", List.of("prompt_assembly", "knowledge_retrieval", "llm_call"));
-            String intent = (String) plan.getOrDefault("intent", "business");
-            log.info("Agent[{}] 意图规划结果: intent={}, steps={}", agent.getName(), intent, plannedSteps);
-
-            // 推送：规划结论
-            if (emitter != null) {
-                String stepLabels = plannedSteps.stream()
-                        .map(s -> switch (s) {
-                            case "prompt_assembly" -> "提示词组装";
-                            case "knowledge_retrieval" -> "知识库检索";
-                            case "llm_call" -> "LLM 对话";
-                            default -> s;
-                        })
-                        .reduce((a, b) -> a + " → " + b)
-                        .orElse("");
-                SseEvent.send(emitter, "step_progress", Map.of(
-                        "stepIndex", 0,
-                        "stepType", "plan",
-                        "message", "执行计划: " + stepLabels + "（共 " + plannedSteps.size() + " 步）",
-                        "intent", intent,
-                        "reason", plan.get("reason") != null ? plan.get("reason") : "",
-                        "plannedSteps", plannedSteps,
-                        "strategy", planStrategy
-                ));
-            }
-
-            // 记录 plan step
-            AgentTraceStep planStep = new AgentTraceStep();
-            planStep.setStepIndex(0);
-            planStep.setStepType("plan");
-            planStep.setStepName("意图规划");
-            planStep.setStatus("success");
-            Map<String, Object> planMeta = new LinkedHashMap<>();
-            planMeta.put("intent", intent);
-            planMeta.put("strategy", planStrategy);
-            planMeta.put("reason", plan.get("reason"));
-            planMeta.put("plannedSteps", plannedSteps);
-            planStep.setMetadata(planMeta);
-            steps.add(planStep);
-
-            if (emitter != null) {
-                SseEvent.send(emitter, "step_done", Map.of(
-                        "stepIndex", 0,
-                        "status", "success"
-                ));
-            }
-
-            // 4. 条件执行：根据 plan 动态执行各步骤
+            // ===== 固定四步流程（Agent 是执行者，不做意图分类） =====
             String systemPrompt = null;
             String knowledgeContext = null;
-            int stepIndex = 1;
+            int stepIndex = 0;
 
-            // Step 1: 提示词组装（条件执行）
-            if (plannedSteps.contains("prompt_assembly")) {
-                if (emitter != null) {
-                    SseEvent.send(emitter, "step_start", Map.of(
-                            "stepIndex", stepIndex,
-                            "stepType", "prompt_assembly",
-                            "stepName", "提示词组装"
-                    ));
-                }
-                AgentTraceStepResult promptResult = agentPromptService.assemblePrompt(agent, stepIndex,
-                        extractMessage(request), emitter, userId, request.getSceneId(), agent.getId(), request.getRequestId());
-                systemPrompt = promptResult.output;
-                steps.add(promptResult.step);
-                if (emitter != null) {
-                    SseEvent.send(emitter, "step_done", Map.of(
-                            "stepIndex", stepIndex,
-                            "status", "success",
-                            "durationMs", promptResult.step.getDurationMs()
-                    ));
-                }
-                stepIndex++;
-            } else {
-                // 跳过提示词组装时，使用基础提示词
-                systemPrompt = agent.getSystemPrompt() != null ? agent.getSystemPrompt() : "";
+            // Step 1: 提示词组装（固定执行）
+            if (emitter != null) {
+                SseEvent.send(emitter, "step_start", Map.of(
+                        "stepIndex", stepIndex,
+                        "stepType", "prompt_assembly",
+                        "stepName", "提示词组装"
+                ));
             }
+            AgentTraceStepResult promptResult = agentPromptService.assemblePrompt(agent, stepIndex,
+                    userMsg, emitter, userId, request.getSceneId(), agent.getId(), request.getRequestId(),
+                    !toolDefinitions.isEmpty());
+            systemPrompt = promptResult.output;
+            steps.add(promptResult.step);
+            if (emitter != null) {
+                SseEvent.send(emitter, "step_done", Map.of(
+                        "stepIndex", stepIndex,
+                        "status", "success",
+                        "durationMs", promptResult.step.getDurationMs()
+                ));
+            }
+            stepIndex++;
 
-            // Step 2: 知识库检索（条件执行）
-            // chat intent 强制跳过知识库检索
-            boolean shouldRetrieveKnowledge = plannedSteps.contains("knowledge_retrieval") && !"chat".equals(intent);
-            if (shouldRetrieveKnowledge) {
+            // Step 2: 知识库检索（有知识库则检索，无条件执行）
+            boolean hasKnowledge = agentKnowledgeMapper.selectByAgentId(agent.getId()).stream()
+                    .anyMatch(k -> k.getEnabled() != null && k.getEnabled() == 1);
+            if (hasKnowledge) {
                 if (emitter != null) {
                     SseEvent.send(emitter, "step_start", Map.of(
                             "stepIndex", stepIndex,
@@ -255,7 +143,7 @@ public class AgentTestChatService {
                             "stepName", "知识库检索"
                     ));
                 }
-                AgentTraceStepResult kbResult = knowledgeBaseService.retrieveKnowledge(agent, extractMessage(request), stepIndex, emitter);
+                AgentTraceStepResult kbResult = knowledgeBaseService.retrieveKnowledge(agent, userMsg, stepIndex, emitter);
                 knowledgeContext = kbResult.output;
                 steps.add(kbResult.step);
                 if (emitter != null) {
@@ -268,26 +156,34 @@ public class AgentTestChatService {
                 stepIndex++;
             }
 
-            // Step 3: LLM 调用（核心步骤，始终执行）
-            // 只有计划明确包含技能执行时才传工具定义，其他意图（chat/knowledge）不传工具防止误调用
-            boolean needsTools = plannedSteps.contains("skill_execution")
-                    || ("business".equals(intent) && !plannedSteps.contains("knowledge_retrieval"));
-            List<Map<String, Object>> llmTools = needsTools ? toolDefinitions : List.of();
-            if (emitter != null) {
-                SseEvent.send(emitter, "step_start", Map.of(
-                        "stepIndex", stepIndex,
-                        "stepType", "llm_call",
-                        "stepName", "LLM 调用"
-                ));
+            // Step 3 & 4: 工具调用 + LLM 输出（核心步骤，由 AgentLlmCaller 内部推送 SSE 事件）
+            // toolStepIndex: 工具调用步骤的索引，llmStepIndex: LLM 输出步骤的索引
+            int toolStepIndex = stepIndex;
+            int llmStepIndex = hasKnowledge ? stepIndex + 1 : stepIndex;
+            if (!toolDefinitions.isEmpty()) {
+                // 有工具时：step3=工具调用，step4=LLM输出
+                llmStepIndex = stepIndex + 1;
             }
             AgentTraceStepResult llmResult = agentLlmCaller.callLLMStreamWithTools(agent, systemPrompt,
-                    knowledgeContext, request, stepIndex, emitter,
-                    new AtomicBoolean(false), cancelFlag, llmTools, authToken);
-            steps.add(llmResult.step);
+                    knowledgeContext, request, toolStepIndex, llmStepIndex, emitter,
+                    new AtomicBoolean(false), cancelFlag, toolDefinitions, authToken);
+
+            // 构建步骤列表：顺序必须是 工具调用 → LLM 输出
+            // extraSteps 包含工具调用步骤（含子步骤），需插入到 LLM 步骤之前
+            if (llmResult.extraSteps != null && !llmResult.extraSteps.isEmpty()) {
+                steps.addAll(llmResult.extraSteps);  // Step 3: 工具调用（含子步骤）
+            }
+            steps.add(llmResult.step);  // Step 4: LLM 输出
+
+            // 调试日志：验证步骤结构
+            log.info("Agent 步骤构建完成: totalSteps={}, steps=[{}]", steps.size(),
+                    steps.stream().map(s -> s.getStepType() + "(" + s.getStepIndex() + ")"
+                            + "[children=" + (s.getChildren() != null ? s.getChildren().size() : 0) + "]")
+                            .collect(java.util.stream.Collectors.joining(", ")));
 
             if (emitter != null) {
                 SseEvent.send(emitter, "step_done", Map.of(
-                        "stepIndex", stepIndex,
+                        "stepIndex", llmStepIndex,
                         "status", "success",
                         "durationMs", llmResult.step.getDurationMs(),
                         "tokensPrompt", llmResult.tokensPrompt,
@@ -415,7 +311,11 @@ public class AgentTestChatService {
         session.setUserMessage(extractMessage(request));
         session.setOutputResult(reply);
         try {
-            session.setTraceSnapshot(objectMapper.writeValueAsString(snapshot));
+            String snapshotJson = objectMapper.writeValueAsString(snapshot);
+            session.setTraceSnapshot(snapshotJson);
+            log.info("saveTestSession: snapshotJson长度={}, 包含children={}",
+                    snapshotJson.length(),
+                    snapshotJson.contains("\"children\""));
         } catch (JsonProcessingException ex) {
             session.setTraceSnapshot("{}");
         }
@@ -441,70 +341,5 @@ public class AgentTestChatService {
             return request.getMessages().get(request.getMessages().size() - 1).getContent();
         }
         return "";
-    }
-
-    // =====================================================================
-    //  本地意图快速判断
-    // =====================================================================
-
-    /**
-     * 本地规则快速判断是否为闲聊，命中则直接返回 chat plan，未命中返回 null 走 LLM 规划。
-     * <p>目的：对明确的闲聊场景（打招呼、自我介绍询问等）跳过 LLM 规划调用，
-     * 既节省一次 LLM 请求开销，又避免 LLM 误判。</p>
-     */
-    private Map<String, Object> detectQuickIntent(String userMessage, List<Map<String, Object>> toolDefinitions) {
-        if (userMessage == null || userMessage.isBlank()) {
-            return null;
-        }
-
-        String msg = userMessage.trim().toLowerCase();
-
-        // 无技能的 Agent，任何消息都直接走 llm_call（无业务能力可言）
-        if (toolDefinitions == null || toolDefinitions.isEmpty()) {
-            return quickChatPlan("Agent 无关联技能，直接对话");
-        }
-
-        // ===== 闲聊模式匹配 =====
-        // 打招呼
-        if (msg.matches("^(你好|hello|hi|hey|嗨|哈喽|早|早上好|下午好|晚上好|在吗|在不在|hey|yo|哈罗|您好|老师好|大侠好).*$")) {
-            return quickChatPlan("打招呼，直接对话");
-        }
-
-        // 自我介绍 / 身份询问
-        if (msg.matches("^(你是谁|你叫什么|你是什么|你能做什么|你会什么|你的名字|你是ai|你是机器人|你是人吗|你有什么能力|自我介绍|介绍下你自己|介绍一下你).*$")) {
-            return quickChatPlan("询问身份，直接对话");
-        }
-
-        // 感谢 / 道别 / 通用礼貌
-        if (msg.matches("^(谢谢|感谢|多谢|辛苦了|再见|拜拜|好的|ok|没问题|知道了|了解|明白|嗯|哦|啊|呀|额).*$")) {
-            return quickChatPlan("礼貌用语，直接对话");
-        }
-
-        // 通用闲聊（极短消息且无业务关键词）
-        if (msg.length() <= 6 && !containsBusinessKeyword(msg)) {
-            return quickChatPlan("短消息闲聊，直接对话");
-        }
-
-        // 未命中本地规则，返回 null 交给 LLM 规划
-        return null;
-    }
-
-    private boolean containsBusinessKeyword(String msg) {
-        String[] keywords = {"股票", "基金", "行情", "涨", "跌", "价格", "k线", "k线",
-                "财务", "利润", "营收", "分红", "市盈率", "pe", "roe",
-                "查询", "分析", "诊断", "报告", "数据", "统计",
-                "买入", "卖出", "持仓", "收益"};
-        for (String kw : keywords) {
-            if (msg.contains(kw)) return true;
-        }
-        return false;
-    }
-
-    private Map<String, Object> quickChatPlan(String reason) {
-        return new LinkedHashMap<>() {{
-            put("intent", "chat");
-            put("steps", List.of("llm_call"));
-            put("reason", reason);
-        }};
     }
 }

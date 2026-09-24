@@ -33,13 +33,17 @@ public class AgentLlmCaller {
      * 流式调用 LLM API，支持 Function Calling 多轮循环。
      * <p>当 LLM 返回 tool_calls 时，自动执行技能并将结果追加到消息列表，
      * 然后再次调用 LLM 直到获得最终文本回复（最多 3 轮 tool 循环）。</p>
+     * <p>自动推送 SSE 步骤事件：skill_execution（工具调用）和 llm_call（最终输出）。</p>
      *
+     * @param toolStepIndex 工具调用步骤的 stepIndex（由调用方分配）
+     * @param llmStepIndex  LLM 输出步骤的 stepIndex（由调用方分配）
      * @return 步骤执行结果（含回复内容、token 用量、子步骤等）
      */
     @SuppressWarnings("unchecked")
     public AgentTraceStepResult callLLMStreamWithTools(Agent agent, String systemPrompt,
                                                        String knowledgeContext,
-                                                       AiDialogRequest request, int stepIndex,
+                                                       AiDialogRequest request,
+                                                       int toolStepIndex, int llmStepIndex,
                                                        SseEmitter emitter, AtomicBoolean isCompleted,
                                                        AtomicBoolean cancelFlag,
                                                        List<Map<String, Object>> toolDefinitions,
@@ -93,9 +97,20 @@ public class AgentLlmCaller {
         StringBuilder replyContentBuilder = new StringBuilder();
         int[] tokenUsage = {0, 0};
         int totalToolRounds = 0;
-        final int MAX_TOOL_ROUNDS = 3;
+        final int MAX_TOOL_ROUNDS = 2;
         List<Map<String, Object>> functionCallsHistory = new ArrayList<>();
         List<AgentTraceStep> childSteps = new ArrayList<>();
+        Set<String> alreadyCalledTools = new LinkedHashSet<>();  // 已调用的工具名，用于去重
+        long toolStepStartTime = 0;  // 工具步骤开始时间，用于计算耗时
+
+        // 如果没有工具定义，直接推送 LLM 输出步骤（无工具调用场景）
+        if ((toolDefinitions == null || toolDefinitions.isEmpty()) && emitter != null) {
+            SseEvent.send(emitter, "step_start", Map.of(
+                    "stepIndex", llmStepIndex,
+                    "stepType", "llm_call",
+                    "stepName", "LLM 输出"
+            ));
+        }
 
         // ===== 多轮 tool 调用循环 =====
         while (totalToolRounds <= MAX_TOOL_ROUNDS) {
@@ -116,6 +131,24 @@ public class AgentLlmCaller {
             }
             if (toolDefinitions != null && !toolDefinitions.isEmpty()) {
                 requestBody.put("tools", toolDefinitions);
+            }
+
+            // 工具去重：告诉 LLM 哪些工具已经调用过，避免重复调用
+            if (!alreadyCalledTools.isEmpty() && totalToolRounds > 0) {
+                String dedupHint = "\n\n【重要提醒】以下工具已经被调用过，请勿重复调用：" + alreadyCalledTools
+                        + "。如果已有足够的数据，请直接基于已有数据生成回复，不要再次调用相同工具。";
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> msgs = (List<Map<String, Object>>) requestBody.get("messages");
+                if (msgs != null && !msgs.isEmpty()) {
+                    // 在最后一条 user 消息后追加去重提示
+                    for (int i = msgs.size() - 1; i >= 0; i--) {
+                        if ("user".equals(msgs.get(i).get("role"))) {
+                            String orig = (String) msgs.get(i).get("content");
+                            msgs.get(i).put("content", (orig != null ? orig : "") + dedupHint);
+                            break;
+                        }
+                    }
+                }
             }
 
             LlmSseHelper.ToolCallAccumulator toolAccumulator = new LlmSseHelper.ToolCallAccumulator();
@@ -156,17 +189,73 @@ public class AgentLlmCaller {
                 List<Map<String, Object>> toolCalls = toolAccumulator.getToolCalls();
                 log.info("LLM 返回 tool_calls: round={}, count={}, finishReason={}", totalToolRounds, toolCalls.size(), finishReason);
 
+                // 提取本轮要调用的工具名称列表
+                List<String> roundToolNames = new ArrayList<>();
+                for (Map<String, Object> tc : toolCalls) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> function = (Map<String, Object>) tc.get("function");
+                    if (function != null) {
+                        roundToolNames.add((String) function.get("name"));
+                    }
+                }
+
+                // 推送：工具调用步骤开始（仅第一轮）
+                if (emitter != null && totalToolRounds == 1) {
+                    toolStepStartTime = System.currentTimeMillis();
+                    SseEvent.send(emitter, "step_start", Map.of(
+                            "stepIndex", toolStepIndex,
+                            "stepType", "skill_execution",
+                            "stepName", "工具调用",
+                            "toolsToCall", roundToolNames
+                    ));
+                    SseEvent.send(emitter, SseEvent.TYPE_STEP_DETAIL, Map.of(
+                            "stepIndex", toolStepIndex,
+                            "detailType", "tool_list",
+                            "message", "共需调用 " + roundToolNames.size() + " 个工具：" + String.join("、", roundToolNames)
+                    ));
+                }
+                // 推送：第 2+ 轮补充提示
+                if (emitter != null && totalToolRounds > 1) {
+                    SseEvent.send(emitter, SseEvent.TYPE_STEP_DETAIL, Map.of(
+                            "stepIndex", toolStepIndex,
+                            "detailType", "tool_round",
+                            "message", "第 " + totalToolRounds + " 轮工具调用：" + String.join("、", roundToolNames)
+                    ));
+                }
+
                 Map<String, Object> assistantToolMsg = new HashMap<>();
                 assistantToolMsg.put("role", "assistant");
                 assistantToolMsg.put("tool_calls", toolCalls);
                 messages.add(assistantToolMsg);
 
-                List<Map<String, String>> toolMessages = skillExecutor.executeToolCalls(toolCalls, authToken, emitter, stepIndex);
+                // 推送：逐个工具开始调用
+                for (String toolName : roundToolNames) {
+                    if (emitter != null) {
+                        SseEvent.send(emitter, SseEvent.TYPE_STEP_DETAIL, Map.of(
+                                "stepIndex", toolStepIndex,
+                                "detailType", "tool_start",
+                                "message", "正在调用 " + toolName + " ..."
+                        ));
+                    }
+                }
+
+                List<Map<String, String>> toolMessages = skillExecutor.executeToolCalls(toolCalls, authToken, emitter, toolStepIndex);
                 for (Map<String, String> tm : toolMessages) {
                     messages.add(new HashMap<>(tm));
                 }
 
-                // 记录 function call 历史和子步骤
+                // 推送：逐个工具调用完成
+                for (String toolName : roundToolNames) {
+                    if (emitter != null) {
+                        SseEvent.send(emitter, SseEvent.TYPE_STEP_DETAIL, Map.of(
+                                "stepIndex", toolStepIndex,
+                                "detailType", "tool_done",
+                                "message", toolName + " 调用完成"
+                        ));
+                    }
+                }
+
+                // 记录 function call 历史和子步骤，同时记录已调用的工具名
                 for (int i = 0; i < toolCalls.size(); i++) {
                     Map<String, Object> tc = toolCalls.get(i);
                     @SuppressWarnings("unchecked")
@@ -174,6 +263,8 @@ public class AgentLlmCaller {
                     String funcName = function != null ? (String) function.get("name") : "unknown";
                     String funcArgs = function != null ? (String) function.get("arguments") : "{}";
                     String toolResult = i < toolMessages.size() ? toolMessages.get(i).get("content") : "{}";
+
+                    alreadyCalledTools.add(funcName);  // 记录已调用工具
 
                     Map<String, Object> fcRecord = new LinkedHashMap<>();
                     fcRecord.put("round", totalToolRounds);
@@ -193,6 +284,28 @@ public class AgentLlmCaller {
                     childMeta.put("skillCode", funcName);
                     childStep.setMetadata(childMeta);
                     childSteps.add(childStep);
+                }
+
+                // 工具调用结束，立即推送（不等下一轮 LLM 响应）
+                if (emitter != null) {
+                    SseEvent.send(emitter, SseEvent.TYPE_STEP_DETAIL, Map.of(
+                            "stepIndex", toolStepIndex,
+                            "detailType", "tool_summary",
+                            "message", "工具调用结束，共执行 " + totalToolRounds + " 轮，调用了 " + alreadyCalledTools.size() + " 个工具：" + String.join("、", alreadyCalledTools)
+                    ));
+                    SseEvent.send(emitter, "step_done", Map.of(
+                            "stepIndex", toolStepIndex,
+                            "status", "success",
+                            "durationMs", System.currentTimeMillis() - toolStepStartTime,
+                            "toolRounds", totalToolRounds,
+                            "toolsCalled", new ArrayList<>(alreadyCalledTools)
+                    ));
+                    // 推送：LLM 输出步骤开始
+                    SseEvent.send(emitter, "step_start", Map.of(
+                            "stepIndex", llmStepIndex,
+                            "stepType", "llm_call",
+                            "stepName", "LLM 输出"
+                    ));
                 }
 
                 continue;
@@ -218,9 +331,9 @@ public class AgentLlmCaller {
                 replyContentBuilder.length(), llmDuration);
 
         AgentTraceStep step = new AgentTraceStep();
-        step.setStepIndex(stepIndex);
+        step.setStepIndex(llmStepIndex);
         step.setStepType("llm_call");
-        step.setStepName("LLM 调用" + (totalToolRounds > 0 ? " (Function Calling x" + totalToolRounds + ")" : ""));
+        step.setStepName("LLM 输出" + (totalToolRounds > 0 ? " (调用了 " + totalToolRounds + " 轮工具)" : ""));
         step.setStatus("success");
         step.setDurationMs(llmDuration);
         step.setInput(systemPrompt);
@@ -236,9 +349,11 @@ public class AgentLlmCaller {
             llmMeta.put("functionCalls", functionCallsHistory);
         }
         step.setMetadata(llmMeta);
-        if (!childSteps.isEmpty()) {
-            step.setChildren(childSteps);
-        }
+        // 注意：children 不再挂到 LLM 步骤下，而是通过 extraSteps 独立返回
+
+        // 调试日志：验证 childSteps
+        log.info("AgentLlmCaller 完成: toolRounds={}, childSteps.size={}, alreadyCalledTools={}",
+                totalToolRounds, childSteps.size(), alreadyCalledTools);
 
         AgentTraceStepResult result = new AgentTraceStepResult();
         result.step = step;
@@ -246,7 +361,24 @@ public class AgentLlmCaller {
         result.tokensPrompt = tokenUsage[0];
         result.tokensCompletion = tokenUsage[1];
         result.modelName = modelName;
-        result.nextStepIndex = stepIndex + 1;
+        result.nextStepIndex = llmStepIndex + 1;
+
+        // 如果有工具调用，构建独立的工具调用步骤（含子步骤）
+        if (!childSteps.isEmpty()) {
+            AgentTraceStep toolStep = new AgentTraceStep();
+            toolStep.setStepIndex(toolStepIndex);
+            toolStep.setStepType("skill_execution");
+            toolStep.setStepName("工具调用");
+            toolStep.setStatus("success");
+            toolStep.setChildren(childSteps);
+            // 计算工具步骤的总耗时 = 所有子步骤耗时之和
+            long toolDuration = childSteps.stream()
+                    .mapToLong(c -> c.getDurationMs() != null ? c.getDurationMs() : 0).sum();
+            toolStep.setDurationMs(toolDuration);
+            result.extraSteps = new ArrayList<>();
+            result.extraSteps.add(toolStep);
+        }
+
         return result;
     }
 
