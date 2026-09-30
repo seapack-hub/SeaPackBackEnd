@@ -1,17 +1,17 @@
 package org.seaPack.controller.system;
 
 import lombok.extern.slf4j.Slf4j;
+import org.seaPack.mapper.system.DictMapper;
 import org.seaPack.model.system.Dict;
 import org.seaPack.model.system.DictType;
+import org.seaPack.model.system.DictTypeVO;
 import org.seaPack.service.system.DictService;
 import org.seaPack.service.system.DictTypeService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * 字典类型管理控制器
@@ -27,6 +27,9 @@ public class DictTypeController {
     @Autowired
     private DictService dictService;
 
+    @Autowired
+    private DictMapper dictMapper;
+
     /**
      * 查询所有字典类型列表（可选关键字过滤）
      */
@@ -38,26 +41,12 @@ public class DictTypeController {
 
     /**
      * 查询所有字典类型列表（含每个类型的字典值数量）
+     * 优化：使用联表查询一次性获取类型信息和数量
      */
     @GetMapping("/listWithCount")
-    public ResponseEntity<List<Map<String, Object>>> listWithCount(
+    public ResponseEntity<List<DictTypeVO>> listWithCount(
             @RequestParam(required = false) String keyword) {
-        List<DictType> types = dictTypeService.getTypes(keyword);
-        List<Map<String, Object>> result = new java.util.ArrayList<>();
-        for (DictType type : types) {
-            Map<String, Object> item = new HashMap<>();
-            item.put("id", type.getId());
-            item.put("dictType", type.getDictType());
-            item.put("dictName", type.getDictName());
-            item.put("remark", type.getRemark());
-            item.put("orderNum", type.getOrderNum());
-            item.put("status", type.getStatus());
-            // 查询该类型下的字典值数量
-            int count = dictService.getCountByType(type.getDictType());
-            item.put("count", count);
-            result.add(item);
-        }
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(dictMapper.selectTypes(keyword));
     }
 
     /**

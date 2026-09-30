@@ -1,6 +1,9 @@
 package org.seaPack.model.system;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
+
+import java.util.Date;
 
 /**
  * 字典类型统计 VO
@@ -9,12 +12,30 @@ import lombok.Data;
 @Data
 public class DictTypeVO {
 
+    /** 主键ID */
+    private Long id;
+
     /** 字典类型编码（如 blog_category） */
     private String dictType;
+
+    /** 字典类型名称 */
+    private String dictName;
+
+    /** 类型描述 */
+    private String remark;
+
+    /** 排序号 */
+    private Integer orderNum;
+
+    /** 状态（1启用 0停用） */
+    private String status;
 
     /** 该类型下的字典值数量 */
     private Integer count;
 
-    /** 类型描述（取自排序号最小的那条记录的 remark，可选） */
-    private String remark;
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private Date gmtCreate;
+
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private Date gmtModified;
 }

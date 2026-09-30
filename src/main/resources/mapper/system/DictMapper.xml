@@ -89,16 +89,25 @@
     </update>
 
     <select id="selectTypes" resultType="org.seaPack.model.system.DictTypeVO">
-        SELECT dict_type AS dictType,
-               COUNT(*) AS count,
-               MIN(remark) AS remark
-        FROM sys_dict
-        WHERE status = '1'
+        SELECT 
+            t.id,
+            t.dict_type AS dictType,
+            t.dict_name AS dictName,
+            t.remark,
+            t.order_num AS orderNum,
+            t.status,
+            t.gmt_create AS gmtCreate,
+            t.gmt_modified AS gmtModified,
+            COALESCE(COUNT(d.id), 0) AS count
+        FROM sys_dict_type t
+        LEFT JOIN sys_dict d ON t.dict_type = d.dict_type AND d.status = '1'
+        WHERE t.status = '1'
         <if test="keyword != null and keyword != ''">
-            AND dict_type LIKE CONCAT('%', #{keyword}, '%')
+            AND (t.dict_type LIKE CONCAT('%', #{keyword}, '%') 
+                 OR t.dict_name LIKE CONCAT('%', #{keyword}, '%'))
         </if>
-        GROUP BY dict_type
-        ORDER BY dict_type ASC
+        GROUP BY t.id, t.dict_type, t.dict_name, t.remark, t.order_num, t.status, t.gmt_create, t.gmt_modified
+        ORDER BY t.order_num ASC, t.dict_type ASC
     </select>
 
     <update id="deleteByType">
