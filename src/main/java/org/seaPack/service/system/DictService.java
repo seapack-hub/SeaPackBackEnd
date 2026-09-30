@@ -5,9 +5,12 @@ import com.github.pagehelper.PageInfo;
 import lombok.extern.slf4j.Slf4j;
 import org.seaPack.mapper.system.DictMapper;
 import org.seaPack.model.system.Dict;
+import org.seaPack.model.system.DictTypeVO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 @Slf4j
 @Service
@@ -65,5 +68,37 @@ public class DictService {
             throw new RuntimeException("字典 " + id + " 不存在！");
         }
         return dictMapper.deleteById(id);
+    }
+
+    /**
+     * 查询所有字典类型及值数量
+     */
+    @Transactional(readOnly = true)
+    public List<DictTypeVO> getTypes(String keyword) {
+        return dictMapper.selectTypes(keyword);
+    }
+
+    /**
+     * 批量逻辑删除某个类型下的所有字典值
+     */
+    public int deleteByType(String dictType) {
+        return dictMapper.deleteByType(dictType);
+    }
+
+    /**
+     * 查询指定字典类型下的值数量
+     */
+    @Transactional(readOnly = true)
+    public int getCountByType(String dictType) {
+        return dictMapper.selectCountByType(dictType);
+    }
+
+    /**
+     * 按字典类型查询所有启用的字典值（不分页）
+     * 用于前端下拉框、格式化器等场景
+     */
+    @Transactional(readOnly = true)
+    public List<Dict> getListByType(String dictType) {
+        return dictMapper.selectListByType(dictType);
     }
 }

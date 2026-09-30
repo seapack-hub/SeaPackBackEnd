@@ -3,6 +3,7 @@ package org.seaPack.mapper.system;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.seaPack.model.system.Dict;
+import org.seaPack.model.system.DictTypeVO;
 
 import java.util.List;
 
@@ -56,4 +57,33 @@ public interface DictMapper {
      * @return 影响行数
      */
     int deleteById(@Param("id") Long id);
+
+    /**
+     * 查询所有字典类型及其值数量（用于左侧类型面板）
+     * @param keyword 类型名称模糊搜索（可选）
+     * @return 字典类型统计列表
+     */
+    List<DictTypeVO> selectTypes(@Param("keyword") String keyword);
+
+    /**
+     * 批量逻辑删除某个类型下的所有字典值
+     * @param dictType 字典类型
+     * @return 影响行数
+     */
+    int deleteByType(@Param("dictType") String dictType);
+
+    /**
+     * 查询指定字典类型下的值数量
+     * @param dictType 字典类型
+     * @return 数量
+     */
+    int selectCountByType(@Param("dictType") String dictType);
+
+    /**
+     * 按字典类型查询所有启用的字典值（不分页）
+     * 用于前端下拉框、格式化器等场景
+     * @param dictType 字典类型
+     * @return 字典列表
+     */
+    List<Dict> selectListByType(@Param("dictType") String dictType);
 }

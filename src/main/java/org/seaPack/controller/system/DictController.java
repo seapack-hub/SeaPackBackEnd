@@ -3,10 +3,13 @@ package org.seaPack.controller.system;
 import com.github.pagehelper.PageInfo; // MyBatis 分页信息
 import lombok.extern.slf4j.Slf4j; // Lombok 日志
 import org.seaPack.model.system.Dict; // 字典实体
+import org.seaPack.model.system.DictTypeVO; // 字典类型VO
 import org.seaPack.service.system.DictService; // 字典服务
 import org.springframework.beans.factory.annotation.Autowired; // Spring 依赖注入
 import org.springframework.http.ResponseEntity; // HTTP 响应实体
 import org.springframework.web.bind.annotation.*; // Spring Web MVC 注解
+
+import java.util.List;
 
 /**
  * 数据字典控制器
@@ -72,5 +75,31 @@ public class DictController {
     @DeleteMapping("/delete/{id}")
     public ResponseEntity<Integer> delete(@PathVariable Long id) {
         return ResponseEntity.ok(dictService.delete(id));
+    }
+
+    /**
+     * 查询所有字典类型及值数量（左侧类型面板）
+     */
+    @GetMapping("/types")
+    public ResponseEntity<List<DictTypeVO>> types(
+            @RequestParam(required = false) String keyword) {
+        return ResponseEntity.ok(dictService.getTypes(keyword));
+    }
+
+    /**
+     * 批量逻辑删除某个类型下的所有字典值
+     */
+    @DeleteMapping("/deleteByType/{dictType}")
+    public ResponseEntity<Integer> deleteByType(@PathVariable String dictType) {
+        return ResponseEntity.ok(dictService.deleteByType(dictType));
+    }
+
+    /**
+     * 按字典类型查询所有启用的字典值（不分页）
+     * 用于前端下拉框、格式化器等场景
+     */
+    @GetMapping("/listByType")
+    public ResponseEntity<List<Dict>> listByType(@RequestParam String dictType) {
+        return ResponseEntity.ok(dictService.getListByType(dictType));
     }
 }

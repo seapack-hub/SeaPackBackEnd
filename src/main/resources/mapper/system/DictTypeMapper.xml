@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.seaPack.mapper.system.DictTypeMapper">
+
+    <resultMap id="BaseResultMap" type="org.seaPack.model.system.DictType">
+        <id column="id" jdbcType="BIGINT" property="id" />
+        <result column="dict_type" jdbcType="VARCHAR" property="dictType" />
+        <result column="dict_name" jdbcType="VARCHAR" property="dictName" />
+        <result column="remark" jdbcType="VARCHAR" property="remark" />
+        <result column="order_num" jdbcType="INTEGER" property="orderNum" />
+        <result column="status" jdbcType="CHAR" property="status" />
+        <result column="gmt_create" jdbcType="TIMESTAMP" property="gmtCreate" />
+        <result column="gmt_modified" jdbcType="TIMESTAMP" property="gmtModified" />
+    </resultMap>
+
+    <select id="selectList" resultMap="BaseResultMap">
+        SELECT id, dict_type, dict_name, remark, order_num, status, gmt_create, gmt_modified
+        FROM sys_dict_type
+        WHERE status = '1'
+        <if test="keyword != null and keyword != ''">
+            AND (dict_type LIKE CONCAT('%', #{keyword}, '%')
+                 OR dict_name LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        ORDER BY order_num ASC, id ASC
+    </select>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT id, dict_type, dict_name, remark, order_num, status, gmt_create, gmt_modified
+        FROM sys_dict_type WHERE id = #{id} AND status = '1'
+    </select>
+
+    <select id="selectByType" resultMap="BaseResultMap">
+        SELECT id, dict_type, dict_name, remark, order_num, status, gmt_create, gmt_modified
+        FROM sys_dict_type WHERE dict_type = #{dictType} AND status = '1' LIMIT 1
+    </select>
+
+    <insert id="insert" parameterType="org.seaPack.model.system.DictType" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO sys_dict_type (dict_type, dict_name, remark, order_num, status, gmt_create, gmt_modified)
+        VALUES (#{dictType}, #{dictName}, #{remark}, #{orderNum}, #{status}, NOW(), NOW())
+    </insert>
+
+    <update id="update" parameterType="org.seaPack.model.system.DictType">
+        UPDATE sys_dict_type
+        <set>
+            <if test="dictName != null">dict_name = #{dictName},</if>
+            <if test="remark != null">remark = #{remark},</if>
+            <if test="orderNum != null">order_num = #{orderNum},</if>
+            <if test="status != null">status = #{status},</if>
+            gmt_modified = NOW()
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <update id="deleteById">
+        UPDATE sys_dict_type SET status = '0', gmt_modified = NOW() WHERE id = #{id}
+    </update>
+
+</mapper>

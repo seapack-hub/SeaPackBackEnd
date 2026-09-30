@@ -88,4 +88,33 @@
         update sys_dict set status = '0', gmt_modified = NOW() where id = #{id}
     </update>
 
+    <select id="selectTypes" resultType="org.seaPack.model.system.DictTypeVO">
+        SELECT dict_type AS dictType,
+               COUNT(*) AS count,
+               MIN(remark) AS remark
+        FROM sys_dict
+        WHERE status = '1'
+        <if test="keyword != null and keyword != ''">
+            AND dict_type LIKE CONCAT('%', #{keyword}, '%')
+        </if>
+        GROUP BY dict_type
+        ORDER BY dict_type ASC
+    </select>
+
+    <update id="deleteByType">
+        update sys_dict set status = '0', gmt_modified = NOW()
+        where dict_type = #{dictType} and status = '1'
+    </update>
+
+    <select id="selectCountByType" resultType="int">
+        SELECT COUNT(*) FROM sys_dict WHERE dict_type = #{dictType} AND status = '1'
+    </select>
+
+    <select id="selectListByType" resultMap="BaseResultMap">
+        select id, dict_type, dict_code, dict_name, order_num, status, remark, gmt_create, gmt_modified
+        from sys_dict
+        where dict_type = #{dictType} and status = '1'
+        order by order_num ASC, id ASC
+    </select>
+
 </mapper>
