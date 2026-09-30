@@ -1,9 +1,11 @@
 package org.seaPack.dto.system;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
 import org.seaPack.model.system.permission.SysRole;
 import org.seaPack.model.system.permission.SysPermission;
 
+import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -37,4 +39,5 @@ public class UserInfoVO {
                 .collect(Collectors.toList()));
         return vo;
     }
+
 }

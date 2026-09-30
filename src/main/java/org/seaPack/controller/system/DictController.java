@@ -2,8 +2,8 @@ package org.seaPack.controller.system;
 
 import com.github.pagehelper.PageInfo; // MyBatis 分页信息
 import lombok.extern.slf4j.Slf4j; // Lombok 日志
+import org.seaPack.dto.system.DictTypeVO;
 import org.seaPack.model.system.Dict; // 字典实体
-import org.seaPack.model.system.DictTypeVO; // 字典类型VO
 import org.seaPack.service.system.DictService; // 字典服务
 import org.springframework.beans.factory.annotation.Autowired; // Spring 依赖注入
 import org.springframework.http.ResponseEntity; // HTTP 响应实体

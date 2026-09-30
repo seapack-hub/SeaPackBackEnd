@@ -1,10 +1,9 @@
 package org.seaPack.controller.system;
 
 import lombok.extern.slf4j.Slf4j;
+import org.seaPack.dto.system.DictTypeVO;
 import org.seaPack.mapper.system.DictMapper;
-import org.seaPack.model.system.Dict;
 import org.seaPack.model.system.DictType;
-import org.seaPack.model.system.DictTypeVO;
 import org.seaPack.service.system.DictService;
 import org.seaPack.service.system.DictTypeService;
 import org.springframework.beans.factory.annotation.Autowired;

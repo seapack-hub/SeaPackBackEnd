@@ -2,8 +2,8 @@ package org.seaPack.mapper.system;
 
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+import org.seaPack.dto.system.DictTypeVO;
 import org.seaPack.model.system.Dict;
-import org.seaPack.model.system.DictTypeVO;
 
 import java.util.List;
 

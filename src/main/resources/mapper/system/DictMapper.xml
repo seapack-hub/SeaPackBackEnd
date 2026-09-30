@@ -88,7 +88,7 @@
         update sys_dict set status = '0', gmt_modified = NOW() where id = #{id}
     </update>
 
-    <select id="selectTypes" resultType="org.seaPack.model.system.DictTypeVO">
+    <select id="selectTypes" resultType="org.seaPack.dto.system.DictTypeVO">
         SELECT 
             t.id,
             t.dict_type AS dictType,

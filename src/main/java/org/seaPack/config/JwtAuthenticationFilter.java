@@ -39,7 +39,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     FilterChain filterChain) throws ServletException, IOException {
         String token = resolveToken(request);
 
-        if (token != null && !jwtUtil.isTokenExpired(token)) {
+        // 如果请求携带了 token，必须验证有效性
+        if (StringUtils.hasText(token)) {
+            if (jwtUtil.isTokenExpired(token)) {
+                // token 过期 → 返回 401 未授权，而不是让 Spring Security 返回 403
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                response.setContentType("application/json;charset=UTF-8");
+                response.getWriter().write("{\"code\":401,\"message\":\"登录状态已过期\",\"data\":null}");
+                return;
+            }
+
             try {
                 Claims claims = jwtUtil.parseToken(token);
                 Long userId = claims.get("userId", Long.class);
@@ -47,17 +56,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 if (userId != null && username != null) {
                     // 构建认证对象，放入 SecurityContext
-                    // authorities 暂时为空，后续可从权限系统加载
                     UsernamePasswordAuthenticationToken authentication =
                             new UsernamePasswordAuthenticationToken(
                                     userId, null, Collections.emptyList());
-                    // 在 details 中存入 username，方便后续获取
                     authentication.setDetails(username);
                     SecurityContextHolder.getContext().setAuthentication(authentication);
                 }
             } catch (Exception e) {
-                // token 解析失败，不设置认证信息，放行到后续过滤器
-                SecurityContextHolder.clearContext();
+                // token 解析失败 → 返回 401
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                response.setContentType("application/json;charset=UTF-8");
+                response.getWriter().write("{\"code\":401,\"message\":\"Token无效\",\"data\":null}");
+                return;
             }
         }
 

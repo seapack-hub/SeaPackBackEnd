@@ -108,4 +108,19 @@ public class AuthController {
         }
         return ResponseEntity.ok(authService.getUserButtonPerms(userId));
     }
+
+    /**
+     * 验证 Token 有效性
+     * <p>轻量级接口，仅验证 JWT token 是否有效（签名、过期时间）。
+     * 不查询数据库，适合前端路由守卫高频调用。</p>
+     * <p>有效 → 200，无效/过期 → 401（Spring Security 自动处理）</p>
+     */
+    @GetMapping("/check")
+    public ResponseEntity<Void> checkToken() {
+        Long userId = SecurityUtils.getCurrentUserId();
+        if (userId == null) {
+            return ResponseEntity.status(401).build();
+        }
+        return ResponseEntity.ok().build();
+    }
 }
