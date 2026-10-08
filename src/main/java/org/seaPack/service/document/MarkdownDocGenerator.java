@@ -45,7 +45,14 @@ public class MarkdownDocGenerator implements DocumentGenerator {
                         StrikethroughExtension.create(),
                         TocExtension.create()))
                 .build();
-        this.renderer = HtmlRenderer.builder().build();
+        // Renderer 必须注册与 Parser 同批扩展：flexmark 的表格/删除线/TOC 是 parser+renderer 双重扩展，
+        // Renderer 缺注册时对应节点无渲染 handler，内容会从 HTML 中静默丢失（如 GFM 表格整块消失）
+        this.renderer = HtmlRenderer.builder()
+                .extensions(Arrays.asList(
+                        TablesExtension.create(),
+                        StrikethroughExtension.create(),
+                        TocExtension.create()))
+                .build();
     }
 
     @Override

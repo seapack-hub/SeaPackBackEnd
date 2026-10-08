@@ -96,9 +96,14 @@ public class OrchestrationExecuteService {
             isCompleted.set(true);
         });
 
+        Long sessionId = null;
+        SceneOrchestration orchestration = null;
+        AIProperties.ProviderConfig config = null;
+        String strategy = null;
+
         try {
             // 1. 加载编排：先尝试编排ID，再尝试场景ID
-            SceneOrchestration orchestration = orchestrationMapper.selectById(request.getOrchestrationId());
+            orchestration = orchestrationMapper.selectById(request.getOrchestrationId());
             if (orchestration == null) {
                 // 不是编排ID，尝试作为场景ID查询
                 Scene scene = sceneMapper.selectById(request.getOrchestrationId());
@@ -132,16 +137,20 @@ public class OrchestrationExecuteService {
 
             // 3. 获取 AI 配置
             String providerName = aiProperties.getActiveProvider();
-            AIProperties.ProviderConfig config = aiProperties.getProviders().get(providerName);
+            config = aiProperties.getProviders().get(providerName);
             if (config == null) {
                 sendSseError(emitter, "AI 配置错误：未找到提供商 [" + providerName + "]");
                 return;
             }
 
             // 4. 按策略执行
-            String strategy = orchestration.getStrategy() != null ? orchestration.getStrategy() : "sequential";
+            strategy = orchestration.getStrategy() != null ? orchestration.getStrategy() : "sequential";
 
-            // 4a. 发送编排启动事件：告知前端编排的基本信息和执行计划
+            // 4a. 落库 running 会话：执行开始即可见，中断/失败时收尾更新为 cancelled/failed，
+            // 避免"连接中断后后端无任何状态记录"导致前端/历史永远停在执行中
+            sessionId = insertRunningSession(request, orchestration, userId, config.getChatModel());
+
+            // 4b. 发送编排启动事件：告知前端编排的基本信息和执行计划
             sendSseEvent(emitter, "orchestration_start", Map.of(
                     "orchestrationId", orchestration.getId(),
                     "orchestrationName", orchestration.getName() != null ? orchestration.getName() : "",
@@ -152,7 +161,7 @@ public class OrchestrationExecuteService {
                     "message",
                     "编排 [" + orchestration.getName() + "] 开始执行，策略: " + strategy + "，共 " + steps.size() + " 个步骤"));
 
-            // 4b. 构建执行参数并委派给策略
+            // 4c. 构建执行参数并委派给策略
             OrchestrationStrategyHandler.ExecuteParams params = new OrchestrationStrategyHandler.ExecuteParams();
             params.steps = steps;
             params.request = request;
@@ -167,7 +176,17 @@ public class OrchestrationExecuteService {
             OrchestrationStrategyHandler.OrchestrationResult result = handler.execute(params);
 
             if (isCompleted.get()) {
-                log.info("编排执行被中断，跳过 done 事件");
+                // 连接已断开：不再静默丢弃，尽力补发 stop 事件并把会话收尾为 cancelled
+                log.info("编排执行被中断，跳过 done 事件，收尾会话状态为 cancelled");
+                long interruptedDuration = System.currentTimeMillis() - totalStart;
+                SseEvent.trySend(emitter, "stop", Map.of(
+                        "message", "编排执行中断（连接已关闭）",
+                        "durationMs", interruptedDuration));
+                List<Map<String, Object>> interruptedFiles = fileArtifactCollector.drain(emitter);
+                updateSession(sessionId, orchestration, "cancelled", "编排执行中断（SSE 连接关闭）",
+                        result != null ? result.output : null, interruptedDuration,
+                        result != null ? result.tokensPrompt : 0, result != null ? result.tokensCompletion : 0,
+                        config.getChatModel(), result != null ? result.steps : null, strategy, interruptedFiles);
                 return;
             }
 
@@ -186,13 +205,15 @@ public class OrchestrationExecuteService {
                 doneData.put("files", generatedFiles);
             }
             doneData.put("message", "编排执行完成，共耗时 " + totalDuration + "ms");
-            sendSseEvent(emitter, "done", doneData);
+            if (!SseEvent.trySend(emitter, "done", doneData)) {
+                log.warn("编排 done 事件发送失败（连接可能已断开），会话仍按实际执行结果落库");
+            }
 
-            // 6. 保存执行会话（用于刷新后链路追踪历史查询）
+            // 6. 更新执行会话为 success（用于刷新后链路追踪历史查询）
             try {
-                saveSession(request, orchestration, result.output, totalDuration,
+                updateSession(sessionId, orchestration, "success", null, result.output, totalDuration,
                         result.tokensPrompt, result.tokensCompletion,
-                        config.getChatModel(), "success", null, userId, result.steps, strategy, generatedFiles);
+                        config.getChatModel(), result.steps, strategy, generatedFiles);
             } catch (Exception ex) {
                 log.warn("保存编排执行会话失败: {}", ex.getMessage());
             }
@@ -200,6 +221,13 @@ public class OrchestrationExecuteService {
         } catch (Exception e) {
             log.error("编排执行异常", e);
             sendSseError(emitter, "编排执行失败: " + e.getMessage());
+            try {
+                updateSession(sessionId, orchestration, "failed", e.getMessage(), null,
+                        System.currentTimeMillis() - totalStart, 0, 0,
+                        config != null ? config.getChatModel() : null, null, strategy, null);
+            } catch (Exception ex) {
+                log.warn("更新编排执行会话(failed)失败: {}", ex.getMessage());
+            }
         } finally {
             try {
                 emitter.complete();
@@ -239,26 +267,40 @@ public class OrchestrationExecuteService {
             isCompleted.set(true);
         });
 
+        Long sessionId = null;
+        AIProperties.ProviderConfig config = null;
+        String execStrategy = null;
+
         try {
             // 1. 获取 AI 配置
             String providerName = aiProperties.getActiveProvider();
-            AIProperties.ProviderConfig config = aiProperties.getProviders().get(providerName);
+            config = aiProperties.getProviders().get(providerName);
             if (config == null) {
                 sendSseError(emitter, "AI 配置错误：未找到提供商 [" + providerName + "]");
                 return;
             }
 
-            // 2. 发送编排启动事件
+            execStrategy = strategy != null ? strategy : "sequential";
+
+            // 2. 落库 running 会话（中断/失败时收尾更新状态）
+            OrchestrationExecuteRequest runningReq = new OrchestrationExecuteRequest();
+            runningReq.setMessage(message);
+            runningReq.setSceneId(sceneId);
+            runningReq.setConversationId(conversationId);
+            runningReq.setRequestId(requestId);
+            sessionId = insertRunningSessionInternal(runningReq, 0L, "动态编排", userId, config.getChatModel());
+
+            // 3. 发送编排启动事件
             sendSseEvent(emitter, "orchestration_start", Map.of(
                     "orchestrationName", "动态编排",
-                    "strategy", strategy != null ? strategy : "sequential",
+                    "strategy", execStrategy,
                     "totalSteps", steps.size(),
                     "provider", providerName,
                     "chatModel", config.getChatModel() != null ? config.getChatModel() : "",
                     "message",
-                    "LLM 选择了 " + steps.size() + " 个 Agent，策略: " + (strategy != null ? strategy : "sequential")));
+                    "LLM 选择了 " + steps.size() + " 个 Agent，策略: " + execStrategy));
 
-            // 3. 构造请求对象
+            // 4. 构造请求对象
             OrchestrationExecuteRequest request = new OrchestrationExecuteRequest();
             request.setMessage(message);
             request.setHistory(history);
@@ -266,9 +308,7 @@ public class OrchestrationExecuteService {
             request.setConversationId(conversationId);
             request.setRequestId(requestId);
 
-            // 4. 按策略执行
-            String execStrategy = strategy != null ? strategy : "sequential";
-
+            // 5. 按策略执行
             OrchestrationStrategyHandler.ExecuteParams params = new OrchestrationStrategyHandler.ExecuteParams();
             params.steps = steps;
             params.request = request;
@@ -282,11 +322,20 @@ public class OrchestrationExecuteService {
             OrchestrationStrategyHandler.OrchestrationResult result = handler.execute(params);
 
             if (isCompleted.get()) {
-                log.info("动态编排执行被中断");
+                log.info("动态编排执行被中断，收尾会话状态为 cancelled");
+                long interruptedDuration = System.currentTimeMillis() - totalStart;
+                SseEvent.trySend(emitter, "stop", Map.of(
+                        "message", "动态编排执行中断（连接已关闭）",
+                        "durationMs", interruptedDuration));
+                List<Map<String, Object>> interruptedFiles = fileArtifactCollector.drain(emitter);
+                updateSessionInternal(sessionId, "动态编排", "cancelled", "动态编排执行中断（SSE 连接关闭）",
+                        result != null ? result.output : null, interruptedDuration,
+                        result != null ? result.tokensPrompt : 0, result != null ? result.tokensCompletion : 0,
+                        config.getChatModel(), result != null ? result.steps : null, execStrategy, interruptedFiles);
                 return;
             }
 
-            // 5. 发送完成事件（汇总本次编排产出的文件）
+            // 6. 发送完成事件（汇总本次编排产出的文件）
             List<Map<String, Object>> generatedFiles = fileArtifactCollector.drain(emitter);
             long totalDuration = System.currentTimeMillis() - totalStart;
             Map<String, Object> doneData = new HashMap<>();
@@ -301,13 +350,15 @@ public class OrchestrationExecuteService {
                 doneData.put("files", generatedFiles);
             }
             doneData.put("message", "动态编排执行完成，共耗时 " + totalDuration + "ms");
-            sendSseEvent(emitter, "done", doneData);
+            if (!SseEvent.trySend(emitter, "done", doneData)) {
+                log.warn("动态编排 done 事件发送失败（连接可能已断开），会话仍按实际执行结果落库");
+            }
 
-            // 6. 保存动态编排执行会话（用于刷新后链路追踪历史查询）
+            // 7. 更新动态编排执行会话为 success（用于刷新后链路追踪历史查询）
             try {
-                saveDynamicSession(request, result.output, totalDuration,
+                updateSessionInternal(sessionId, "动态编排", "success", null, result.output, totalDuration,
                         result.tokensPrompt, result.tokensCompletion,
-                        config.getChatModel(), "success", null, userId, result.steps, execStrategy, generatedFiles);
+                        config.getChatModel(), result.steps, execStrategy, generatedFiles);
             } catch (Exception ex) {
                 log.warn("保存动态编排执行会话失败: {}", ex.getMessage());
             }
@@ -315,6 +366,13 @@ public class OrchestrationExecuteService {
         } catch (Exception e) {
             log.error("动态编排执行异常", e);
             sendSseError(emitter, "动态编排执行失败: " + e.getMessage());
+            try {
+                updateSessionInternal(sessionId, "动态编排", "failed", e.getMessage(), null,
+                        System.currentTimeMillis() - totalStart, 0, 0,
+                        config != null ? config.getChatModel() : null, null, execStrategy, null);
+            } catch (Exception ex) {
+                log.warn("更新动态编排执行会话(failed)失败: {}", ex.getMessage());
+            }
         } finally {
             try {
                 emitter.complete();
@@ -357,64 +415,84 @@ public class OrchestrationExecuteService {
         sendSseEvent(emitter, "error", Map.of("errorMessage", errorMessage));
     }
 
-    // ===== 会话落库（链路追踪历史） =====
+    // ===== 会话状态机（链路追踪历史） =====
 
     /**
-     * 保存编排执行会话
+     * 落库 running 会话（编排执行开始时调用）
+     * <p>
+     * 执行结束（成功/中断/失败）时通过 updateSession 收尾更新状态，
+     * 保证任何终态下历史记录都不会停留在"无记录/执行中"。
+     * </p>
      */
-    private void saveSession(OrchestrationExecuteRequest request, SceneOrchestration orchestration,
-            String output, long durationMs, int tokensPrompt, int tokensCompletion,
-            String modelName, String status, String errorMessage, Long userId,
-            List<AgentTraceStep> steps, String strategy, List<Map<String, Object>> files) {
-        ExecutionSession session = new ExecutionSession();
-        session.setBizType("orchestration");
-        session.setBizId(orchestration != null ? orchestration.getId() : 0L);
-        session.setBizName(orchestration != null ? orchestration.getName() : "编排执行");
-        session.setSceneId(request != null ? request.getSceneId() : null);
-        session.setConversationId(request != null ? request.getConversationId() : null);
-        session.setRequestId(request != null ? request.getRequestId() : null);
-        session.setUserMessage(request != null ? request.getMessage() : null);
-        session.setOutputResult(output);
-        session.setTraceSnapshot(buildTraceSnapshot(steps, durationMs, tokensPrompt, tokensCompletion,
-                "orchestration", orchestration != null ? orchestration.getName() : null, strategy, files));
-        session.setTotalDurationMs((int) durationMs);
-        session.setTokensPrompt(tokensPrompt);
-        session.setTokensCompletion(tokensCompletion);
-        session.setTokensTotal(tokensPrompt + tokensCompletion);
-        session.setModelName(modelName);
-        session.setStatus(status);
-        session.setErrorMessage(errorMessage);
-        session.setCreatedBy(userId);
-        executionSessionMapper.insert(session);
+    private Long insertRunningSession(OrchestrationExecuteRequest request, SceneOrchestration orchestration,
+            Long userId, String modelName) {
+        return insertRunningSessionInternal(request,
+                orchestration != null ? orchestration.getId() : 0L,
+                orchestration != null ? orchestration.getName() : "编排执行",
+                userId, modelName);
     }
 
-    /**
-     * 保存动态编排执行会话
-     */
-    private void saveDynamicSession(OrchestrationExecuteRequest request,
-            String output, long durationMs, int tokensPrompt, int tokensCompletion,
-            String modelName, String status, String errorMessage, Long userId,
+    /** 落库 running 会话（内部实现，兼容动态编排无编排实体的场景） */
+    private Long insertRunningSessionInternal(OrchestrationExecuteRequest request, Long bizId, String bizName,
+            Long userId, String modelName) {
+        try {
+            ExecutionSession session = new ExecutionSession();
+            session.setBizType("orchestration");
+            session.setBizId(bizId != null ? bizId : 0L);
+            session.setBizName(bizName != null ? bizName : "编排执行");
+            session.setSceneId(request != null ? request.getSceneId() : null);
+            session.setConversationId(request != null ? request.getConversationId() : null);
+            session.setRequestId(request != null ? request.getRequestId() : null);
+            session.setUserMessage(request != null ? request.getMessage() : null);
+            session.setStatus("running");
+            session.setModelName(modelName);
+            session.setTokensPrompt(0);
+            session.setTokensCompletion(0);
+            session.setTokensTotal(0);
+            session.setCreatedBy(userId);
+            executionSessionMapper.insert(session);
+            return session.getId();
+        } catch (Exception e) {
+            log.warn("保存编排执行会话(running)失败: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /** 更新编排执行会话终态（success/cancelled/failed） */
+    private void updateSession(Long sessionId, SceneOrchestration orchestration,
+            String status, String errorMessage, String output, long durationMs,
+            int tokensPrompt, int tokensCompletion, String modelName,
             List<AgentTraceStep> steps, String strategy, List<Map<String, Object>> files) {
-        ExecutionSession session = new ExecutionSession();
-        session.setBizType("orchestration");
-        session.setBizId(0L);
-        session.setBizName("动态编排");
-        session.setSceneId(request != null ? request.getSceneId() : null);
-        session.setConversationId(request != null ? request.getConversationId() : null);
-        session.setRequestId(request != null ? request.getRequestId() : null);
-        session.setUserMessage(request != null ? request.getMessage() : null);
-        session.setOutputResult(output);
-        session.setTraceSnapshot(buildTraceSnapshot(steps, durationMs, tokensPrompt, tokensCompletion,
-                "orchestration", "动态编排", strategy, files));
-        session.setTotalDurationMs((int) durationMs);
-        session.setTokensPrompt(tokensPrompt);
-        session.setTokensCompletion(tokensCompletion);
-        session.setTokensTotal(tokensPrompt + tokensCompletion);
-        session.setModelName(modelName);
-        session.setStatus(status);
-        session.setErrorMessage(errorMessage);
-        session.setCreatedBy(userId);
-        executionSessionMapper.insert(session);
+        updateSessionInternal(sessionId, orchestration != null ? orchestration.getName() : null,
+                status, errorMessage, output, durationMs, tokensPrompt, tokensCompletion,
+                modelName, steps, strategy, files);
+    }
+
+    /** 更新执行会话终态（内部实现） */
+    private void updateSessionInternal(Long sessionId, String routeName,
+            String status, String errorMessage, String output, long durationMs,
+            int tokensPrompt, int tokensCompletion, String modelName,
+            List<AgentTraceStep> steps, String strategy, List<Map<String, Object>> files) {
+        if (sessionId == null) {
+            return;
+        }
+        try {
+            ExecutionSession session = new ExecutionSession();
+            session.setId(sessionId);
+            session.setStatus(status);
+            session.setErrorMessage(errorMessage);
+            session.setOutputResult(output);
+            session.setTraceSnapshot(buildTraceSnapshot(steps, durationMs, tokensPrompt, tokensCompletion,
+                    "orchestration", routeName, strategy, files));
+            session.setTotalDurationMs((int) durationMs);
+            session.setTokensPrompt(tokensPrompt);
+            session.setTokensCompletion(tokensCompletion);
+            session.setTokensTotal(tokensPrompt + tokensCompletion);
+            session.setModelName(modelName);
+            executionSessionMapper.update(session);
+        } catch (Exception e) {
+            log.warn("更新编排执行会话失败: {}", e.getMessage());
+        }
     }
 
     /**

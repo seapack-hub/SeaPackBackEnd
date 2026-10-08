@@ -159,7 +159,7 @@ public class SupervisorStrategy extends OrchestrationStrategyHandler {
                         supervisorAgentId, supervisorPrompt + "\n\n当前用户问题：" + request.getMessage(),
                         conversationHistory, request.getSceneId(),
                         request.getConversationId(), request.getRequestId(),
-                        emitter, isCompleted, authToken);
+                        emitter, isCompleted, authToken, round);
 
                 if (isCompleted.get())
                     break;

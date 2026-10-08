@@ -100,7 +100,7 @@ public class ParallelStrategy extends OrchestrationStrategyHandler {
                     AgentTestChatService.AgentStepResult agentResult = agentTestChatService.callAgentStep(
                             step.getAgentId(), stepInput, request.getHistory(),
                             request.getSceneId(), request.getConversationId(), request.getRequestId(),
-                            emitter, isCompleted, authToken);
+                            emitter, isCompleted, authToken, stepIdx);
 
                     if (isCompleted.get())
                         return;

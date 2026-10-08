@@ -51,6 +51,16 @@ public class ToolCallDispatcher {
      */
     public List<Map<String, String>> dispatch(List<Map<String, Object>> toolCalls,
             String authToken, SseEmitter emitter, int stepIndex) {
+        return dispatch(toolCalls, authToken, emitter, stepIndex, null);
+    }
+
+    /**
+     * 执行一组 tool_calls（含编排步骤归属字段）
+     *
+     * @param orchestrationStepIndex 编排步骤序号（可空；编排场景下前端据此把事件归属到对应步骤卡片）
+     */
+    public List<Map<String, String>> dispatch(List<Map<String, Object>> toolCalls,
+            String authToken, SseEmitter emitter, int stepIndex, Integer orchestrationStepIndex) {
         List<Map<String, String>> toolMessages = new ArrayList<>();
 
         if (toolCalls == null || toolCalls.isEmpty()) {
@@ -110,6 +120,9 @@ public class ToolCallDispatcher {
                 paramsDetail.put("skillName", skill.getName());
                 paramsDetail.put("skillCode", skill.getCode());
                 paramsDetail.put("params", params);
+                if (orchestrationStepIndex != null) {
+                    paramsDetail.put("orchestrationStepIndex", orchestrationStepIndex);
+                }
                 SseEvent.send(emitter, "step_detail", paramsDetail);
             }
 
@@ -145,6 +158,9 @@ public class ToolCallDispatcher {
                     resultDetail.put("url", result.getUrl());
                     resultDetail.put("status", httpFailed ? "failed" : "success");
                     resultDetail.put("durationMs", durationMs);
+                    if (orchestrationStepIndex != null) {
+                        resultDetail.put("orchestrationStepIndex", orchestrationStepIndex);
+                    }
                     if (httpFailed) {
                         resultDetail.put("errorMessage", "HTTP " + result.getStatusCode()
                                 + (authToken == null || authToken.isBlank() ? "（未携带认证令牌）" : ""));
@@ -167,17 +183,27 @@ public class ToolCallDispatcher {
                         && result.getBody() instanceof Map) {
                     @SuppressWarnings("unchecked")
                     Map<String, Object> fileBody = (Map<String, Object>) result.getBody();
-                    Map<String, Object> fileInfo = new LinkedHashMap<>();
-                    fileInfo.put("url", fileBody.getOrDefault("url", ""));
-                    fileInfo.put("fileName", fileBody.getOrDefault("fileName", "generated_file"));
-                    fileInfo.put("fileSize", fileBody.getOrDefault("fileSize", 0));
-                    fileInfo.put("skillName", skill.getName());
-                    fileArtifactCollector.record(emitter, fileInfo);
+                    Object urlVal = fileBody.get("url");
+                    String fileUrl = urlVal != null ? urlVal.toString() : "";
+                    if (fileUrl.isBlank()) {
+                        // 空 URL 不收集、不推送，防止前端渲染无效文件卡片（假成功防线）
+                        log.warn("[ToolCall] 文件结果缺少 url，跳过产物收集: name={}", skill.getName());
+                    } else {
+                        Map<String, Object> fileInfo = new LinkedHashMap<>();
+                        fileInfo.put("url", fileUrl);
+                        fileInfo.put("fileName", fileBody.getOrDefault("fileName", "generated_file"));
+                        fileInfo.put("fileSize", fileBody.getOrDefault("fileSize", 0));
+                        fileInfo.put("skillName", skill.getName());
+                        if (orchestrationStepIndex != null) {
+                            fileInfo.put("orchestrationStepIndex", orchestrationStepIndex);
+                        }
+                        fileArtifactCollector.record(emitter, fileInfo);
 
-                    if (emitter != null) {
-                        Map<String, Object> fileEvent = new LinkedHashMap<>(fileInfo);
-                        fileEvent.put("stepIndex", stepIndex);
-                        SseEvent.send(emitter, SseEvent.TYPE_FILE_GENERATED, fileEvent);
+                        if (emitter != null) {
+                            Map<String, Object> fileEvent = new LinkedHashMap<>(fileInfo);
+                            fileEvent.put("stepIndex", stepIndex);
+                            SseEvent.send(emitter, SseEvent.TYPE_FILE_GENERATED, fileEvent);
+                        }
                     }
                 }
 

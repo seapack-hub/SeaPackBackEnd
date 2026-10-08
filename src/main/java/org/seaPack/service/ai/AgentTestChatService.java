@@ -18,14 +18,18 @@ import jakarta.servlet.http.HttpServletResponse;
 
 /**
  * Agent 测试对话服务（编排层）
- * <p>负责测试对话的完整链路编排，固定四步流程：</p>
+ * <p>
+ * 负责测试对话的完整链路编排，固定四步流程：
+ * </p>
  * <ol>
- *   <li>提示词组装（加载 Agent 基础提示词 + 启用的模板 + 工具约束规则）</li>
- *   <li>知识库检索（有知识库则检索）</li>
- *   <li>LLM 流式调用（始终传 tools，由 LLM 自主决定调用）</li>
- *   <li>构建响应并保存会话</li>
+ * <li>提示词组装（加载 Agent 基础提示词 + 启用的模板 + 工具约束规则）</li>
+ * <li>知识库检索（有知识库则检索）</li>
+ * <li>LLM 流式调用（始终传 tools，由 LLM 自主决定调用）</li>
+ * <li>构建响应并保存会话</li>
  * </ol>
- * <p>Agent 是"执行者"，不做意图分类。路由决策应在 Agent 之外完成。</p>
+ * <p>
+ * Agent 是"执行者"，不做意图分类。路由决策应在 Agent 之外完成。
+ * </p>
  */
 @Slf4j
 @Service
@@ -64,22 +68,25 @@ public class AgentTestChatService {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     // =====================================================================
-    //  主流程编排
+    // 主流程编排
     // =====================================================================
 
     /**
      * 执行测试对话（SSE 流式返回）
      */
-    public void testChatStream(AiDialogRequest request, Long userId, SseEmitter emitter, String authToken, HttpServletResponse response) {
+    public void testChatStream(AiDialogRequest request, Long userId, SseEmitter emitter, String authToken,
+            HttpServletResponse response) {
         testChatStream(request, userId, emitter, authToken, response, null);
     }
 
     /**
      * 执行测试对话（SSE 流式返回，支持取消标志）
-     * <p>固定四步流程：提示词组装 → 知识库检索 → LLM 流式调用 → 保存测试会话。</p>
+     * <p>
+     * 固定四步流程：提示词组装 → 知识库检索 → LLM 流式调用 → 保存测试会话。
+     * </p>
      */
     public void testChatStream(AiDialogRequest request, Long userId, SseEmitter emitter,
-                               String authToken, HttpServletResponse response, AtomicBoolean cancelFlag) {
+            String authToken, HttpServletResponse response, AtomicBoolean cancelFlag) {
         long totalStart = System.currentTimeMillis();
 
         try {
@@ -118,8 +125,7 @@ public class AgentTestChatService {
                 SseEvent.send(emitter, "step_start", Map.of(
                         "stepIndex", stepIndex,
                         "stepType", "prompt_assembly",
-                        "stepName", "提示词组装"
-                ));
+                        "stepName", "提示词组装"));
             }
             AgentTraceStepResult promptResult = agentPromptService.assemblePrompt(agent, stepIndex,
                     userMsg, emitter, userId, request.getSceneId(), agent.getId(), request.getRequestId(),
@@ -130,8 +136,7 @@ public class AgentTestChatService {
                 SseEvent.send(emitter, "step_done", Map.of(
                         "stepIndex", stepIndex,
                         "status", "success",
-                        "durationMs", promptResult.step.getDurationMs()
-                ));
+                        "durationMs", promptResult.step.getDurationMs()));
             }
             stepIndex++;
 
@@ -143,18 +148,17 @@ public class AgentTestChatService {
                     SseEvent.send(emitter, "step_start", Map.of(
                             "stepIndex", stepIndex,
                             "stepType", "knowledge_retrieval",
-                            "stepName", "知识库检索"
-                    ));
+                            "stepName", "知识库检索"));
                 }
-                AgentTraceStepResult kbResult = knowledgeBaseService.retrieveKnowledge(agent, userMsg, stepIndex, emitter);
+                AgentTraceStepResult kbResult = knowledgeBaseService.retrieveKnowledge(agent, userMsg, stepIndex,
+                        emitter);
                 knowledgeContext = kbResult.output;
                 steps.add(kbResult.step);
                 if (emitter != null) {
                     SseEvent.send(emitter, "step_done", Map.of(
                             "stepIndex", stepIndex,
                             "status", kbResult.step.getStatus(),
-                            "durationMs", kbResult.step.getDurationMs()
-                    ));
+                            "durationMs", kbResult.step.getDurationMs()));
                 }
                 stepIndex++;
             }
@@ -174,9 +178,9 @@ public class AgentTestChatService {
             // 构建步骤列表：顺序必须是 工具调用 → LLM 输出
             // extraSteps 包含工具调用步骤（含子步骤），需插入到 LLM 步骤之前
             if (llmResult.extraSteps != null && !llmResult.extraSteps.isEmpty()) {
-                steps.addAll(llmResult.extraSteps);  // Step 3: 工具调用（含子步骤）
+                steps.addAll(llmResult.extraSteps); // Step 3: 工具调用（含子步骤）
             }
-            steps.add(llmResult.step);  // Step 4: LLM 输出
+            steps.add(llmResult.step); // Step 4: LLM 输出
 
             // 调试日志：验证步骤结构
             log.info("Agent 步骤构建完成: totalSteps={}, steps=[{}]", steps.size(),
@@ -190,8 +194,7 @@ public class AgentTestChatService {
                         "status", "success",
                         "durationMs", llmResult.step.getDurationMs(),
                         "tokensPrompt", llmResult.tokensPrompt,
-                        "tokensCompletion", llmResult.tokensCompletion
-                ));
+                        "tokensCompletion", llmResult.tokensCompletion));
             }
 
             // 5. 安全检测：输出端防泄漏
@@ -234,7 +237,8 @@ public class AgentTestChatService {
                     llmResult.tokensPrompt, llmResult.tokensCompletion, llmResult.modelName,
                     "success", null, userId);
 
-            log.info("Agent[{}] 测试对话完成: duration={}ms, output长度={}", agent.getName(), totalDuration, llmResult.output.length());
+            log.info("Agent[{}] 测试对话完成: duration={}ms, output长度={}", agent.getName(), totalDuration,
+                    llmResult.output.length());
 
         } catch (Exception e) {
             log.error("Agent 测试对话异常: {}", e.getMessage(), e);
@@ -254,29 +258,31 @@ public class AgentTestChatService {
             List<AgentTraceStep> errorSteps = new ArrayList<>();
             errorSteps.add(agentTraceHelper.buildFailStep(0, "system", "系统", e.getMessage()));
 
-            AgentTraceSnapshot errorSnapshot = agentTraceHelper.buildTraceSnapshot(agent, errorSteps, totalDuration, 0, 0);
+            AgentTraceSnapshot errorSnapshot = agentTraceHelper.buildTraceSnapshot(agent, errorSteps, totalDuration, 0,
+                    0);
             saveTestSession(agent, request, null, errorSnapshot, (int) totalDuration,
                     0, 0, null, "fail", e.getMessage(), userId);
 
             if (emitter != null) {
                 SseEvent.send(emitter, SseEvent.TYPE_DONE, SseEvent.done(Map.of(
-                                        "content", "抱歉，处理过程中出现异常，请稍后重试。",
-                                        "durationMs", totalDuration,
-                                        "tokensPrompt", 0,
-                                        "tokensCompletion", 0
-                                )));
+                        "content", "抱歉，处理过程中出现异常，请稍后重试。",
+                        "durationMs", totalDuration,
+                        "tokensPrompt", 0,
+                        "tokensCompletion", 0)));
                 emitter.complete();
             }
         }
     }
 
     // =====================================================================
-    //  场景配置 & 会话持久化
+    // 场景配置 & 会话持久化
     // =====================================================================
 
     /**
      * 应用场景级配置覆盖
-     * <p>修改 Agent 对象的相关字段，优先级：ai_scene_agent_config > ai_agent 默认值。</p>
+     * <p>
+     * 修改 Agent 对象的相关字段，优先级：ai_scene_agent_config > ai_agent 默认值。
+     * </p>
      */
     private void applySceneConfig(Agent agent, Long sceneId) {
         if (sceneId == null) {
@@ -307,9 +313,9 @@ public class AgentTestChatService {
      * 保存测试会话
      */
     private void saveTestSession(Agent agent, AiDialogRequest request, String reply,
-                                 AgentTraceSnapshot snapshot, int durationMs,
-                                 int promptTokens, int completionTokens, String modelName,
-                                 String status, String errorMessage, Long userId) {
+            AgentTraceSnapshot snapshot, int durationMs,
+            int promptTokens, int completionTokens, String modelName,
+            String status, String errorMessage, Long userId) {
         ExecutionSession session = new ExecutionSession();
         session.setBizType("agent");
         session.setBizId(agent.getId());
@@ -353,7 +359,7 @@ public class AgentTestChatService {
     }
 
     // =====================================================================
-    //  可复用的 Agent 执行方法（供编排服务调用）
+    // 可复用的 Agent 执行方法（供编排服务调用）
     // =====================================================================
 
     /**
@@ -370,7 +376,9 @@ public class AgentTestChatService {
         public String modelName;
         /** 总耗时（毫秒） */
         public long durationMs;
-        /** 本次执行产生的链路步骤（含 prompt_assembly、knowledge_retrieval、skill_execution、llm_call） */
+        /**
+         * 本次执行产生的链路步骤（含 prompt_assembly、knowledge_retrieval、skill_execution、llm_call）
+         */
         public List<AgentTraceStep> steps;
         /** 是否成功 */
         public boolean success;
@@ -380,24 +388,46 @@ public class AgentTestChatService {
 
     /**
      * 执行单个 Agent 步骤（完整流水线：提示词组装 → 知识库检索 → LLM with tools）
-     * <p>供编排服务 OrchestrationExecuteService 调用，不保存会话，不发送编排级 SSE 事件。
-     * Agent 内部的 SSE 事件（step_start/step_detail/step_done/content）仍会正常推送。</p>
+     * <p>
+     * 供编排服务 OrchestrationExecuteService 调用，不保存会话，不发送编排级 SSE 事件。
+     * Agent 内部的 SSE 事件（step_start/step_detail/step_done/content）仍会正常推送。
+     * </p>
      *
-     * @param agentId       Agent ID
-     * @param userMessage   用户输入（或上一步的输出）
-     * @param history       对话历史
-     * @param sceneId       场景 ID（用于配置覆盖）
+     * @param agentId        Agent ID
+     * @param userMessage    用户输入（或上一步的输出）
+     * @param history        对话历史
+     * @param sceneId        场景 ID（用于配置覆盖）
      * @param conversationId 会话 ID
-     * @param requestId     请求 ID
-     * @param emitter       SSE 发射器（可为 null，为 null 时跳过所有 SSE 推送）
-     * @param cancelFlag    取消标记
-     * @param authToken     认证令牌（用于技能执行）
+     * @param requestId      请求 ID
+     * @param emitter        SSE 发射器（可为 null，为 null 时跳过所有 SSE 推送）
+     * @param cancelFlag     取消标记
+     * @param authToken      认证令牌（用于技能执行）
      * @return 执行结果
      */
     public AgentStepResult callAgentStep(Long agentId, String userMessage,
-                                          List<Map<String, String>> history,
-                                          Long sceneId, String conversationId, String requestId,
-                                          SseEmitter emitter, AtomicBoolean cancelFlag, String authToken) {
+            List<Map<String, String>> history,
+            Long sceneId, String conversationId, String requestId,
+            SseEmitter emitter, AtomicBoolean cancelFlag, String authToken) {
+        return callAgentStep(agentId, userMessage, history, sceneId, conversationId, requestId,
+                emitter, cancelFlag, authToken, null);
+    }
+
+    /**
+     * 执行单个 Agent 步骤（含编排步骤归属字段）
+     * <p>
+     * Agent 内部事件（step_start/step_detail/step_done/content）携带
+     * orchestrationStepIndex，
+     * 前端据此把事件归属到编排步骤卡片，避免多步骤场景下事件错配。
+     * </p>
+     *
+     * @param orchestrationStepIndex 编排步骤序号（可空；编排场景传入
+     *                               SceneOrchestrationStep.stepIndex）
+     */
+    public AgentStepResult callAgentStep(Long agentId, String userMessage,
+            List<Map<String, String>> history,
+            Long sceneId, String conversationId, String requestId,
+            SseEmitter emitter, AtomicBoolean cancelFlag, String authToken,
+            Integer orchestrationStepIndex) {
         AgentStepResult result = new AgentStepResult();
         result.steps = new ArrayList<>();
         long stepStart = System.currentTimeMillis();
@@ -423,11 +453,10 @@ public class AgentTestChatService {
             // 3. Step 1: 提示词组装
             int stepIndex = 0;
             if (emitter != null) {
-                SseEvent.send(emitter, "step_start", Map.of(
+                SseEvent.send(emitter, "step_start", SseEvent.withOrchStep(Map.of(
                         "stepIndex", stepIndex,
                         "stepType", "prompt_assembly",
-                        "stepName", "提示词组装"
-                ));
+                        "stepName", "提示词组装"), orchestrationStepIndex));
             }
             AgentTraceStepResult promptResult = agentPromptService.assemblePrompt(agent, stepIndex,
                     userMessage, emitter, null, sceneId, agentId, requestId,
@@ -435,11 +464,10 @@ public class AgentTestChatService {
             String systemPrompt = promptResult.output;
             result.steps.add(promptResult.step);
             if (emitter != null) {
-                SseEvent.send(emitter, "step_done", Map.of(
+                SseEvent.send(emitter, "step_done", SseEvent.withOrchStep(Map.of(
                         "stepIndex", stepIndex,
                         "status", "success",
-                        "durationMs", promptResult.step.getDurationMs()
-                ));
+                        "durationMs", promptResult.step.getDurationMs()), orchestrationStepIndex));
             }
             stepIndex++;
 
@@ -449,21 +477,20 @@ public class AgentTestChatService {
             String knowledgeContext = null;
             if (hasKnowledge) {
                 if (emitter != null) {
-                    SseEvent.send(emitter, "step_start", Map.of(
+                    SseEvent.send(emitter, "step_start", SseEvent.withOrchStep(Map.of(
                             "stepIndex", stepIndex,
                             "stepType", "knowledge_retrieval",
-                            "stepName", "知识库检索"
-                    ));
+                            "stepName", "知识库检索"), orchestrationStepIndex));
                 }
-                AgentTraceStepResult kbResult = knowledgeBaseService.retrieveKnowledge(agent, userMessage, stepIndex, emitter);
+                AgentTraceStepResult kbResult = knowledgeBaseService.retrieveKnowledge(agent, userMessage, stepIndex,
+                        emitter);
                 knowledgeContext = kbResult.output;
                 result.steps.add(kbResult.step);
                 if (emitter != null) {
-                    SseEvent.send(emitter, "step_done", Map.of(
+                    SseEvent.send(emitter, "step_done", SseEvent.withOrchStep(Map.of(
                             "stepIndex", stepIndex,
                             "status", kbResult.step.getStatus(),
-                            "durationMs", kbResult.step.getDurationMs()
-                    ));
+                            "durationMs", kbResult.step.getDurationMs()), orchestrationStepIndex));
                 }
                 stepIndex++;
             }
@@ -484,7 +511,7 @@ public class AgentTestChatService {
             }
             AgentTraceStepResult llmResult = agentLlmCaller.callLLMStreamWithTools(agent, systemPrompt,
                     knowledgeContext, dialogRequest, toolStepIndex, llmStepIndex, emitter,
-                    new AtomicBoolean(false), cancelFlag, toolDefinitions, authToken);
+                    new AtomicBoolean(false), cancelFlag, toolDefinitions, authToken, orchestrationStepIndex);
 
             if (llmResult.extraSteps != null && !llmResult.extraSteps.isEmpty()) {
                 result.steps.addAll(llmResult.extraSteps);
@@ -492,13 +519,12 @@ public class AgentTestChatService {
             result.steps.add(llmResult.step);
 
             if (emitter != null) {
-                SseEvent.send(emitter, "step_done", Map.of(
+                SseEvent.send(emitter, "step_done", SseEvent.withOrchStep(Map.of(
                         "stepIndex", llmStepIndex,
                         "status", "success",
                         "durationMs", llmResult.step.getDurationMs(),
                         "tokensPrompt", llmResult.tokensPrompt,
-                        "tokensCompletion", llmResult.tokensCompletion
-                ));
+                        "tokensCompletion", llmResult.tokensCompletion), orchestrationStepIndex));
             }
 
             // 6. 安全检测

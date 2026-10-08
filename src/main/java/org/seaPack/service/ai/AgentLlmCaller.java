@@ -14,7 +14,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Agent LLM 流式调用服务
- * <p>负责与 LLM API 交互，支持 Function Calling 多轮 tool 循环和兜底调用。</p>
+ * <p>
+ * 负责与 LLM API 交互，支持 Function Calling 多轮 tool 循环和兜底调用。
+ * </p>
  */
 @Slf4j
 @Service
@@ -31,9 +33,13 @@ public class AgentLlmCaller {
 
     /**
      * 流式调用 LLM API，支持 Function Calling 多轮循环。
-     * <p>当 LLM 返回 tool_calls 时，自动执行技能并将结果追加到消息列表，
-     * 然后再次调用 LLM 直到获得最终文本回复（最多 3 轮 tool 循环）。</p>
-     * <p>自动推送 SSE 步骤事件：skill_execution（工具调用）和 llm_call（最终输出）。</p>
+     * <p>
+     * 当 LLM 返回 tool_calls 时，自动执行技能并将结果追加到消息列表，
+     * 然后再次调用 LLM 直到获得最终文本回复（最多 3 轮 tool 循环）。
+     * </p>
+     * <p>
+     * 自动推送 SSE 步骤事件：skill_execution（工具调用）和 llm_call（最终输出）。
+     * </p>
      *
      * @param toolStepIndex 工具调用步骤的 stepIndex（由调用方分配）
      * @param llmStepIndex  LLM 输出步骤的 stepIndex（由调用方分配）
@@ -41,16 +47,34 @@ public class AgentLlmCaller {
      */
     @SuppressWarnings("unchecked")
     public AgentTraceStepResult callLLMStreamWithTools(Agent agent, String systemPrompt,
-                                                       String knowledgeContext,
-                                                       AiDialogRequest request,
-                                                       int toolStepIndex, int llmStepIndex,
-                                                       SseEmitter emitter, AtomicBoolean isCompleted,
-                                                       AtomicBoolean cancelFlag,
-                                                       List<Map<String, Object>> toolDefinitions,
-                                                       String authToken) {
+            String knowledgeContext,
+            AiDialogRequest request,
+            int toolStepIndex, int llmStepIndex,
+            SseEmitter emitter, AtomicBoolean isCompleted,
+            AtomicBoolean cancelFlag,
+            List<Map<String, Object>> toolDefinitions,
+            String authToken) {
+        return callLLMStreamWithTools(agent, systemPrompt, knowledgeContext, request,
+                toolStepIndex, llmStepIndex, emitter, isCompleted, cancelFlag, toolDefinitions, authToken, null);
+    }
+
+    /**
+     * 流式调用 LLM API（含编排步骤归属字段）
+     *
+     * @param orchestrationStepIndex 编排步骤序号（可空；编排场景下事件携带该字段，前端据此归属到步骤卡片）
+     */
+    @SuppressWarnings("unchecked")
+    public AgentTraceStepResult callLLMStreamWithTools(Agent agent, String systemPrompt,
+            String knowledgeContext,
+            AiDialogRequest request,
+            int toolStepIndex, int llmStepIndex,
+            SseEmitter emitter, AtomicBoolean isCompleted,
+            AtomicBoolean cancelFlag,
+            List<Map<String, Object>> toolDefinitions,
+            String authToken, Integer orchestrationStepIndex) {
         long llmStart = System.currentTimeMillis();
-        String modelName = agent.getModelCode() != null ? agent.getModelCode() :
-                aiProperties.getProviders().get(aiProperties.getActiveProvider()).getChatModel();
+        String modelName = agent.getModelCode() != null ? agent.getModelCode()
+                : aiProperties.getProviders().get(aiProperties.getActiveProvider()).getChatModel();
         log.info("Agent LLM 流式调用开始 (Function Calling): agentId={}, model={}, tools={}",
                 agent.getId(), modelName, toolDefinitions.size());
 
@@ -95,21 +119,20 @@ public class AgentLlmCaller {
         }
 
         StringBuilder replyContentBuilder = new StringBuilder();
-        int[] tokenUsage = {0, 0};
+        int[] tokenUsage = { 0, 0 };
         int totalToolRounds = 0;
         final int MAX_TOOL_ROUNDS = 2;
         List<Map<String, Object>> functionCallsHistory = new ArrayList<>();
         List<AgentTraceStep> childSteps = new ArrayList<>();
-        Set<String> alreadyCalledTools = new LinkedHashSet<>();  // 已调用的工具名，用于去重
-        long toolStepStartTime = 0;  // 工具步骤开始时间，用于计算耗时
+        Set<String> alreadyCalledTools = new LinkedHashSet<>(); // 已调用的工具名，用于去重
+        long toolStepStartTime = 0; // 工具步骤开始时间，用于计算耗时
 
         // 如果没有工具定义，直接推送 LLM 输出步骤（无工具调用场景）
         if ((toolDefinitions == null || toolDefinitions.isEmpty()) && emitter != null) {
-            SseEvent.send(emitter, "step_start", Map.of(
+            SseEvent.send(emitter, "step_start", SseEvent.withOrchStep(Map.of(
                     "stepIndex", llmStepIndex,
                     "stepType", "llm_call",
-                    "stepName", "LLM 输出"
-            ));
+                    "stepName", "LLM 输出"), orchestrationStepIndex));
         }
 
         // ===== 多轮 tool 调用循环 =====
@@ -153,16 +176,19 @@ public class AgentLlmCaller {
 
             LlmSseHelper.ToolCallAccumulator toolAccumulator = new LlmSseHelper.ToolCallAccumulator();
             StringBuilder textContentBuilder = new StringBuilder();
-            String[] finishReasonHolder = {null};
+            String[] finishReasonHolder = { null };
 
             try {
                 HttpURLConnection connection = llmSseHelper.createConnection(url, config.getApiKey(), requestBody);
                 AtomicBoolean llmCancelFlag = cancelFlag != null ? cancelFlag : isCompleted;
                 llmSseHelper.readChunks(connection, llmCancelFlag, chunk -> {
-                    if (chunk.isDone()) return;
+                    if (chunk.isDone())
+                        return;
                     if (chunk.hasDeltaContent()) {
                         textContentBuilder.append(chunk.getDeltaContent());
-                        SseEvent.send(emitter, SseEvent.TYPE_CONTENT, SseEvent.content(chunk.getDeltaContent()));
+                        SseEvent.send(emitter, SseEvent.TYPE_CONTENT,
+                                SseEvent.withOrchStep(SseEvent.content(chunk.getDeltaContent()),
+                                        orchestrationStepIndex));
                     }
                     if (chunk.hasToolCalls()) {
                         toolAccumulator.addDelta(chunk.getToolCallsDelta());
@@ -172,12 +198,14 @@ public class AgentLlmCaller {
                     }
                     if (chunk.hasUsage()) {
                         tokenUsage[0] = chunk.getPromptTokens() != null ? chunk.getPromptTokens() : tokenUsage[0];
-                        tokenUsage[1] = chunk.getCompletionTokens() != null ? chunk.getCompletionTokens() : tokenUsage[1];
+                        tokenUsage[1] = chunk.getCompletionTokens() != null ? chunk.getCompletionTokens()
+                                : tokenUsage[1];
                     }
                 });
                 connection.disconnect();
             } catch (Exception e) {
-                log.error("LLM 流式调用失败 (round={}, url={}, model={}): {}", totalToolRounds, url, modelName, e.getMessage(), e);
+                log.error("LLM 流式调用失败 (round={}, url={}, model={}): {}", totalToolRounds, url, modelName,
+                        e.getMessage(), e);
                 throw new RuntimeException("LLM 流式调用失败 (round=" + totalToolRounds + "): " + e.getMessage(), e);
             }
 
@@ -187,7 +215,8 @@ public class AgentLlmCaller {
             if (hasToolCalls) {
                 totalToolRounds++;
                 List<Map<String, Object>> toolCalls = toolAccumulator.getToolCalls();
-                log.info("LLM 返回 tool_calls: round={}, count={}, finishReason={}", totalToolRounds, toolCalls.size(), finishReason);
+                log.info("LLM 返回 tool_calls: round={}, count={}, finishReason={}", totalToolRounds, toolCalls.size(),
+                        finishReason);
 
                 // 提取本轮要调用的工具名称列表
                 List<String> roundToolNames = new ArrayList<>();
@@ -202,25 +231,24 @@ public class AgentLlmCaller {
                 // 推送：工具调用步骤开始（仅第一轮）
                 if (emitter != null && totalToolRounds == 1) {
                     toolStepStartTime = System.currentTimeMillis();
-                    SseEvent.send(emitter, "step_start", Map.of(
+                    SseEvent.send(emitter, "step_start", SseEvent.withOrchStep(Map.of(
                             "stepIndex", toolStepIndex,
                             "stepType", "skill_execution",
                             "stepName", "工具调用",
-                            "toolsToCall", roundToolNames
-                    ));
-                    SseEvent.send(emitter, SseEvent.TYPE_STEP_DETAIL, Map.of(
+                            "toolsToCall", roundToolNames), orchestrationStepIndex));
+                    SseEvent.send(emitter, SseEvent.TYPE_STEP_DETAIL, SseEvent.withOrchStep(Map.of(
                             "stepIndex", toolStepIndex,
                             "detailType", "tool_list",
-                            "message", "共需调用 " + roundToolNames.size() + " 个工具：" + String.join("、", roundToolNames)
-                    ));
+                            "message", "共需调用 " + roundToolNames.size() + " 个工具：" + String.join("、", roundToolNames)),
+                            orchestrationStepIndex));
                 }
                 // 推送：第 2+ 轮补充提示
                 if (emitter != null && totalToolRounds > 1) {
-                    SseEvent.send(emitter, SseEvent.TYPE_STEP_DETAIL, Map.of(
+                    SseEvent.send(emitter, SseEvent.TYPE_STEP_DETAIL, SseEvent.withOrchStep(Map.of(
                             "stepIndex", toolStepIndex,
                             "detailType", "tool_round",
-                            "message", "第 " + totalToolRounds + " 轮工具调用：" + String.join("、", roundToolNames)
-                    ));
+                            "message", "第 " + totalToolRounds + " 轮工具调用：" + String.join("、", roundToolNames)),
+                            orchestrationStepIndex));
                 }
 
                 Map<String, Object> assistantToolMsg = new HashMap<>();
@@ -231,15 +259,15 @@ public class AgentLlmCaller {
                 // 推送：逐个工具开始调用
                 for (String toolName : roundToolNames) {
                     if (emitter != null) {
-                        SseEvent.send(emitter, SseEvent.TYPE_STEP_DETAIL, Map.of(
+                        SseEvent.send(emitter, SseEvent.TYPE_STEP_DETAIL, SseEvent.withOrchStep(Map.of(
                                 "stepIndex", toolStepIndex,
                                 "detailType", "tool_start",
-                                "message", "正在调用 " + toolName + " ..."
-                        ));
+                                "message", "正在调用 " + toolName + " ..."), orchestrationStepIndex));
                     }
                 }
 
-                List<Map<String, String>> toolMessages = skillExecutor.executeToolCalls(toolCalls, authToken, emitter, toolStepIndex);
+                List<Map<String, String>> toolMessages = skillExecutor.executeToolCalls(toolCalls, authToken, emitter,
+                        toolStepIndex, orchestrationStepIndex);
                 for (Map<String, String> tm : toolMessages) {
                     messages.add(new HashMap<>(tm));
                 }
@@ -247,11 +275,10 @@ public class AgentLlmCaller {
                 // 推送：逐个工具调用完成
                 for (String toolName : roundToolNames) {
                     if (emitter != null) {
-                        SseEvent.send(emitter, SseEvent.TYPE_STEP_DETAIL, Map.of(
+                        SseEvent.send(emitter, SseEvent.TYPE_STEP_DETAIL, SseEvent.withOrchStep(Map.of(
                                 "stepIndex", toolStepIndex,
                                 "detailType", "tool_done",
-                                "message", toolName + " 调用完成"
-                        ));
+                                "message", toolName + " 调用完成"), orchestrationStepIndex));
                     }
                 }
 
@@ -264,7 +291,7 @@ public class AgentLlmCaller {
                     String funcArgs = function != null ? (String) function.get("arguments") : "{}";
                     String toolResult = i < toolMessages.size() ? toolMessages.get(i).get("content") : "{}";
 
-                    alreadyCalledTools.add(funcName);  // 记录已调用工具
+                    alreadyCalledTools.add(funcName); // 记录已调用工具
 
                     Map<String, Object> fcRecord = new LinkedHashMap<>();
                     fcRecord.put("round", totalToolRounds);
@@ -288,24 +315,23 @@ public class AgentLlmCaller {
 
                 // 工具调用结束，立即推送（不等下一轮 LLM 响应）
                 if (emitter != null) {
-                    SseEvent.send(emitter, SseEvent.TYPE_STEP_DETAIL, Map.of(
+                    SseEvent.send(emitter, SseEvent.TYPE_STEP_DETAIL, SseEvent.withOrchStep(Map.of(
                             "stepIndex", toolStepIndex,
                             "detailType", "tool_summary",
-                            "message", "工具调用结束，共执行 " + totalToolRounds + " 轮，调用了 " + alreadyCalledTools.size() + " 个工具：" + String.join("、", alreadyCalledTools)
-                    ));
-                    SseEvent.send(emitter, "step_done", Map.of(
+                            "message", "工具调用结束，共执行 " + totalToolRounds + " 轮，调用了 " + alreadyCalledTools.size() + " 个工具："
+                                    + String.join("、", alreadyCalledTools)),
+                            orchestrationStepIndex));
+                    SseEvent.send(emitter, "step_done", SseEvent.withOrchStep(Map.of(
                             "stepIndex", toolStepIndex,
                             "status", "success",
                             "durationMs", System.currentTimeMillis() - toolStepStartTime,
                             "toolRounds", totalToolRounds,
-                            "toolsCalled", new ArrayList<>(alreadyCalledTools)
-                    ));
+                            "toolsCalled", new ArrayList<>(alreadyCalledTools)), orchestrationStepIndex));
                     // 推送：LLM 输出步骤开始
-                    SseEvent.send(emitter, "step_start", Map.of(
+                    SseEvent.send(emitter, "step_start", SseEvent.withOrchStep(Map.of(
                             "stepIndex", llmStepIndex,
                             "stepType", "llm_call",
-                            "stepName", "LLM 输出"
-                    ));
+                            "stepName", "LLM 输出"), orchestrationStepIndex));
                 }
 
                 continue;
@@ -322,7 +348,8 @@ public class AgentLlmCaller {
         // ===== 兜底：tool 循环耗尽后 replyContent 为空时，再调一次不带 tools 的纯文本生成 =====
         if (replyContentBuilder.isEmpty() && totalToolRounds > 0) {
             log.info("replyContent 为空，发起兜底 LLM 纯文本调用（不带 tools）");
-            callFallbackLLM(agent, config, modelName, messages, replyContentBuilder, tokenUsage, emitter, isCompleted, cancelFlag);
+            callFallbackLLM(agent, config, modelName, messages, replyContentBuilder, tokenUsage, emitter,
+                    isCompleted, cancelFlag, orchestrationStepIndex);
         }
 
         long llmDuration = System.currentTimeMillis() - llmStart;
@@ -386,9 +413,10 @@ public class AgentLlmCaller {
      * 兜底 LLM 调用：不带 tools，强制生成文本回复
      */
     private void callFallbackLLM(Agent agent, AIProperties.ProviderConfig config, String modelName,
-                                  List<Map<String, Object>> messages, StringBuilder replyContentBuilder,
-                                  int[] tokenUsage, SseEmitter emitter,
-                                  AtomicBoolean isCompleted, AtomicBoolean cancelFlag) {
+            List<Map<String, Object>> messages, StringBuilder replyContentBuilder,
+            int[] tokenUsage, SseEmitter emitter,
+            AtomicBoolean isCompleted, AtomicBoolean cancelFlag,
+            Integer orchestrationStepIndex) {
         try {
             String baseUrl = config.getBaseUrl();
             if (baseUrl.endsWith("/")) {
@@ -407,13 +435,16 @@ public class AgentLlmCaller {
                 fallbackBody.put("max_tokens", agent.getMaxTokens());
             }
 
-            HttpURLConnection fallbackConn = llmSseHelper.createConnection(fallbackUrl, config.getApiKey(), fallbackBody);
+            HttpURLConnection fallbackConn = llmSseHelper.createConnection(fallbackUrl, config.getApiKey(),
+                    fallbackBody);
             AtomicBoolean fallbackCancel = cancelFlag != null ? cancelFlag : isCompleted;
             llmSseHelper.readChunks(fallbackConn, fallbackCancel, chunk -> {
-                if (chunk.isDone()) return;
+                if (chunk.isDone())
+                    return;
                 if (chunk.hasDeltaContent()) {
                     replyContentBuilder.append(chunk.getDeltaContent());
-                    SseEvent.send(emitter, SseEvent.TYPE_CONTENT, SseEvent.content(chunk.getDeltaContent()));
+                    SseEvent.send(emitter, SseEvent.TYPE_CONTENT,
+                            SseEvent.withOrchStep(SseEvent.content(chunk.getDeltaContent()), orchestrationStepIndex));
                 }
                 if (chunk.hasUsage()) {
                     tokenUsage[0] = chunk.getPromptTokens() != null ? chunk.getPromptTokens() : tokenUsage[0];
@@ -432,10 +463,12 @@ public class AgentLlmCaller {
      * 检测 LLM 输出是否泄漏了系统提示词内容
      */
     public boolean containsSystemPromptLeakage(String reply, String systemPrompt) {
-        if (reply == null || systemPrompt == null) return false;
+        if (reply == null || systemPrompt == null)
+            return false;
 
         List<String> signatures = new ArrayList<>();
-        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("[\u4e00-\u9fa5\uff0c\u3002\uff01\uff1f\uff1b\uff08\uff09]{8,30}");
+        java.util.regex.Pattern pattern = java.util.regex.Pattern
+                .compile("[\u4e00-\u9fa5\uff0c\u3002\uff01\uff1f\uff1b\uff08\uff09]{8,30}");
         java.util.regex.Matcher matcher = pattern.matcher(systemPrompt);
         while (matcher.find() && signatures.size() < 10) {
             String seg = matcher.group();
@@ -445,7 +478,8 @@ public class AgentLlmCaller {
             }
         }
 
-        if (signatures.isEmpty()) return false;
+        if (signatures.isEmpty())
+            return false;
 
         int matchCount = 0;
         for (String sig : signatures) {

@@ -33,15 +33,18 @@ public class SecurityConfig {
 
     /**
      * HTTP 安全过滤链
-     * <p>公开接口放行，其余接口需携带有效 JWT token。</p>
+     * <p>
+     * 公开接口放行，其余接口需携带有效 JWT token。
+     * </p>
      */
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http.authorizeHttpRequests(auth -> auth
-                    // 放行错误分发（SSE/异步请求内部异常触发的 ERROR dispatch，响应已提交时不再重复拦截）
-                    .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
-                    // 公开接口 —— 无需认证
-                    .requestMatchers(
+                // 放行错误/异步分发（SSE 走 Servlet 异步，连接生命周期结束时容器会以 ASYNC 分发重新过安全链；
+                // JwtAuthenticationFilter 不在 ASYNC 分发执行且认证未持久化，不放行会产生 AccessDenied 噪音并干扰连接收尾）
+                .dispatcherTypeMatchers(DispatcherType.ERROR, DispatcherType.ASYNC).permitAll()
+                // 公开接口 —— 无需认证
+                .requestMatchers(
                         "/auth/login",
                         "/auth/captcha/**",
                         "/auth/rsa/**",
@@ -54,11 +57,10 @@ public class SecurityConfig {
                         "/v1/files/download",
                         "/error",
                         // 内部 API 接口（技能调用等）
-                        "/ai/skills/execute/**"
-                    ).permitAll()
-                    // 其余接口 —— 需携带有效 token
-                    .anyRequest().authenticated()
-                )
+                        "/ai/skills/execute/**")
+                .permitAll()
+                // 其余接口 —— 需携带有效 token
+                .anyRequest().authenticated())
                 .cors(cors -> cors.configurationSource(request -> {
                     // 允许跨域请求中的 Authorization 头
                     var config = new org.springframework.web.cors.CorsConfiguration();

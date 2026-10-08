@@ -104,6 +104,17 @@ public class AgentSkillExecutor {
      */
     public List<Map<String, String>> executeToolCalls(
             List<Map<String, Object>> toolCalls, String authToken, SseEmitter emitter, int stepIndex) {
+        return executeToolCalls(toolCalls, authToken, emitter, stepIndex, null);
+    }
+
+    /**
+     * 执行 LLM 返回的 tool_calls（含编排步骤归属字段）
+     *
+     * @param orchestrationStepIndex 编排步骤序号（可空，透传给 ToolCallDispatcher 用于事件归属）
+     */
+    public List<Map<String, String>> executeToolCalls(
+            List<Map<String, Object>> toolCalls, String authToken, SseEmitter emitter, int stepIndex,
+            Integer orchestrationStepIndex) {
 
         log.info("[技能工具] 收到 tool_calls: count={}", toolCalls.size());
 
@@ -117,7 +128,7 @@ public class AgentSkillExecutor {
             }
         }
 
-        return toolCallDispatcher.dispatch(toolCalls, authToken, emitter, stepIndex);
+        return toolCallDispatcher.dispatch(toolCalls, authToken, emitter, stepIndex, orchestrationStepIndex);
     }
 
     // ========================================================================

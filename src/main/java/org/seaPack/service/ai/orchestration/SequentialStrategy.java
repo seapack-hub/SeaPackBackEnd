@@ -285,7 +285,7 @@ public class SequentialStrategy extends OrchestrationStrategyHandler {
                 AgentTestChatService.AgentStepResult agentResult = agentTestChatService.callAgentStep(
                         step.getAgentId(), stepInput, request.getHistory(),
                         request.getSceneId(), request.getConversationId(), request.getRequestId(),
-                        emitter, isCompleted, authToken);
+                        emitter, isCompleted, authToken, stepIdx);
 
                 if (isCompleted.get())
                     break;
@@ -368,7 +368,7 @@ public class SequentialStrategy extends OrchestrationStrategyHandler {
                                 AgentTestChatService.AgentStepResult retryResult = agentTestChatService.callAgentStep(
                                         step.getAgentId(), stepInput, request.getHistory(),
                                         request.getSceneId(), request.getConversationId(), request.getRequestId(),
-                                        emitter, isCompleted, authToken);
+                                        emitter, isCompleted, authToken, stepIdx);
                                 if (retryResult.success) {
                                     stepOutputs.put(stepIdx, retryResult.output);
                                     stepStatuses.put(stepIdx, "success");

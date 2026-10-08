@@ -107,7 +107,7 @@ public class CrewStrategy extends OrchestrationStrategyHandler {
                 AgentTestChatService.AgentStepResult agentResult = agentTestChatService.callAgentStep(
                         currentAgentId, currentInput, request.getHistory(),
                         request.getSceneId(), request.getConversationId(), request.getRequestId(),
-                        emitter, isCompleted, authToken);
+                        emitter, isCompleted, authToken, round);
 
                 if (isCompleted.get())
                     break;

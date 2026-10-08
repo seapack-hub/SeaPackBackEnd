@@ -46,8 +46,14 @@ public class SkillExecutionResult {
         return new SkillExecutionResult("json", statusCode, method, url, durationMs, body);
     }
 
-    /** 便捷构建：文件类型结果 */
+    /** 便捷构建：文件类型结果（空 URL 一律降级为失败，防止上游业务失败时假成功） */
     public static SkillExecutionResult file(String url, String fileName, long fileSize, long durationMs) {
+        if (url == null || url.isBlank()) {
+            Map<String, Object> errBody = Map.of(
+                    "error", "文件生成失败：未返回文件下载地址",
+                    "fileName", fileName != null ? fileName : "generated_file");
+            return new SkillExecutionResult("json", 400, "FILE_GEN", "", durationMs, errBody);
+        }
         Map<String, Object> body = Map.of("url", url, "fileName", fileName, "fileSize", fileSize);
         return new SkillExecutionResult("file", 200, "FILE", url, durationMs, body);
     }

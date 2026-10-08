@@ -12,12 +12,18 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
  * 文件生成技能执行器
- * <p>通过 RestTemplate 调用内部文档生成 API，获取生成的文件并返回下载链接。</p>
- * <p>典型流程：调用 endpoint（如 /api/v1/documents/generate）→ 获取 {url, fileName, fileSize} → 返回 file 类型结果。</p>
+ * <p>
+ * 通过 RestTemplate 调用内部文档生成 API，获取生成的文件并返回下载链接。
+ * </p>
+ * <p>
+ * 典型流程：调用 endpoint（如 /api/v1/documents/generate）→ 获取 {url, fileName, fileSize}
+ * → 返回 file 类型结果。
+ * </p>
  */
 @Slf4j
 @Component
@@ -36,7 +42,7 @@ public class FileGenSkillHandler implements SkillHandler {
 
     @Override
     public SkillExecutionResult execute(Skill skill, Map<String, Object> params,
-                                         String authToken, SseEmitter emitter) {
+            String authToken, SseEmitter emitter) {
         long start = System.currentTimeMillis();
 
         String endpoint = skill.getEndpoint();
@@ -79,8 +85,12 @@ public class FileGenSkillHandler implements SkillHandler {
         RestTemplate silentRt = new RestTemplate();
         silentRt.setRequestFactory(restTemplate.getRequestFactory());
         silentRt.setErrorHandler(new ResponseErrorHandler() {
-            public boolean hasError(ClientHttpResponse resp) { return false; }
-            public void handleError(ClientHttpResponse resp) {}
+            public boolean hasError(ClientHttpResponse resp) {
+                return false;
+            }
+
+            public void handleError(ClientHttpResponse resp) {
+            }
         });
 
         // 调用文档生成 API
@@ -108,22 +118,39 @@ public class FileGenSkillHandler implements SkillHandler {
 
         Map<String, Object> body = response.getBody();
 
-        // 如果返回了 error
-        if (body.containsKey("error")) {
-            int code = response.getStatusCode().value();
-            return SkillExecutionResult.json(code, "FILE_GEN", endpoint, durationMs, body);
-        }
-
         // 兼容包装结构 {code, msg, data: {...}} 和扁平结构 {url, fileName, fileSize}
+        // 注意：GlobalResponseHandler 会把业务错误包装进 data.error，顶层不一定有 error 字段
         Map<String, Object> data = body;
         if (body.containsKey("data") && body.get("data") instanceof Map) {
             data = (Map<String, Object>) body.get("data");
+        }
+
+        // 失败检测：顶层 error 或 data.error（全局响应包装）或 HTTP 状态码 >= 400
+        Object error = body.get("error") != null ? body.get("error") : data.get("error");
+        if (error != null || response.getStatusCode().value() >= 400) {
+            String errorMsg = error != null ? error.toString()
+                    : ("HTTP " + response.getStatusCode().value());
+            int errCode = response.getStatusCode().value() >= 400 ? response.getStatusCode().value() : 400;
+            log.warn("文件生成技能[{}] 生成失败: {}", skill.getName(), errorMsg);
+            Map<String, Object> errBody = new LinkedHashMap<>();
+            errBody.put("error", errorMsg);
+            if (data.get("available") != null) {
+                errBody.put("available", data.get("available"));
+            }
+            return SkillExecutionResult.json(errCode, "FILE_GEN", endpoint, durationMs, errBody);
         }
 
         // 成功：提取 url、fileName、fileSize
         String fileUrl = data.getOrDefault("url", "").toString();
         String fileName = data.getOrDefault("fileName", "generated_file").toString();
         long fileSize = data.containsKey("fileSize") ? ((Number) data.get("fileSize")).longValue() : 0;
+
+        // 空 URL 一律视为失败：防止上游业务失败时返回空文件造成"假成功"
+        if (fileUrl == null || fileUrl.isBlank()) {
+            log.warn("文件生成技能[{}] 生成结果缺少文件下载地址，视为失败: fileName={}", skill.getName(), fileName);
+            return SkillExecutionResult.json(400, "FILE_GEN", endpoint, durationMs,
+                    Map.of("error", "文档生成失败：未返回文件下载地址", "fileName", fileName));
+        }
 
         log.info("文件生成技能[{}] 完成: url={}, fileName={}, size={}, duration={}ms",
                 skill.getName(), fileUrl, fileName, fileSize, durationMs);

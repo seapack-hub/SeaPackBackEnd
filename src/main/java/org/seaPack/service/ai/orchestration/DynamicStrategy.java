@@ -160,7 +160,7 @@ public class DynamicStrategy extends OrchestrationStrategyHandler {
                 AgentTestChatService.AgentStepResult execResult = agentTestChatService.callAgentStep(
                         planAgentId, task, request.getHistory(),
                         request.getSceneId(), request.getConversationId(), request.getRequestId(),
-                        emitter, isCompleted, authToken);
+                        emitter, isCompleted, authToken, i + 1);
 
                 if (isCompleted.get())
                     break;

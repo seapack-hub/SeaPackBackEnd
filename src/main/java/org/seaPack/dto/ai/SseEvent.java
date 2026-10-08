@@ -10,7 +10,9 @@ import java.util.Map;
 
 /**
  * SSE 事件协议工具类
- * <p>统一所有 AI 对话端点的 SSE 事件类型和发送方式。</p>
+ * <p>
+ * 统一所有 AI 对话端点的 SSE 事件类型和发送方式。
+ * </p>
  */
 @Slf4j
 public class SseEvent {
@@ -55,15 +57,36 @@ public class SseEvent {
      * @param data    事件数据（不含 type 字段，会自动注入）
      */
     public static void send(SseEmitter emitter, String type, Map<String, Object> data) {
+        trySend(emitter, type, data);
+    }
+
+    /**
+     * 发送 SSE 事件并返回是否成功（连接已断开时返回 false，供调用方决定收尾策略）
+     */
+    public static boolean trySend(SseEmitter emitter, String type, Map<String, Object> data) {
         try {
             Map<String, Object> event = new HashMap<>(data);
             event.put("type", type);
             emitter.send(SseEmitter.event()
                     .name("message")
                     .data(objectMapper.writeValueAsString(event), MediaType.APPLICATION_JSON));
+            return true;
         } catch (Exception e) {
             log.warn("发送 SSE 事件失败: type={}, {}", type, e.getMessage());
+            return false;
         }
+    }
+
+    /**
+     * 合并编排步骤归属字段（null 时原样返回，避免 Map.of 不允许 null 值的问题）
+     */
+    public static Map<String, Object> withOrchStep(Map<String, Object> data, Integer orchestrationStepIndex) {
+        if (orchestrationStepIndex == null) {
+            return data;
+        }
+        Map<String, Object> merged = new HashMap<>(data);
+        merged.put("orchestrationStepIndex", orchestrationStepIndex);
+        return merged;
     }
 
     /**
@@ -76,8 +99,7 @@ public class SseEvent {
         try {
             Map<String, Object> event = Map.of(
                     "type", TYPE_ERROR,
-                    "message", message
-            );
+                    "message", message);
             emitter.send(SseEmitter.event()
                     .name("message")
                     .data(objectMapper.writeValueAsString(event), MediaType.APPLICATION_JSON));
@@ -106,7 +128,7 @@ public class SseEvent {
      * 构建 step_done 事件数据
      */
     public static Map<String, Object> stepDone(int stepIndex, String stepType, String stepName,
-                                                String status, long durationMs) {
+            String status, long durationMs) {
         Map<String, Object> data = new HashMap<>();
         data.put("stepIndex", stepIndex);
         data.put("stepType", stepType);
