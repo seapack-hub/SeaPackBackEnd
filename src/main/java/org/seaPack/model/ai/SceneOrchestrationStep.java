@@ -9,8 +9,10 @@ import java.util.Date;
 
 /**
  * 场景编排步骤实体
- * <p>对应 ai_scene_orchestration_step 表，定义编排中每一步的执行细节。
- * 包括执行哪个 Agent、输入如何映射、执行条件等。</p>
+ * <p>
+ * 对应 ai_scene_orchestration_step 表，定义编排中每一步的执行细节。
+ * 包括执行哪个 Agent、输入如何映射、执行条件等。
+ * </p>
  */
 @Entity
 @Data
@@ -37,7 +39,7 @@ public class SceneOrchestrationStep {
 
     @Column(name = "node_type")
     @Comment("节点类型：agent-执行Agent | condition-条件判断 | aggregate-结果汇总 | handoff-交接")
-    private String nodeType;
+    private String nodeType = "agent";
 
     @Column(name = "agent_id")
     @Comment("关联Agent ID（node_type=agent时必填）")
@@ -57,11 +59,11 @@ public class SceneOrchestrationStep {
 
     @Column(name = "input_mode")
     @Comment("输入来源：user_input-用户原始输入 | prev_output-上一步输出 | shared_state-共享状态 | supervisor_instruction-Supervisor指令")
-    private String inputMode;
+    private String inputMode = "user_input";
 
     @Column(name = "output_target")
     @Comment("输出去向：next_step-下一步 | supervisor-回传Supervisor | shared_state-写入共享状态 | all_peers-广播")
-    private String outputTarget;
+    private String outputTarget = "next_step";
 
     @Column(name = "`condition`")
     @Comment("执行条件表达式")
@@ -81,7 +83,7 @@ public class SceneOrchestrationStep {
 
     @Column(name = "retry_count")
     @Comment("失败重试次数")
-    private Integer retryCount;
+    private Integer retryCount = 0;
 
     @Column(name = "timeout_ms")
     @Comment("超时时间（毫秒），NULL 不限")
@@ -89,11 +91,11 @@ public class SceneOrchestrationStep {
 
     @Column(name = "status")
     @Comment("状态：1启用 0禁用")
-    private Integer status;
+    private Integer status = 1;
 
     @Column(name = "sort_order")
     @Comment("排序号")
-    private Integer sortOrder;
+    private Integer sortOrder = 0;
 
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
     @Column(name = "created_at")

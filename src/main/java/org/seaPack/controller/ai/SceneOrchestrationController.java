@@ -18,16 +18,26 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
  * 场景编排控制器
- * <p>提供编排策略和步骤的增删改查、复制、排序等功能。</p>
+ * <p>
+ * 提供编排策略和步骤的增删改查、复制、排序等功能。
+ * </p>
  */
 @RestController
 @RequestMapping("/ai/orchestrations")
 public class SceneOrchestrationController {
+
+    /** 合法执行策略白名单（与前端 STRATEGY_OPTIONS、selectStrategy 分发保持一致） */
+    private static final Set<String> VALID_STRATEGIES = Set.of("sequential", "parallel", "supervisor", "crew",
+            "dynamic");
+
+    /** 合法节点类型白名单（与表 node_type 注释、前端 NODE_TYPE_OPTIONS 保持一致） */
+    private static final Set<String> VALID_NODE_TYPES = Set.of("agent", "condition", "aggregate", "handoff");
 
     @Autowired
     private SceneOrchestrationService orchestrationService;
@@ -74,6 +84,10 @@ public class SceneOrchestrationController {
      */
     @PostMapping("/insert")
     public ResponseEntity<?> insert(@RequestBody SceneOrchestration orchestration) {
+        if (orchestration.getStrategy() != null && !VALID_STRATEGIES.contains(orchestration.getStrategy())) {
+            return ResponseEntity.badRequest().body("不支持的执行策略: " + orchestration.getStrategy()
+                    + "，仅支持 " + String.join("/", VALID_STRATEGIES));
+        }
         if (orchestrationService.isCodeDuplicate(orchestration.getSceneId(), orchestration.getCode(), null)) {
             return ResponseEntity.badRequest().body("编排编码已存在: " + orchestration.getCode());
         }
@@ -93,8 +107,13 @@ public class SceneOrchestrationController {
         if (orchestration.getId() == null) {
             return ResponseEntity.badRequest().body("编排 ID 不能为空");
         }
+        if (orchestration.getStrategy() != null && !VALID_STRATEGIES.contains(orchestration.getStrategy())) {
+            return ResponseEntity.badRequest().body("不支持的执行策略: " + orchestration.getStrategy()
+                    + "，仅支持 " + String.join("/", VALID_STRATEGIES));
+        }
         if (orchestration.getCode() != null
-                && orchestrationService.isCodeDuplicate(orchestration.getSceneId(), orchestration.getCode(), orchestration.getId())) {
+                && orchestrationService.isCodeDuplicate(orchestration.getSceneId(), orchestration.getCode(),
+                        orchestration.getId())) {
             return ResponseEntity.badRequest().body("编排编码已存在: " + orchestration.getCode());
         }
         orchestrationService.update(orchestration);
@@ -148,7 +167,8 @@ public class SceneOrchestrationController {
 
     @PostMapping("/execute-stream")
     public SseEmitter executeStream(@RequestBody OrchestrationExecuteRequest request,
-                                    HttpServletResponse response) {
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            HttpServletResponse response) {
         // 设置 SSE 响应头
         response.setContentType(MediaType.TEXT_EVENT_STREAM_VALUE);
         response.setCharacterEncoding("UTF-8");
@@ -160,7 +180,7 @@ public class SceneOrchestrationController {
         ExecutorService executor = Executors.newSingleThreadExecutor();
         executor.execute(() -> {
             try {
-                executeService.execute(request, getCurrentUserId(), emitter);
+                executeService.execute(request, getCurrentUserId(), authHeader, emitter);
             } catch (Exception e) {
                 try {
                     Map<String, Object> errorEvent = new java.util.HashMap<>();
@@ -201,7 +221,12 @@ public class SceneOrchestrationController {
      * @return 新增的步骤（含自增ID），序号冲突返回 400
      */
     @PostMapping("/{orchId}/steps")
-    public ResponseEntity<?> addStep(@PathVariable("orchId") Long orchestrationId, @RequestBody SceneOrchestrationStep step) {
+    public ResponseEntity<?> addStep(@PathVariable("orchId") Long orchestrationId,
+            @RequestBody SceneOrchestrationStep step) {
+        String stepError = validateStep(step);
+        if (stepError != null) {
+            return ResponseEntity.badRequest().body(stepError);
+        }
         try {
             step.setOrchestrationId(orchestrationId);
             orchestrationService.addStep(step);
@@ -221,8 +246,12 @@ public class SceneOrchestrationController {
      */
     @PostMapping("/{orchId}/steps/{id}/update")
     public ResponseEntity<?> updateStep(@PathVariable("orchId") Long orchestrationId,
-                                         @PathVariable Long id,
-                                         @RequestBody SceneOrchestrationStep step) {
+            @PathVariable Long id,
+            @RequestBody SceneOrchestrationStep step) {
+        String stepError = validateStep(step);
+        if (stepError != null) {
+            return ResponseEntity.badRequest().body(stepError);
+        }
         try {
             step.setId(id);
             step.setOrchestrationId(orchestrationId);
@@ -231,6 +260,26 @@ public class SceneOrchestrationController {
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
+    }
+
+    /**
+     * 校验步骤参数（nodeType 白名单 + agent 节点 agentId 必填）
+     * <p>
+     * agentId 仅在 nodeType 有值且为 agent 时校验（update 场景可能不带 nodeType）。
+     * </p>
+     *
+     * @param step 步骤实体
+     * @return 错误信息，null 表示校验通过
+     */
+    private String validateStep(SceneOrchestrationStep step) {
+        String nodeType = step.getNodeType() != null ? step.getNodeType() : "agent";
+        if (!VALID_NODE_TYPES.contains(nodeType)) {
+            return "不支持的节点类型: " + nodeType + "，仅支持 " + String.join("/", VALID_NODE_TYPES);
+        }
+        if ("agent".equals(nodeType) && step.getAgentId() == null) {
+            return "Agent 节点必须选择执行 Agent";
+        }
+        return null;
     }
 
     /**
@@ -255,7 +304,7 @@ public class SceneOrchestrationController {
      */
     @PostMapping("/{orchId}/steps/sort")
     public ResponseEntity<?> sortSteps(@PathVariable("orchId") Long orchestrationId,
-                                        @RequestBody Map<String, List<Long>> body) {
+            @RequestBody Map<String, List<Long>> body) {
         List<Long> sortedIds = body.get("sortedIds");
         if (sortedIds == null || sortedIds.isEmpty()) {
             return ResponseEntity.badRequest().body("sortedIds 不能为空");
@@ -268,7 +317,9 @@ public class SceneOrchestrationController {
 
     /**
      * 分页查询编排的执行会话列表
-     * <p>支持编排ID或场景ID（场景模式传场景ID，自动匹配该场景下所有编排的会话）。</p>
+     * <p>
+     * 支持编排ID或场景ID（场景模式传场景ID，自动匹配该场景下所有编排的会话）。
+     * </p>
      *
      * @param orchestrationId 编排ID或场景ID
      * @return 会话分页列表
@@ -290,7 +341,7 @@ public class SceneOrchestrationController {
      */
     @GetMapping("/{orchestrationId}/sessions/{sessionId}")
     public ExecutionSession sessionDetail(@PathVariable("orchestrationId") Long orchestrationId,
-                                          @PathVariable Long sessionId) {
+            @PathVariable Long sessionId) {
         return agentTestSessionService.getOrchestrationSessionDetail(sessionId);
     }
 

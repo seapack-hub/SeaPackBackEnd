@@ -18,14 +18,16 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * 编排执行服务（轻量委派层）
- * <p>负责加载编排配置、按策略委派执行、保存会话记录。
- * 具体执行逻辑由各策略类完成：</p>
+ * <p>
+ * 负责加载编排配置、按策略委派执行、保存会话记录。
+ * 具体执行逻辑由各策略类完成：
+ * </p>
  * <ul>
- *   <li>{@link SequentialStrategy} - 顺序执行（含条件分支、aggregate）</li>
- *   <li>{@link ParallelStrategy} - 并行执行</li>
- *   <li>{@link SupervisorStrategy} - Supervisor 模式（LLM 动态调度）</li>
- *   <li>{@link CrewStrategy} - Crew 模式（Agent 自主委托）</li>
- *   <li>{@link DynamicStrategy} - Dynamic 模式（LLM 动态规划）</li>
+ * <li>{@link SequentialStrategy} - 顺序执行（含条件分支、aggregate）</li>
+ * <li>{@link ParallelStrategy} - 并行执行</li>
+ * <li>{@link SupervisorStrategy} - Supervisor 模式（LLM 动态调度）</li>
+ * <li>{@link CrewStrategy} - Crew 模式（Agent 自主委托）</li>
+ * <li>{@link DynamicStrategy} - Dynamic 模式（LLM 动态规划）</li>
  * </ul>
  */
 @Slf4j
@@ -72,10 +74,12 @@ public class OrchestrationExecuteService {
     /**
      * 执行编排（SSE 流式输出）
      *
-     * @param request 执行请求（orchestrationId, message, history）
-     * @param emitter SSE 发射器
+     * @param request   执行请求（orchestrationId, message, history）
+     * @param userId    用户ID
+     * @param authToken 认证令牌（透传给技能执行，内部 API 调用时携带）
+     * @param emitter   SSE 发射器
      */
-    public void execute(OrchestrationExecuteRequest request, Long userId, SseEmitter emitter) {
+    public void execute(OrchestrationExecuteRequest request, Long userId, String authToken, SseEmitter emitter) {
         long totalStart = System.currentTimeMillis();
         AtomicBoolean isCompleted = new AtomicBoolean(false);
 
@@ -142,8 +146,8 @@ public class OrchestrationExecuteService {
                     "totalSteps", steps.size(),
                     "provider", providerName,
                     "chatModel", config.getChatModel() != null ? config.getChatModel() : "",
-                    "message", "编排 [" + orchestration.getName() + "] 开始执行，策略: " + strategy + "，共 " + steps.size() + " 个步骤"
-            ));
+                    "message",
+                    "编排 [" + orchestration.getName() + "] 开始执行，策略: " + strategy + "，共 " + steps.size() + " 个步骤"));
 
             // 4b. 构建执行参数并委派给策略
             OrchestrationStrategyHandler.ExecuteParams params = new OrchestrationStrategyHandler.ExecuteParams();
@@ -154,6 +158,7 @@ public class OrchestrationExecuteService {
             params.isCompleted = isCompleted;
             params.userId = userId;
             params.orchestration = orchestration;
+            params.authToken = authToken;
 
             OrchestrationStrategyHandler handler = selectStrategy(strategy);
             OrchestrationStrategyHandler.OrchestrationResult result = handler.execute(params);
@@ -172,8 +177,7 @@ public class OrchestrationExecuteService {
             doneData.put("totalSteps", steps.size());
             doneData.put("tokens", Map.of(
                     "prompt", result.tokensPrompt,
-                    "completion", result.tokensCompletion
-            ));
+                    "completion", result.tokensCompletion));
             doneData.put("message", "编排执行完成，共耗时 " + totalDuration + "ms");
             sendSseEvent(emitter, "done", doneData);
 
@@ -201,18 +205,21 @@ public class OrchestrationExecuteService {
 
     /**
      * 执行动态构建的编排步骤（不查数据库，直接执行传入的步骤列表）
-     * <p>用于 LLM 动态选择 Agent 后的多 Agent 协作场景。</p>
+     * <p>
+     * 用于 LLM 动态选择 Agent 后的多 Agent 协作场景。
+     * </p>
      *
      * @param steps     动态构建的步骤列表（stepIndex 从 1 开始）
      * @param strategy  执行策略：sequential / parallel
      * @param message   用户输入消息
      * @param history   对话历史
+     * @param authToken 认证令牌（透传给技能执行）
      * @param emitter   SSE 发射器
      */
     public void executeDynamic(List<SceneOrchestrationStep> steps, String strategy,
-                               String message, List<Map<String, String>> history,
-                               Long sceneId, String conversationId, String requestId,
-                               Long userId, SseEmitter emitter) {
+            String message, List<Map<String, String>> history,
+            Long sceneId, String conversationId, String requestId,
+            Long userId, String authToken, SseEmitter emitter) {
         long totalStart = System.currentTimeMillis();
         AtomicBoolean isCompleted = new AtomicBoolean(false);
 
@@ -241,8 +248,8 @@ public class OrchestrationExecuteService {
                     "totalSteps", steps.size(),
                     "provider", providerName,
                     "chatModel", config.getChatModel() != null ? config.getChatModel() : "",
-                    "message", "LLM 选择了 " + steps.size() + " 个 Agent，策略: " + (strategy != null ? strategy : "sequential")
-            ));
+                    "message",
+                    "LLM 选择了 " + steps.size() + " 个 Agent，策略: " + (strategy != null ? strategy : "sequential")));
 
             // 3. 构造请求对象
             OrchestrationExecuteRequest request = new OrchestrationExecuteRequest();
@@ -262,6 +269,7 @@ public class OrchestrationExecuteService {
             params.emitter = emitter;
             params.isCompleted = isCompleted;
             params.userId = userId;
+            params.authToken = authToken;
 
             OrchestrationStrategyHandler handler = selectStrategy(execStrategy);
             OrchestrationStrategyHandler.OrchestrationResult result = handler.execute(params);
@@ -280,8 +288,7 @@ public class OrchestrationExecuteService {
             doneData.put("totalSteps", steps.size());
             doneData.put("tokens", Map.of(
                     "prompt", result.tokensPrompt,
-                    "completion", result.tokensCompletion
-            ));
+                    "completion", result.tokensCompletion));
             doneData.put("message", "动态编排执行完成，共耗时 " + totalDuration + "ms");
             sendSseEvent(emitter, "done", doneData);
 
@@ -311,7 +318,8 @@ public class OrchestrationExecuteService {
      * 根据策略名称选择对应的策略处理器
      */
     private OrchestrationStrategyHandler selectStrategy(String strategy) {
-        if (strategy == null) strategy = "sequential";
+        if (strategy == null)
+            strategy = "sequential";
         switch (strategy) {
             case "parallel":
                 return parallelStrategy;
@@ -344,9 +352,9 @@ public class OrchestrationExecuteService {
      * 保存编排执行会话
      */
     private void saveSession(OrchestrationExecuteRequest request, SceneOrchestration orchestration,
-                             String output, long durationMs, int tokensPrompt, int tokensCompletion,
-                             String modelName, String status, String errorMessage, Long userId,
-                             List<AgentTraceStep> steps, String strategy) {
+            String output, long durationMs, int tokensPrompt, int tokensCompletion,
+            String modelName, String status, String errorMessage, Long userId,
+            List<AgentTraceStep> steps, String strategy) {
         ExecutionSession session = new ExecutionSession();
         session.setBizType("orchestration");
         session.setBizId(orchestration != null ? orchestration.getId() : 0L);
@@ -373,9 +381,9 @@ public class OrchestrationExecuteService {
      * 保存动态编排执行会话
      */
     private void saveDynamicSession(OrchestrationExecuteRequest request,
-                                    String output, long durationMs, int tokensPrompt, int tokensCompletion,
-                                    String modelName, String status, String errorMessage, Long userId,
-                                    List<AgentTraceStep> steps, String strategy) {
+            String output, long durationMs, int tokensPrompt, int tokensCompletion,
+            String modelName, String status, String errorMessage, Long userId,
+            List<AgentTraceStep> steps, String strategy) {
         ExecutionSession session = new ExecutionSession();
         session.setBizType("orchestration");
         session.setBizId(0L);
@@ -400,13 +408,16 @@ public class OrchestrationExecuteService {
 
     /**
      * 构建链路追踪快照 JSON（新方案结构）
-     * <p>编排执行：{route, orchestrationName, strategy, steps:[{stepIndex, stepName, agentId, agentName,
+     * <p>
+     * 编排执行：{route, orchestrationName, strategy, steps:[{stepIndex, stepName,
+     * agentId, agentName,
      * model, input, output, durationMs, tokensPrompt, tokensCompletion, status}],
-     * totalTokensPrompt, totalTokensCompletion, totalDurationMs}</p>
+     * totalTokensPrompt, totalTokensCompletion, totalDurationMs}
+     * </p>
      */
     private String buildTraceSnapshot(List<AgentTraceStep> steps, long durationMs,
-                                      int tokensPrompt, int tokensCompletion,
-                                      String route, String routeName, String strategy) {
+            int tokensPrompt, int tokensCompletion,
+            String route, String routeName, String strategy) {
         Map<String, Object> snapshot = new LinkedHashMap<>();
         snapshot.put("route", route);
         if (routeName != null && !routeName.isBlank()) {
@@ -427,11 +438,16 @@ public class OrchestrationExecuteService {
                 m.put("output", s.getOutput());
                 Map<String, Object> meta = s.getMetadata();
                 if (meta != null) {
-                    if (meta.containsKey("agentId")) m.put("agentId", meta.get("agentId"));
-                    if (meta.containsKey("agentName")) m.put("agentName", meta.get("agentName"));
-                    if (meta.containsKey("model")) m.put("model", meta.get("model"));
-                    if (meta.containsKey("tokensPrompt")) m.put("tokensPrompt", meta.get("tokensPrompt"));
-                    if (meta.containsKey("tokensCompletion")) m.put("tokensCompletion", meta.get("tokensCompletion"));
+                    if (meta.containsKey("agentId"))
+                        m.put("agentId", meta.get("agentId"));
+                    if (meta.containsKey("agentName"))
+                        m.put("agentName", meta.get("agentName"));
+                    if (meta.containsKey("model"))
+                        m.put("model", meta.get("model"));
+                    if (meta.containsKey("tokensPrompt"))
+                        m.put("tokensPrompt", meta.get("tokensPrompt"));
+                    if (meta.containsKey("tokensCompletion"))
+                        m.put("tokensCompletion", meta.get("tokensCompletion"));
                 }
                 stepMaps.add(m);
             }

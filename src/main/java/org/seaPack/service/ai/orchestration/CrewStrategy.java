@@ -19,8 +19,10 @@ import java.util.stream.Collectors;
 
 /**
  * Crew 执行模式
- * <p>Agent 间通过 delegate_to_agent 工具自主委托任务。
- * 每个 Agent 注入 delegate_to_agent 工具，可自主决定将任务委托给其他 Agent。</p>
+ * <p>
+ * Agent 间通过 delegate_to_agent 工具自主委托任务。
+ * 每个 Agent 注入 delegate_to_agent 工具，可自主决定将任务委托给其他 Agent。
+ * </p>
  */
 @Slf4j
 @Component
@@ -31,8 +33,8 @@ public class CrewStrategy extends OrchestrationStrategyHandler {
     private final AgentMessageMapper agentMessageMapper;
 
     public CrewStrategy(AgentTestChatService agentTestChatService,
-                         AgentMapper agentMapper,
-                         AgentMessageMapper agentMessageMapper) {
+            AgentMapper agentMapper,
+            AgentMessageMapper agentMessageMapper) {
         this.agentTestChatService = agentTestChatService;
         this.agentMapper = agentMapper;
         this.agentMessageMapper = agentMessageMapper;
@@ -41,7 +43,7 @@ public class CrewStrategy extends OrchestrationStrategyHandler {
     @Override
     public OrchestrationResult execute(ExecuteParams params) {
         return executeCrew(params.orchestration, params.steps, params.request,
-                params.emitter, params.isCompleted, params.userId);
+                params.emitter, params.isCompleted, params.userId, params.authToken);
     }
 
     private OrchestrationResult executeCrew(
@@ -50,7 +52,8 @@ public class CrewStrategy extends OrchestrationStrategyHandler {
             OrchestrationExecuteRequest request,
             SseEmitter emitter,
             AtomicBoolean isCompleted,
-            Long userId) {
+            Long userId,
+            String authToken) {
 
         StringBuilder overallOutput = new StringBuilder();
         List<AgentTraceStep> stepInfos = new ArrayList<>();
@@ -74,7 +77,8 @@ public class CrewStrategy extends OrchestrationStrategyHandler {
         Map<Long, Agent> agentMap = new HashMap<>();
         for (Long aid : agentIds) {
             Agent a = agentMapper.selectById(aid);
-            if (a != null) agentMap.put(aid, a);
+            if (a != null)
+                agentMap.put(aid, a);
         }
 
         sendSseEvent(emitter, "orchestration_start", Map.of(
@@ -83,8 +87,7 @@ public class CrewStrategy extends OrchestrationStrategyHandler {
                 "totalSteps", steps.size(),
                 "agentCount", agentIds.size(),
                 "maxRounds", maxRounds,
-                "message", "Crew 模式启动，共 " + agentIds.size() + " 个 Agent 协作"
-        ));
+                "message", "Crew 模式启动，共 " + agentIds.size() + " 个 Agent 协作"));
 
         // 由第一个 Agent 开始执行
         Long currentAgentId = agentIds.get(0);
@@ -92,27 +95,27 @@ public class CrewStrategy extends OrchestrationStrategyHandler {
 
         for (int round = 0; round < maxRounds && !isCompleted.get(); round++) {
             Agent currentAgent = agentMap.get(currentAgentId);
-            if (currentAgent == null) break;
+            if (currentAgent == null)
+                break;
 
             sendSseEvent(emitter, "step_start", Map.of(
                     "stepIndex", round,
                     "stepType", "crew_execution",
-                    "stepName", currentAgent.getName() + " 执行 (轮次 " + (round + 1) + ")"
-            ));
+                    "stepName", currentAgent.getName() + " 执行 (轮次 " + (round + 1) + ")"));
 
             try {
                 AgentTestChatService.AgentStepResult agentResult = agentTestChatService.callAgentStep(
                         currentAgentId, currentInput, request.getHistory(),
                         request.getSceneId(), request.getConversationId(), request.getRequestId(),
-                        emitter, isCompleted, null);
+                        emitter, isCompleted, authToken);
 
-                if (isCompleted.get()) break;
+                if (isCompleted.get())
+                    break;
 
                 if (!agentResult.success) {
                     sendSseEvent(emitter, "step_error", Map.of(
                             "stepIndex", round,
-                            "errorMessage", currentAgent.getName() + " 执行失败: " + agentResult.errorMessage
-                    ));
+                            "errorMessage", currentAgent.getName() + " 执行失败: " + agentResult.errorMessage));
                     break;
                 }
 
@@ -136,8 +139,7 @@ public class CrewStrategy extends OrchestrationStrategyHandler {
                         "stepIndex", round,
                         "status", "success",
                         "durationMs", agentResult.durationMs,
-                        "output", agentResult.output
-                ));
+                        "output", agentResult.output));
 
                 AgentTraceStep traceStep = new AgentTraceStep();
                 traceStep.setStepIndex(round);

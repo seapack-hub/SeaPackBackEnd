@@ -29,7 +29,9 @@ import java.util.stream.Collectors;
 
 /**
  * 统一 AI 对话调度服务
- * <p>按 mode 分发到 4 种对话模式，统一管理取消标志和会话记录。</p>
+ * <p>
+ * 按 mode 分发到 4 种对话模式，统一管理取消标志和会话记录。
+ * </p>
  */
 @Slf4j
 @Service
@@ -57,7 +59,8 @@ public class AiDialogService {
      * 统一取消 - 通知所有正在进行的对话终止
      */
     public void cancelStream(Long userId) {
-        if (userId == null) return;
+        if (userId == null)
+            return;
         log.info("用户请求终止对话, userId={}", userId);
         // 设置 AiDialogService 自身的取消标志
         AtomicBoolean flag = cancelFlags.get(userId);
@@ -70,7 +73,8 @@ public class AiDialogService {
      * 注册取消标志
      */
     private AtomicBoolean registerCancelFlag(Long userId) {
-        if (userId == null) return null;
+        if (userId == null)
+            return null;
         AtomicBoolean flag = new AtomicBoolean(false);
         cancelFlags.put(userId, flag);
         return flag;
@@ -86,7 +90,7 @@ public class AiDialogService {
     }
 
     // ========================================================================
-    //  流式入口
+    // 流式入口
     // ========================================================================
 
     /**
@@ -98,7 +102,7 @@ public class AiDialogService {
      * @param response HTTP 响应（用于 flush/close）
      */
     public void handleStream(AiDialogRequest request, Long userId, String authToken,
-                              SseEmitter emitter, HttpServletResponse response) {
+            SseEmitter emitter, HttpServletResponse response) {
         // 额度校验：调用大模型前检查用户剩余额度，超限则拒绝并返回提示
         String quotaError = tokenQuotaService.checkQuota(userId);
         if (quotaError != null) {
@@ -137,17 +141,17 @@ public class AiDialogService {
     }
 
     // ========================================================================
-    //  Mode 1: 流式 LLM 对话
+    // Mode 1: 流式 LLM 对话
     // ========================================================================
 
     /**
      * 流式 LLM 对话（原 LLMTestChatService.testChatStream 的核心逻辑）
      */
     private void handleLlmStream(AiDialogRequest request, Long userId,
-                                  SseEmitter emitter, HttpServletResponse response) {
+            SseEmitter emitter, HttpServletResponse response) {
         long startTime = System.currentTimeMillis();
         StringBuilder fullContent = new StringBuilder();
-        int[] tokenUsage = {0, 0};
+        int[] tokenUsage = { 0, 0 };
 
         // 注册取消标志
         AtomicBoolean cancelFlag = registerCancelFlag(userId);
@@ -266,8 +270,7 @@ public class AiDialogService {
                 SseEvent.send(emitter, SseEvent.TYPE_DONE, Map.of(
                         "durationMs", totalDuration,
                         "totalDurationMs", totalDuration,
-                        "model", modelName
-                ));
+                        "model", modelName));
             } else {
                 // 6b. 正常完成
                 SseEvent.send(emitter, SseEvent.TYPE_STEP_DONE,
@@ -284,8 +287,14 @@ public class AiDialogService {
             }
 
             // 7. 关闭 SSE
-            try { response.flushBuffer(); } catch (Exception ignored) {}
-            try { response.getOutputStream().close(); } catch (Exception ignored) {}
+            try {
+                response.flushBuffer();
+            } catch (Exception ignored) {
+            }
+            try {
+                response.getOutputStream().close();
+            } catch (Exception ignored) {
+            }
             emitter.complete();
 
             // 8. 异步保存执行记录
@@ -307,7 +316,7 @@ public class AiDialogService {
     }
 
     // ========================================================================
-    //  Mode 2: 非流式 LLM 对话
+    // Mode 2: 非流式 LLM 对话
     // ========================================================================
 
     /**
@@ -350,7 +359,7 @@ public class AiDialogService {
                 messagesToSend.add(Map.of("role", "user", "content", question));
             }
         }
-        
+
         // 2.5 注入 provider 身份系统提示词（在消息列表最前面，确保模型知道自己是谁）
         // 优先从常量类获取，其次从配置文件 system-prompt 覆盖
         String providerIdentity = AiProviderIdentities.get(providerName);
@@ -363,7 +372,7 @@ public class AiDialogService {
             identityMsg.put("content", providerIdentity);
             messagesToSend.add(0, identityMsg);
         }
-        
+
         // 3. 构建请求体（非流式）
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put("model", modelName);
@@ -391,8 +400,11 @@ public class AiDialogService {
 
             Map<String, Object> usage = (Map<String, Object>) apiResponse.get("usage");
             if (usage != null) {
-                promptTokens = usage.get("prompt_tokens") != null ? ((Number) usage.get("prompt_tokens")).intValue() : 0;
-                completionTokens = usage.get("completion_tokens") != null ? ((Number) usage.get("completion_tokens")).intValue() : 0;
+                promptTokens = usage.get("prompt_tokens") != null ? ((Number) usage.get("prompt_tokens")).intValue()
+                        : 0;
+                completionTokens = usage.get("completion_tokens") != null
+                        ? ((Number) usage.get("completion_tokens")).intValue()
+                        : 0;
             }
 
             // 记录本次 LLM 调用的 Token 消耗到统计表
@@ -425,14 +437,14 @@ public class AiDialogService {
     }
 
     // ========================================================================
-    //  Mode 3: Agent 流式对话
+    // Mode 3: Agent 流式对话
     // ========================================================================
 
     /**
      * Agent 流式对话（委托给 AgentTestChatService）
      */
     private void handleAgentStream(AiDialogRequest request, Long userId, String authToken,
-                                    SseEmitter emitter, HttpServletResponse response) {
+            SseEmitter emitter, HttpServletResponse response) {
         if (request.getAgentId() == null) {
             SseEvent.sendError(emitter, "Agent ID 不能为空");
             return;
@@ -448,17 +460,19 @@ public class AiDialogService {
     }
 
     // ========================================================================
-    //  Mode 4: 编排对话（LLM 动态路由）
+    // Mode 4: 编排对话（LLM 动态路由）
     // ========================================================================
 
     /**
      * 编排对话（意图优先路由）
-     * <p>使用 IntentMatchService 分析用户意图，智能选择执行路径：
-     * 编排 / Agent / 动态编排 / 通用 LLM。</p>
+     * <p>
+     * 使用 IntentMatchService 分析用户意图，智能选择执行路径：
+     * 编排 / Agent / 动态编排 / 通用 LLM。
+     * </p>
      */
     @SuppressWarnings("unchecked")
     private void handleOrchestration(AiDialogRequest request, Long userId, String authToken,
-                                      SseEmitter emitter, HttpServletResponse response) {
+            SseEmitter emitter, HttpServletResponse response) {
         Long orchestrationId = request.getOrchestrationId();
         Long sceneId = request.getSceneId();
         Long agentId = request.getAgentId();
@@ -470,8 +484,7 @@ public class AiDialogService {
                 "orchestrationId", orchestrationId != null ? orchestrationId : "",
                 "sceneId", sceneId != null ? sceneId : "",
                 "agentId", agentId != null ? agentId : "",
-                "message", "正在分析请求，确定执行策略..."
-        ));
+                "message", "正在分析请求，确定执行策略..."));
 
         // 2. 加载场景数据
         Scene scene = null;
@@ -512,9 +525,8 @@ public class AiDialogService {
                             "route", "orchestration",
                             "orchestrationName", orch.getName() != null ? orch.getName() : "",
                             "stepCount", steps.size(),
-                            "message", matchResult.reason
-                    ));
-                    orchestrationExecuteService.execute(buildOrchRequest(request), userId, emitter);
+                            "message", matchResult.reason));
+                    orchestrationExecuteService.execute(buildOrchRequest(request), userId, authToken, emitter);
                     return;
                 }
                 // 编排无步骤，降级到 Agent
@@ -529,34 +541,33 @@ public class AiDialogService {
                         "agents", List.of(Map.of("id", selected.getId(),
                                 "name", selected.getName() != null ? selected.getName() : "")),
                         "strategy", "sequential",
-                        "message", matchResult.reason
-                ));
+                        "message", matchResult.reason));
                 SseEvent.send(emitter, SseEvent.TYPE_AGENT_SELECT, Map.of(
                         "agents", List.of(Map.of("id", selected.getId(),
                                 "name", selected.getName() != null ? selected.getName() : "",
                                 "reason", matchResult.reason)),
-                        "strategy", "sequential"
-                ));
+                        "strategy", "sequential"));
                 request.setAgentId(selected.getId());
-                if (scene != null) request.setSceneId(scene.getId());
+                if (scene != null)
+                    request.setSceneId(scene.getId());
                 agentTestChatService.testChatStream(request, userId, emitter, authToken, response);
             }
             case IntentMatchService.ROUTE_DYNAMIC -> {
                 // 动态编排（多 Agent 协作）
                 StringBuilder names = new StringBuilder();
                 for (int i = 0; i < matchResult.agents.size(); i++) {
-                    if (i > 0) names.append(", ");
+                    if (i > 0)
+                        names.append(", ");
                     names.append(matchResult.agents.get(i).getName() != null
-                            ? matchResult.agents.get(i).getName() : "Agent");
+                            ? matchResult.agents.get(i).getName()
+                            : "Agent");
                 }
                 SseEvent.send(emitter, SseEvent.TYPE_ROUTE_RESULT, Map.of(
                         "route", "dynamic_orchestration",
-                        "agents", matchResult.agents.stream().map(a ->
-                                (Object) Map.of("id", a.getId(),
-                                        "name", a.getName() != null ? a.getName() : "")).collect(Collectors.toList()),
+                        "agents", matchResult.agents.stream().map(a -> (Object) Map.of("id", a.getId(),
+                                "name", a.getName() != null ? a.getName() : "")).collect(Collectors.toList()),
                         "strategy", matchResult.strategy != null ? matchResult.strategy : "sequential",
-                        "message", matchResult.reason
-                ));
+                        "message", matchResult.reason));
                 List<Map<String, Object>> agentMaps = new ArrayList<>();
                 for (Agent a : matchResult.agents) {
                     Map<String, Object> m = new HashMap<>();
@@ -568,14 +579,13 @@ public class AiDialogService {
                 orchestrationExecuteService.executeDynamic(dynamicSteps,
                         matchResult.strategy != null ? matchResult.strategy : "sequential",
                         userMessage, request.getHistory(), request.getSceneId(),
-                        request.getConversationId(), request.getRequestId(), userId, emitter);
+                        request.getConversationId(), request.getRequestId(), userId, authToken, emitter);
             }
             default -> {
                 // 通用 LLM
                 SseEvent.send(emitter, SseEvent.TYPE_ROUTE_RESULT, Map.of(
                         "route", "llm",
-                        "message", matchResult.reason
-                ));
+                        "message", matchResult.reason));
                 handleLlmStream(request, userId, emitter, response);
             }
         }
@@ -585,9 +595,9 @@ public class AiDialogService {
      * Agent 路由降级（编排无步骤或匹配失败时）
      */
     private void fallBackToAgent(IntentMatchService.MatchResult matchResult,
-                                 AiDialogRequest request, Scene scene,
-                                 Long userId, String authToken,
-                                 SseEmitter emitter, HttpServletResponse response) {
+            AiDialogRequest request, Scene scene,
+            Long userId, String authToken,
+            SseEmitter emitter, HttpServletResponse response) {
         if (!matchResult.agents.isEmpty()) {
             Agent agent = matchResult.agents.get(0);
             SseEvent.send(emitter, SseEvent.TYPE_ROUTE_RESULT, Map.of(
@@ -596,22 +606,21 @@ public class AiDialogService {
                             "name", agent.getName() != null ? agent.getName() : "")),
                     "strategy", "sequential",
                     "fallback", true,
-                    "message", "编排执行降级，使用 Agent [" + agent.getName() + "]"
-            ));
+                    "message", "编排执行降级，使用 Agent [" + agent.getName() + "]"));
             request.setAgentId(agent.getId());
-            if (scene != null) request.setSceneId(scene.getId());
+            if (scene != null)
+                request.setSceneId(scene.getId());
             agentTestChatService.testChatStream(request, userId, emitter, authToken, response);
         } else {
             SseEvent.send(emitter, SseEvent.TYPE_ROUTE_RESULT, Map.of(
                     "route", "llm",
-                    "message", "无可用 Agent，降级到通用 LLM"
-            ));
+                    "message", "无可用 Agent，降级到通用 LLM"));
             handleLlmStream(request, userId, emitter, response);
         }
     }
 
     // ========================================================================
-    //  动态步骤构建
+    // 动态步骤构建
     // ========================================================================
 
     /**
@@ -649,7 +658,8 @@ public class AiDialogService {
     private OrchestrationExecuteRequest buildOrchRequest(AiDialogRequest request) {
         OrchestrationExecuteRequest orchRequest = new OrchestrationExecuteRequest();
         orchRequest.setOrchestrationId(request.getOrchestrationId() != null
-                ? request.getOrchestrationId() : request.getSceneId());
+                ? request.getOrchestrationId()
+                : request.getSceneId());
         orchRequest.setMessage(request.getQuestion() != null ? request.getQuestion()
                 : extractLastMessage(request.getMessages()));
         orchRequest.setHistory(request.getHistory());
@@ -662,14 +672,15 @@ public class AiDialogService {
     }
 
     // ========================================================================
-    //  辅助方法
+    // 辅助方法
     // ========================================================================
 
     /**
      * 提取最后一条消息内容
      */
     private String extractLastMessage(List<ChatRequest.MessageDTO> messages) {
-        if (messages == null || messages.isEmpty()) return "";
+        if (messages == null || messages.isEmpty())
+            return "";
         return messages.get(messages.size() - 1).getContent();
     }
 
@@ -691,8 +702,8 @@ public class AiDialogService {
      * 保存 LLM 执行会话
      */
     private void saveLlmSession(AiDialogRequest request, String reply, int durationMs,
-                                 int promptTokens, int completionTokens, String modelName,
-                                 String status, String errorMessage, Long userId) {
+            int promptTokens, int completionTokens, String modelName,
+            String status, String errorMessage, Long userId) {
         ExecutionSession session = new ExecutionSession();
         session.setBizType("chat");
         session.setBizId(0L);
@@ -727,17 +738,28 @@ public class AiDialogService {
 
     /**
      * 发送 done 事件并关闭 SSE 连接
-     * <p>在异常路径中调用，确保前端能收到 done 事件并关闭连接。</p>
+     * <p>
+     * 在异常路径中调用，确保前端能收到 done 事件并关闭连接。
+     * </p>
      */
     private void sendDoneAndClose(SseEmitter emitter, HttpServletResponse response, String errorMessage) {
         try {
             SseEvent.send(emitter, SseEvent.TYPE_DONE, Map.of(
                     "status", "error",
-                    "error", errorMessage != null ? errorMessage : "未知错误"
-            ));
-        } catch (Exception ignored) {}
-        try { response.flushBuffer(); } catch (Exception ignored) {}
-        try { response.getOutputStream().close(); } catch (Exception ignored) {}
-        try { emitter.complete(); } catch (Exception ignored) {}
+                    "error", errorMessage != null ? errorMessage : "未知错误"));
+        } catch (Exception ignored) {
+        }
+        try {
+            response.flushBuffer();
+        } catch (Exception ignored) {
+        }
+        try {
+            response.getOutputStream().close();
+        } catch (Exception ignored) {
+        }
+        try {
+            emitter.complete();
+        } catch (Exception ignored) {
+        }
     }
 }

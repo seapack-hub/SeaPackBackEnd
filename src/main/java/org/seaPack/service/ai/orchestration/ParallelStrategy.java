@@ -14,8 +14,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * 并行执行策略
- * <p>所有步骤同时调用各自的 Agent，最终合并输出。
- * 注意：并行模式下 input_mapping 不能引用其他步骤的输出（因为同时执行）。</p>
+ * <p>
+ * 所有步骤同时调用各自的 Agent，最终合并输出。
+ * 注意：并行模式下 input_mapping 不能引用其他步骤的输出（因为同时执行）。
+ * </p>
  */
 @Slf4j
 @Component
@@ -29,7 +31,8 @@ public class ParallelStrategy extends OrchestrationStrategyHandler {
 
     @Override
     public OrchestrationResult execute(ExecuteParams params) {
-        return executeParallel(params.steps, params.request, params.emitter, params.isCompleted, params.userId);
+        return executeParallel(params.steps, params.request, params.emitter, params.isCompleted, params.userId,
+                params.authToken);
     }
 
     private OrchestrationResult executeParallel(
@@ -37,11 +40,12 @@ public class ParallelStrategy extends OrchestrationStrategyHandler {
             OrchestrationExecuteRequest request,
             SseEmitter emitter,
             AtomicBoolean isCompleted,
-            Long userId) {
+            Long userId,
+            String authToken) {
 
         StringBuilder overallOutput = new StringBuilder();
-        int[] totalPrompt = {0};
-        int[] totalCompletion = {0};
+        int[] totalPrompt = { 0 };
+        int[] totalCompletion = { 0 };
         List<AgentTraceStep> stepInfos = Collections.synchronizedList(new ArrayList<>());
         int stepCount = steps.size();
         String[] orderedOutputs = new String[stepCount];
@@ -55,13 +59,13 @@ public class ParallelStrategy extends OrchestrationStrategyHandler {
             int stepIdx = step.getStepIndex();
 
             futures[i] = CompletableFuture.runAsync(() -> {
-                if (isCompleted.get()) return;
+                if (isCompleted.get())
+                    return;
 
                 long stepStart = System.currentTimeMillis();
                 sendSseEvent(emitter, "step_start", Map.of(
                         "stepIndex", stepIdx, "stepType", "llm",
-                        "stepName", step.getStepName() != null ? step.getStepName() : ("步骤" + stepIdx)
-                ));
+                        "stepName", step.getStepName() != null ? step.getStepName() : ("步骤" + stepIdx)));
 
                 AgentTraceStep traceStep = new AgentTraceStep();
                 traceStep.setStepIndex(stepIdx);
@@ -88,16 +92,18 @@ public class ParallelStrategy extends OrchestrationStrategyHandler {
                     sendSseEvent(emitter, "step_detail", Map.of(
                             "stepIndex", stepIdx, "phase", "input_resolved",
                             "inputMode", step.getInputMode() != null ? step.getInputMode() : "user_input",
-                            "resolvedInput", stepInput.length() > 500 ? stepInput.substring(0, 500) + "...(" + stepInput.length() + "字符)" : stepInput,
-                            "message", "输入解析完成"
-                    ));
+                            "resolvedInput",
+                            stepInput.length() > 500 ? stepInput.substring(0, 500) + "...(" + stepInput.length() + "字符)"
+                                    : stepInput,
+                            "message", "输入解析完成"));
 
                     AgentTestChatService.AgentStepResult agentResult = agentTestChatService.callAgentStep(
                             step.getAgentId(), stepInput, request.getHistory(),
                             request.getSceneId(), request.getConversationId(), request.getRequestId(),
-                            emitter, isCompleted, null);
+                            emitter, isCompleted, authToken);
 
-                    if (isCompleted.get()) return;
+                    if (isCompleted.get())
+                        return;
 
                     if (agentResult.success) {
                         orderedOutputs[index] = agentResult.output;
@@ -108,9 +114,9 @@ public class ParallelStrategy extends OrchestrationStrategyHandler {
                         sendSseEvent(emitter, "step_done", Map.of(
                                 "stepIndex", stepIdx, "status", "success", "durationMs", stepDuration,
                                 "output", agentResult.output,
-                                "tokensPrompt", agentResult.tokensPrompt, "tokensCompletion", agentResult.tokensCompletion,
-                                "model", agentResult.modelName
-                        ));
+                                "tokensPrompt", agentResult.tokensPrompt, "tokensCompletion",
+                                agentResult.tokensCompletion,
+                                "model", agentResult.modelName));
 
                         traceStep.setStatus("success");
                         traceStep.setDurationMs(stepDuration);
@@ -123,7 +129,8 @@ public class ParallelStrategy extends OrchestrationStrategyHandler {
                         traceStep.setMetadata(stepMeta);
                     } else {
                         orderedOutputs[index] = "";
-                        sendSseEvent(emitter, "step_error", Map.of("stepIndex", stepIdx, "errorMessage", agentResult.errorMessage));
+                        sendSseEvent(emitter, "step_error",
+                                Map.of("stepIndex", stepIdx, "errorMessage", agentResult.errorMessage));
                         traceStep.setStatus("fail");
                         traceStep.setDurationMs(System.currentTimeMillis() - stepStart);
                         traceStep.setOutput("执行失败: " + agentResult.errorMessage);

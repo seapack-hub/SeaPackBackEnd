@@ -181,8 +181,8 @@ LIMIT 0, 1000
 
 -- Date: 2026-09-04 16:58
 */
-INSERT INTO sea_pack.ai_scene_orchestration (`id`,`scene_id`,`name`,`code`,`description`,`strategy`,`status`,`sort_order`,`created_by`,`created_at`,`updated_at`) VALUES (1,1,'写作+翻译流程','write_translate','先写作，后翻译','sequential',1,0,1,'2026-07-28 10:38:05','2026-07-28 10:38:05');
-INSERT INTO sea_pack.ai_scene_orchestration (`id`,`scene_id`,`name`,`code`,`description`,`strategy`,`status`,`sort_order`,`created_by`,`created_at`,`updated_at`) VALUES (2,4,'股票分析','stock-analysis','股票分析的场景','auto',1,0,1,'2026-07-30 13:42:39','2026-07-30 13:42:39');
+INSERT INTO sea_pack.ai_scene_orchestration (`id`,`scene_id`,`name`,`code`,`description`,`strategy`,`supervisor_agent_id`,`max_rounds`,`context_strategy`,`status`,`sort_order`,`created_by`,`created_at`,`updated_at`) VALUES (1,1,'写作+翻译流程','write_translate','先写作，后翻译','sequential',NULL,5,'structured',1,0,1,'2026-07-28 10:38:05','2026-07-28 10:38:05');
+INSERT INTO sea_pack.ai_scene_orchestration (`id`,`scene_id`,`name`,`code`,`description`,`strategy`,`supervisor_agent_id`,`max_rounds`,`context_strategy`,`status`,`sort_order`,`created_by`,`created_at`,`updated_at`) VALUES (2,4,'股票分析','stock-analysis','股票分析的场景','sequential',NULL,5,'structured',1,0,1,'2026-07-30 13:42:39','2026-07-30 13:42:39');
 
 
 /*

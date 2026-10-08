@@ -42,7 +42,7 @@ public class SceneOrchestration {
 
     @Column(name = "strategy")
     @Comment("执行策略：sequential-顺序 | parallel-并行 | supervisor-总控调度 | crew-角色协作 | dynamic-动态规划")
-    private String strategy;
+    private String strategy = "sequential";
 
     @Column(name = "supervisor_agent_id")
     @Comment("Supervisor Agent ID，有值时由该Agent动态调度，无值时按步骤执行")
@@ -50,19 +50,19 @@ public class SceneOrchestration {
 
     @Column(name = "max_rounds")
     @Comment("Agent间最大协作轮次（防止死循环），默认5")
-    private Integer maxRounds;
+    private Integer maxRounds = 5;
 
     @Column(name = "context_strategy")
     @Comment("上下文传递策略：text_only-纯文本 | structured-结构化JSON | shared_state-共享状态对象")
-    private String contextStrategy;
+    private String contextStrategy = "structured";
 
     @Column(name = "status")
     @Comment("状态：1启用 0禁用")
-    private Integer status;
+    private Integer status = 1;
 
     @Column(name = "sort_order")
     @Comment("排序号")
-    private Integer sortOrder;
+    private Integer sortOrder = 0;
 
     @Column(name = "created_by")
     @Comment("创建人ID")

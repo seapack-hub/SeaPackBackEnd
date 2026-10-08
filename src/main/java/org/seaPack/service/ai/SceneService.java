@@ -220,6 +220,9 @@ public class SceneService {
             co.setCode(o.getCode());
             co.setDescription(o.getDescription());
             co.setStrategy(o.getStrategy());
+            co.setSupervisorAgentId(o.getSupervisorAgentId());
+            co.setMaxRounds(o.getMaxRounds());
+            co.setContextStrategy(o.getContextStrategy());
             co.setStatus(o.getStatus());
             co.setSortOrder(o.getSortOrder());
             co.setCreatedBy(o.getCreatedBy());
@@ -231,9 +234,15 @@ public class SceneService {
                 cs.setOrchestrationId(co.getId());
                 cs.setStepIndex(s.getStepIndex());
                 cs.setStepName(s.getStepName());
+                cs.setNodeType(s.getNodeType());
                 cs.setAgentId(s.getAgentId());
                 cs.setInputMapping(s.getInputMapping());
+                cs.setInputMode(s.getInputMode());
+                cs.setOutputTarget(s.getOutputTarget());
                 cs.setCondition(s.getCondition());
+                cs.setBranchTrueStep(s.getBranchTrueStep());
+                cs.setBranchFalseStep(s.getBranchFalseStep());
+                cs.setDescription(s.getDescription());
                 cs.setRetryCount(s.getRetryCount());
                 cs.setTimeoutMs(s.getTimeoutMs());
                 cs.setStatus(s.getStatus());

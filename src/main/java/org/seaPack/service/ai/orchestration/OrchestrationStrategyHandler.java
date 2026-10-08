@@ -10,8 +10,10 @@ import java.util.*;
 
 /**
  * 编排策略执行基类
- * <p>提供共享的结果类、SSE 发送、输入解析、条件评估等工具方法。
- * 各策略子类只需实现 {@link #execute} 方法。</p>
+ * <p>
+ * 提供共享的结果类、SSE 发送、输入解析、条件评估等工具方法。
+ * 各策略子类只需实现 {@link #execute} 方法。
+ * </p>
  */
 @Slf4j
 public abstract class OrchestrationStrategyHandler {
@@ -43,7 +45,8 @@ public abstract class OrchestrationStrategyHandler {
     /**
      * 根据 inputMode 解析节点输入
      */
-    public static String resolveInput(SceneOrchestrationStep step, Map<Integer, String> stepOutputs, String userMessage) {
+    public static String resolveInput(SceneOrchestrationStep step, Map<Integer, String> stepOutputs,
+            String userMessage) {
         String inputMode = step.getInputMode() != null ? step.getInputMode() : "user_input";
         switch (inputMode) {
             case "prev_output":
@@ -53,10 +56,7 @@ public abstract class OrchestrationStrategyHandler {
                 }
                 return userMessage;
             case "shared_state":
-                if (step.getInputMapping() != null && step.getInputMapping().startsWith("state:")) {
-                    String key = step.getInputMapping().substring(6);
-                    return "[shared_state:" + key + "]";
-                }
+                // 共享状态暂未实现，回退用户原始输入，避免占位文本污染 LLM
                 return userMessage;
             case "supervisor_instruction":
                 if (step.getInputMapping() != null) {
@@ -84,7 +84,8 @@ public abstract class OrchestrationStrategyHandler {
     /**
      * 获取下一个要执行的步骤的 stepIndex
      */
-    public static Integer getNextStepIndex(SceneOrchestrationStep currentStep, Map<Integer, SceneOrchestrationStep> stepMap) {
+    public static Integer getNextStepIndex(SceneOrchestrationStep currentStep,
+            Map<Integer, SceneOrchestrationStep> stepMap) {
         List<Integer> sortedKeys = new ArrayList<>(stepMap.keySet());
         Collections.sort(sortedKeys);
         int pos = sortedKeys.indexOf(currentStep.getStepIndex());
@@ -96,9 +97,12 @@ public abstract class OrchestrationStrategyHandler {
 
     /**
      * 解析输入映射（旧方式兼容）
-     * <p>支持占位符替换：${step_N.output} 引用某步骤输出，${user_message} 引用用户原始输入</p>
-    */
-    public static String resolveInputMapping(String inputMapping, Map<Integer, String> stepOutputs, String userMessage) {
+     * <p>
+     * 支持占位符替换：${step_N.output} 引用某步骤输出，${user_message} 引用用户原始输入
+     * </p>
+     */
+    public static String resolveInputMapping(String inputMapping, Map<Integer, String> stepOutputs,
+            String userMessage) {
         if (inputMapping == null || inputMapping.isBlank()) {
             return userMessage;
         }
@@ -114,13 +118,37 @@ public abstract class OrchestrationStrategyHandler {
     }
 
     /**
-     * 评估条件表达式
-     * <p>支持 ${step_N.status} == "success" 等简单条件</p>
+     * 条件表达式求值结果
+     * <p>
+     * valid=false 表示表达式无法解析（如缺少 ==），由调用方决定降级策略。
+     * </p>
      */
-    public static boolean evaluateCondition(String condition, Map<Integer, String> stepOutputs,
-                                             Map<Integer, String> stepStatuses) {
+    public static class ConditionResult {
+        /** 条件求值结果（valid=false 时无意义） */
+        public final boolean met;
+        /** 表达式是否可解析 */
+        public final boolean valid;
+        /** 非法表达式的错误信息 */
+        public final String error;
+
+        public ConditionResult(boolean met, boolean valid, String error) {
+            this.met = met;
+            this.valid = valid;
+            this.error = error;
+        }
+    }
+
+    /**
+     * 评估条件表达式
+     * <p>
+     * 支持 ${step_N.status} == "值" 和 ${step_N.output} == "值" 两种占位符，仅支持 == 运算符。
+     * 表达式无法解析时返回 valid=false，不再静默判真。
+     * </p>
+     */
+    public static ConditionResult evaluateCondition(String condition, Map<Integer, String> stepOutputs,
+            Map<Integer, String> stepStatuses) {
         if (condition == null || condition.isBlank()) {
-            return true;
+            return new ConditionResult(true, true, null);
         }
         String evalExpr = condition;
         // 替换 ${step_N.status}
@@ -128,17 +156,23 @@ public abstract class OrchestrationStrategyHandler {
             String placeholder = "${step_" + entry.getKey() + ".status}";
             evalExpr = evalExpr.replace(placeholder, entry.getValue() != null ? entry.getValue() : "");
         }
-        // 简单解析：if contains "=="
+        // 替换 ${step_N.output}
+        for (Map.Entry<Integer, String> entry : stepOutputs.entrySet()) {
+            String placeholder = "${step_" + entry.getKey() + ".output}";
+            evalExpr = evalExpr.replace(placeholder, entry.getValue() != null ? entry.getValue() : "");
+        }
+        // 解析：if contains "=="
         if (evalExpr.contains("==")) {
             String[] parts = evalExpr.split("==", 2);
             if (parts.length == 2) {
                 String left = parts[0].trim();
                 String right = parts[1].trim().replace("\"", "");
-                return left.equals(right);
+                return new ConditionResult(left.equals(right), true, null);
             }
         }
-        // 默认 true
-        return true;
+        // 无法解析：显式报错，不再默认 true
+        return new ConditionResult(false, false,
+                "条件表达式无法解析（仅支持 ${step_N.status} == \"值\" 或 ${step_N.output} == \"值\"）: " + condition);
     }
 
     // ===== 抽象方法 =====
@@ -163,5 +197,7 @@ public abstract class OrchestrationStrategyHandler {
         public Long userId;
         /** 编排实体（Supervisor/Crew/Dynamic 模式需要） */
         public org.seaPack.model.ai.SceneOrchestration orchestration;
+        /** 认证令牌（透传给技能执行，内部 API 调用时携带，避免 403） */
+        public String authToken;
     }
 }

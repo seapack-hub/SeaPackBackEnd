@@ -18,8 +18,10 @@ import java.util.stream.Collectors;
 
 /**
  * Dynamic 执行模式（LLM 动态规划）
- * <p>LLM 根据用户问题 + Agent 描述动态生成执行计划，
- * 然后按计划依次执行各 Agent。</p>
+ * <p>
+ * LLM 根据用户问题 + Agent 描述动态生成执行计划，
+ * 然后按计划依次执行各 Agent。
+ * </p>
  */
 @Slf4j
 @Component
@@ -30,8 +32,8 @@ public class DynamicStrategy extends OrchestrationStrategyHandler {
     private final ObjectMapper objectMapper;
 
     public DynamicStrategy(AgentTestChatService agentTestChatService,
-                           AgentMapper agentMapper,
-                           ObjectMapper objectMapper) {
+            AgentMapper agentMapper,
+            ObjectMapper objectMapper) {
         this.agentTestChatService = agentTestChatService;
         this.agentMapper = agentMapper;
         this.objectMapper = objectMapper;
@@ -40,7 +42,7 @@ public class DynamicStrategy extends OrchestrationStrategyHandler {
     @Override
     public OrchestrationResult execute(ExecuteParams params) {
         return executeDynamicPlan(params.orchestration, params.steps, params.request,
-                params.emitter, params.isCompleted, params.userId);
+                params.emitter, params.isCompleted, params.userId, params.authToken);
     }
 
     private OrchestrationResult executeDynamicPlan(
@@ -49,7 +51,8 @@ public class DynamicStrategy extends OrchestrationStrategyHandler {
             OrchestrationExecuteRequest request,
             SseEmitter emitter,
             AtomicBoolean isCompleted,
-            Long userId) {
+            Long userId,
+            String authToken) {
 
         StringBuilder overallOutput = new StringBuilder();
         List<AgentTraceStep> stepInfos = new ArrayList<>();
@@ -81,15 +84,13 @@ public class DynamicStrategy extends OrchestrationStrategyHandler {
                 "strategy", "dynamic",
                 "totalSteps", steps.size(),
                 "agentCount", agentIds.size(),
-                "message", "Dynamic 模式启动，LLM 将动态规划执行方案"
-        ));
+                "message", "Dynamic 模式启动，LLM 将动态规划执行方案"));
 
         // Step 1: LLM 生成执行计划
         sendSseEvent(emitter, "step_start", Map.of(
                 "stepIndex", 0,
                 "stepType", "plan_generation",
-                "stepName", "执行计划生成"
-        ));
+                "stepName", "执行计划生成"));
 
         try {
             String planPrompt = agentListDesc.toString() +
@@ -102,7 +103,7 @@ public class DynamicStrategy extends OrchestrationStrategyHandler {
             AgentTestChatService.AgentStepResult planResult = agentTestChatService.callAgentStep(
                     agentIds.get(0), planPrompt, null,
                     request.getSceneId(), request.getConversationId(), request.getRequestId(),
-                    null, isCompleted, null); // emitter=null，不推送内部步骤
+                    null, isCompleted, authToken); // emitter=null，不推送内部步骤
 
             if (isCompleted.get()) {
                 OrchestrationResult r = new OrchestrationResult();
@@ -117,8 +118,10 @@ public class DynamicStrategy extends OrchestrationStrategyHandler {
                     "stepIndex", 0,
                     "status", "success",
                     "durationMs", planResult.durationMs,
-                    "output", planResult.output != null ? planResult.output.substring(0, Math.min(200, planResult.output.length())) : ""
-            ));
+                    "output",
+                    planResult.output != null
+                            ? planResult.output.substring(0, Math.min(200, planResult.output.length()))
+                            : ""));
 
             // Step 2: 解析计划并执行
             String planOutput = planResult.output != null ? planResult.output.trim() : "[]";
@@ -152,15 +155,15 @@ public class DynamicStrategy extends OrchestrationStrategyHandler {
                 sendSseEvent(emitter, "step_start", Map.of(
                         "stepIndex", i + 1,
                         "stepType", "dynamic_execution",
-                        "stepName", "执行计划步骤 " + (i + 1)
-                ));
+                        "stepName", "执行计划步骤 " + (i + 1)));
 
                 AgentTestChatService.AgentStepResult execResult = agentTestChatService.callAgentStep(
                         planAgentId, task, request.getHistory(),
                         request.getSceneId(), request.getConversationId(), request.getRequestId(),
-                        emitter, isCompleted, null);
+                        emitter, isCompleted, authToken);
 
-                if (isCompleted.get()) break;
+                if (isCompleted.get())
+                    break;
 
                 if (execResult.success) {
                     totalPrompt += execResult.tokensPrompt;
@@ -177,8 +180,7 @@ public class DynamicStrategy extends OrchestrationStrategyHandler {
                             "stepIndex", i + 1,
                             "status", "success",
                             "durationMs", execResult.durationMs,
-                            "output", execResult.output
-                    ));
+                            "output", execResult.output));
 
                     Agent traceAgent = agentMap.get(planAgentId);
                     AgentTraceStep traceStep = new AgentTraceStep();
@@ -198,8 +200,7 @@ public class DynamicStrategy extends OrchestrationStrategyHandler {
                 } else {
                     sendSseEvent(emitter, "step_error", Map.of(
                             "stepIndex", i + 1,
-                            "errorMessage", execResult.errorMessage
-                    ));
+                            "errorMessage", execResult.errorMessage));
                 }
             }
 

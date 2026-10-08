@@ -18,10 +18,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Supervisor 执行模式
- * <p>一个总控 Agent 通过 Function Calling 动态调度 Worker Agent。
+ * <p>
+ * 一个总控 Agent 通过 Function Calling 动态调度 Worker Agent。
  * Supervisor 的 system prompt 中注入两个工具：
  * select_agent(agent_id, task_description) — 选择 Worker 执行任务
- * aggregate_results(final_answer) — 汇总所有结果输出最终答案</p>
+ * aggregate_results(final_answer) — 汇总所有结果输出最终答案
+ * </p>
  */
 @Slf4j
 @Component
@@ -32,8 +34,8 @@ public class SupervisorStrategy extends OrchestrationStrategyHandler {
     private final AgentMessageMapper agentMessageMapper;
 
     public SupervisorStrategy(AgentTestChatService agentTestChatService,
-                               AgentMapper agentMapper,
-                               AgentMessageMapper agentMessageMapper) {
+            AgentMapper agentMapper,
+            AgentMessageMapper agentMessageMapper) {
         this.agentTestChatService = agentTestChatService;
         this.agentMapper = agentMapper;
         this.agentMessageMapper = agentMessageMapper;
@@ -42,7 +44,7 @@ public class SupervisorStrategy extends OrchestrationStrategyHandler {
     @Override
     public OrchestrationResult execute(ExecuteParams params) {
         return executeSupervisor(params.orchestration, params.steps, params.request,
-                params.emitter, params.isCompleted, params.userId);
+                params.emitter, params.isCompleted, params.userId, params.authToken);
     }
 
     private OrchestrationResult executeSupervisor(
@@ -51,7 +53,8 @@ public class SupervisorStrategy extends OrchestrationStrategyHandler {
             OrchestrationExecuteRequest request,
             SseEmitter emitter,
             AtomicBoolean isCompleted,
-            Long userId) {
+            Long userId,
+            String authToken) {
 
         StringBuilder overallOutput = new StringBuilder();
         List<AgentTraceStep> stepInfos = new ArrayList<>();
@@ -102,8 +105,7 @@ public class SupervisorStrategy extends OrchestrationStrategyHandler {
                 "supervisorAgentId", supervisorAgentId,
                 "workerCount", workerAgents.size(),
                 "maxRounds", maxRounds,
-                "message", "Supervisor 模式启动，共 " + workerAgents.size() + " 个 Worker Agent"
-        ));
+                "message", "Supervisor 模式启动，共 " + workerAgents.size() + " 个 Worker Agent"));
 
         // 构建 Supervisor 的可用工具（select_agent + aggregate_results）
         List<Map<String, Object>> supervisorTools = new ArrayList<>();
@@ -150,23 +152,22 @@ public class SupervisorStrategy extends OrchestrationStrategyHandler {
             sendSseEvent(emitter, "step_start", Map.of(
                     "stepIndex", round,
                     "stepType", "supervisor_round",
-                    "stepName", "Supervisor 轮次 " + (round + 1)
-            ));
+                    "stepName", "Supervisor 轮次 " + (round + 1)));
 
             try {
                 AgentTestChatService.AgentStepResult supervisorResult = agentTestChatService.callAgentStep(
                         supervisorAgentId, supervisorPrompt + "\n\n当前用户问题：" + request.getMessage(),
                         conversationHistory, request.getSceneId(),
                         request.getConversationId(), request.getRequestId(),
-                        emitter, isCompleted, null);
+                        emitter, isCompleted, authToken);
 
-                if (isCompleted.get()) break;
+                if (isCompleted.get())
+                    break;
 
                 if (!supervisorResult.success) {
                     sendSseEvent(emitter, "step_error", Map.of(
                             "stepIndex", round,
-                            "errorMessage", "Supervisor 执行失败: " + supervisorResult.errorMessage
-                    ));
+                            "errorMessage", "Supervisor 执行失败: " + supervisorResult.errorMessage));
                     break;
                 }
 
@@ -192,8 +193,7 @@ public class SupervisorStrategy extends OrchestrationStrategyHandler {
                         "status", "success",
                         "durationMs", supervisorResult.durationMs,
                         "output", supervisorResult.output,
-                        "round", round + 1
-                ));
+                        "round", round + 1));
 
                 // 如果 Supervisor 输出包含 aggregate_results 的结果，说明已完成
                 if (supervisorResult.output != null && supervisorResult.output.contains("[AGGREGATED]")) {

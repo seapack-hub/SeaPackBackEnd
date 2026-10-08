@@ -12,7 +12,9 @@ import java.util.List;
 
 /**
  * 场景编排服务
- * <p>提供编排策略和步骤的 CRUD、复制、排序等功能。</p>
+ * <p>
+ * 提供编排策略和步骤的 CRUD、复制、排序等功能。
+ * </p>
  */
 @Service
 public class SceneOrchestrationService {
@@ -151,6 +153,7 @@ public class SceneOrchestrationService {
         copy.setCode(source.getCode() + "_copy");
         copy.setDescription(source.getDescription());
         copy.setStrategy(source.getStrategy());
+        copy.setSupervisorAgentId(source.getSupervisorAgentId());
         copy.setMaxRounds(source.getMaxRounds());
         copy.setContextStrategy(source.getContextStrategy());
         copy.setStatus(source.getStatus());
@@ -165,9 +168,15 @@ public class SceneOrchestrationService {
             cs.setOrchestrationId(newId);
             cs.setStepIndex(s.getStepIndex());
             cs.setStepName(s.getStepName());
+            cs.setNodeType(s.getNodeType());
             cs.setAgentId(s.getAgentId());
             cs.setInputMapping(s.getInputMapping());
+            cs.setInputMode(s.getInputMode());
+            cs.setOutputTarget(s.getOutputTarget());
             cs.setCondition(s.getCondition());
+            cs.setBranchTrueStep(s.getBranchTrueStep());
+            cs.setBranchFalseStep(s.getBranchFalseStep());
+            cs.setDescription(s.getDescription());
             cs.setRetryCount(s.getRetryCount());
             cs.setTimeoutMs(s.getTimeoutMs());
             cs.setStatus(s.getStatus());
@@ -225,7 +234,9 @@ public class SceneOrchestrationService {
 
     /**
      * 批量排序步骤
-     * <p>根据传入的 stepIds 顺序，重新分配 step_index 为 1, 2, 3...</p>
+     * <p>
+     * 根据传入的 stepIds 顺序，重新分配 step_index 为 1, 2, 3...
+     * </p>
      *
      * @param orchestrationId 编排ID
      * @param stepIds         按新排序排列的步骤ID列表
