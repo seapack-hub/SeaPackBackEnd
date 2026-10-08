@@ -36,6 +36,9 @@ public class ToolCallDispatcher {
     @Autowired
     private List<SkillHandler> handlers;
 
+    @Autowired
+    private FileArtifactCollector fileArtifactCollector;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
@@ -147,8 +150,35 @@ public class ToolCallDispatcher {
                                 + (authToken == null || authToken.isBlank() ? "（未携带认证令牌）" : ""));
                     } else {
                         resultDetail.put("resultPreview", truncatePreview(result.getBody()));
+                        // 文件类结果：附带结构化字段，前端时间线据此渲染文件卡片
+                        if ("file".equals(result.getOutputType()) && result.getBody() instanceof Map) {
+                            @SuppressWarnings("unchecked")
+                            Map<String, Object> fileBody = (Map<String, Object>) result.getBody();
+                            resultDetail.put("fileUrl", fileBody.getOrDefault("url", ""));
+                            resultDetail.put("fileName", fileBody.getOrDefault("fileName", ""));
+                            resultDetail.put("fileSize", fileBody.getOrDefault("fileSize", 0));
+                        }
                     }
                     SseEvent.send(emitter, "step_detail", resultDetail);
+                }
+
+                // 文件类结果：收集产物 + 推送 file_generated 事件（前端据此渲染文件卡片/下载入口）
+                if (!httpFailed && "file".equals(result.getOutputType())
+                        && result.getBody() instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> fileBody = (Map<String, Object>) result.getBody();
+                    Map<String, Object> fileInfo = new LinkedHashMap<>();
+                    fileInfo.put("url", fileBody.getOrDefault("url", ""));
+                    fileInfo.put("fileName", fileBody.getOrDefault("fileName", "generated_file"));
+                    fileInfo.put("fileSize", fileBody.getOrDefault("fileSize", 0));
+                    fileInfo.put("skillName", skill.getName());
+                    fileArtifactCollector.record(emitter, fileInfo);
+
+                    if (emitter != null) {
+                        Map<String, Object> fileEvent = new LinkedHashMap<>(fileInfo);
+                        fileEvent.put("stepIndex", stepIndex);
+                        SseEvent.send(emitter, SseEvent.TYPE_FILE_GENERATED, fileEvent);
+                    }
                 }
 
                 // 增加技能使用次数

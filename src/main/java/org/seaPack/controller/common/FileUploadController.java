@@ -25,6 +25,7 @@ import java.util.UUID;
  * <ul>
  * <li>POST /api/v1/files — 上传文件</li>
  * <li>DELETE /api/v1/files — 删除文件（按路径）</li>
+ * <li>GET /api/v1/files/download — 下载文件（带原始文件名）</li>
  * </ul>
  */
 @Slf4j
@@ -37,6 +38,56 @@ public class FileUploadController {
 
     @Value("${server.port:8090}")
     private int serverPort;
+
+    /**
+     * 下载文件（设置 Content-Disposition 附件名，浏览器保存时使用原始中文文件名而非 UUID）
+     * <p>
+     * 与 /files/** 静态映射指向同一存储目录；静态映射不带文件名信息，
+     * 因此对话产物下载统一走本端点。
+     * </p>
+     *
+     * @param filePath 文件路径（如 /files/xxx.pdf 或 xxx.pdf）
+     * @param fileName 下载时使用的文件名（可选，不传则用存储文件名）
+     */
+    @GetMapping("/download")
+    public ResponseEntity<org.springframework.core.io.Resource> downloadFile(
+            @RequestParam("path") String filePath,
+            @RequestParam(value = "fileName", required = false) String fileName) {
+        try {
+            String filename = filePath;
+            if (filePath.contains("/files/")) {
+                filename = filePath.substring(filePath.lastIndexOf("/files/") + 7);
+            }
+            // 防路径穿越：只允许 uploads/files 下的直接子文件
+            filename = filename.replace("\\", "/");
+            if (filename.contains("/") || filename.contains("..")) {
+                return ResponseEntity.badRequest().build();
+            }
+            Path path = Paths.get(System.getProperty("user.dir"), uploadDir, filename);
+            if (!Files.exists(path) || !Files.isRegularFile(path)) {
+                return ResponseEntity.notFound().build();
+            }
+
+            String downloadName = (fileName != null && !fileName.isBlank()) ? fileName : filename;
+            // RFC 5987：filename* 支持 UTF-8 中文文件名
+            String encoded = java.net.URLEncoder.encode(downloadName, java.nio.charset.StandardCharsets.UTF_8)
+                    .replace("+", "%20");
+            String contentType = Files.probeContentType(path);
+            if (contentType == null) {
+                contentType = "application/octet-stream";
+            }
+
+            log.info("文件下载: path={}, downloadName={}", filename, downloadName);
+            return ResponseEntity.ok()
+                    .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION,
+                            "attachment; filename*=UTF-8''" + encoded)
+                    .contentType(org.springframework.http.MediaType.parseMediaType(contentType))
+                    .body(new org.springframework.core.io.FileSystemResource(path));
+        } catch (IOException e) {
+            log.error("文件下载失败: {}", filePath, e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
 
     /**
      * 上传文件

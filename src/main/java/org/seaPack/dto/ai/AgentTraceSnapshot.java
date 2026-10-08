@@ -40,6 +40,9 @@ public class AgentTraceSnapshot {
     /** Token 汇总 */
     private TotalTokens totalTokens;
 
+    /** 本次执行产出的文件列表（技能 file 类型结果，供前端渲染文件卡片/下载入口） */
+    private List<java.util.Map<String, Object>> files;
+
     @Data
     public static class TotalTokens {
         private Integer prompt;

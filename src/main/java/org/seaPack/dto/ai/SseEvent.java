@@ -42,6 +42,8 @@ public class SseEvent {
     public static final String TYPE_ROUTING = "routing";
     /** 路由结果 */
     public static final String TYPE_ROUTE_RESULT = "route_result";
+    /** 文件产物生成（技能 file 类型结果，前端据此渲染文件卡片） */
+    public static final String TYPE_FILE_GENERATED = "file_generated";
 
     private static final ObjectMapper objectMapper = new ObjectMapper();
 

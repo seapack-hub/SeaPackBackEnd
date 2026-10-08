@@ -52,6 +52,9 @@ public class OrchestrationExecuteService {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private org.seaPack.service.ai.tool.FileArtifactCollector fileArtifactCollector;
+
     // ===== 策略实例注入 =====
 
     @Autowired
@@ -168,7 +171,8 @@ public class OrchestrationExecuteService {
                 return;
             }
 
-            // 5. 发送完成事件
+            // 5. 发送完成事件（汇总本次编排产出的文件，前端据此渲染文件卡片/下载入口）
+            List<Map<String, Object>> generatedFiles = fileArtifactCollector.drain(emitter);
             long totalDuration = System.currentTimeMillis() - totalStart;
             Map<String, Object> doneData = new HashMap<>();
             doneData.put("result", result.output);
@@ -178,6 +182,9 @@ public class OrchestrationExecuteService {
             doneData.put("tokens", Map.of(
                     "prompt", result.tokensPrompt,
                     "completion", result.tokensCompletion));
+            if (generatedFiles != null) {
+                doneData.put("files", generatedFiles);
+            }
             doneData.put("message", "编排执行完成，共耗时 " + totalDuration + "ms");
             sendSseEvent(emitter, "done", doneData);
 
@@ -185,7 +192,7 @@ public class OrchestrationExecuteService {
             try {
                 saveSession(request, orchestration, result.output, totalDuration,
                         result.tokensPrompt, result.tokensCompletion,
-                        config.getChatModel(), "success", null, userId, result.steps, strategy);
+                        config.getChatModel(), "success", null, userId, result.steps, strategy, generatedFiles);
             } catch (Exception ex) {
                 log.warn("保存编排执行会话失败: {}", ex.getMessage());
             }
@@ -279,7 +286,8 @@ public class OrchestrationExecuteService {
                 return;
             }
 
-            // 5. 发送完成事件
+            // 5. 发送完成事件（汇总本次编排产出的文件）
+            List<Map<String, Object>> generatedFiles = fileArtifactCollector.drain(emitter);
             long totalDuration = System.currentTimeMillis() - totalStart;
             Map<String, Object> doneData = new HashMap<>();
             doneData.put("result", result.output);
@@ -289,6 +297,9 @@ public class OrchestrationExecuteService {
             doneData.put("tokens", Map.of(
                     "prompt", result.tokensPrompt,
                     "completion", result.tokensCompletion));
+            if (generatedFiles != null) {
+                doneData.put("files", generatedFiles);
+            }
             doneData.put("message", "动态编排执行完成，共耗时 " + totalDuration + "ms");
             sendSseEvent(emitter, "done", doneData);
 
@@ -296,7 +307,7 @@ public class OrchestrationExecuteService {
             try {
                 saveDynamicSession(request, result.output, totalDuration,
                         result.tokensPrompt, result.tokensCompletion,
-                        config.getChatModel(), "success", null, userId, result.steps, execStrategy);
+                        config.getChatModel(), "success", null, userId, result.steps, execStrategy, generatedFiles);
             } catch (Exception ex) {
                 log.warn("保存动态编排执行会话失败: {}", ex.getMessage());
             }
@@ -354,7 +365,7 @@ public class OrchestrationExecuteService {
     private void saveSession(OrchestrationExecuteRequest request, SceneOrchestration orchestration,
             String output, long durationMs, int tokensPrompt, int tokensCompletion,
             String modelName, String status, String errorMessage, Long userId,
-            List<AgentTraceStep> steps, String strategy) {
+            List<AgentTraceStep> steps, String strategy, List<Map<String, Object>> files) {
         ExecutionSession session = new ExecutionSession();
         session.setBizType("orchestration");
         session.setBizId(orchestration != null ? orchestration.getId() : 0L);
@@ -365,7 +376,7 @@ public class OrchestrationExecuteService {
         session.setUserMessage(request != null ? request.getMessage() : null);
         session.setOutputResult(output);
         session.setTraceSnapshot(buildTraceSnapshot(steps, durationMs, tokensPrompt, tokensCompletion,
-                "orchestration", orchestration != null ? orchestration.getName() : null, strategy));
+                "orchestration", orchestration != null ? orchestration.getName() : null, strategy, files));
         session.setTotalDurationMs((int) durationMs);
         session.setTokensPrompt(tokensPrompt);
         session.setTokensCompletion(tokensCompletion);
@@ -383,7 +394,7 @@ public class OrchestrationExecuteService {
     private void saveDynamicSession(OrchestrationExecuteRequest request,
             String output, long durationMs, int tokensPrompt, int tokensCompletion,
             String modelName, String status, String errorMessage, Long userId,
-            List<AgentTraceStep> steps, String strategy) {
+            List<AgentTraceStep> steps, String strategy, List<Map<String, Object>> files) {
         ExecutionSession session = new ExecutionSession();
         session.setBizType("orchestration");
         session.setBizId(0L);
@@ -394,7 +405,7 @@ public class OrchestrationExecuteService {
         session.setUserMessage(request != null ? request.getMessage() : null);
         session.setOutputResult(output);
         session.setTraceSnapshot(buildTraceSnapshot(steps, durationMs, tokensPrompt, tokensCompletion,
-                "orchestration", "动态编排", strategy));
+                "orchestration", "动态编排", strategy, files));
         session.setTotalDurationMs((int) durationMs);
         session.setTokensPrompt(tokensPrompt);
         session.setTokensCompletion(tokensCompletion);
@@ -417,7 +428,7 @@ public class OrchestrationExecuteService {
      */
     private String buildTraceSnapshot(List<AgentTraceStep> steps, long durationMs,
             int tokensPrompt, int tokensCompletion,
-            String route, String routeName, String strategy) {
+            String route, String routeName, String strategy, List<Map<String, Object>> files) {
         Map<String, Object> snapshot = new LinkedHashMap<>();
         snapshot.put("route", route);
         if (routeName != null && !routeName.isBlank()) {
@@ -425,6 +436,9 @@ public class OrchestrationExecuteService {
         }
         if (strategy != null && !strategy.isBlank()) {
             snapshot.put("strategy", strategy);
+        }
+        if (files != null && !files.isEmpty()) {
+            snapshot.put("files", files);
         }
         List<Map<String, Object>> stepMaps = new ArrayList<>();
         if (steps != null) {

@@ -58,6 +58,9 @@ public class AgentTestChatService {
     @Autowired
     private AgentTraceHelper agentTraceHelper;
 
+    @Autowired
+    private org.seaPack.service.ai.tool.FileArtifactCollector fileArtifactCollector;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     // =====================================================================
@@ -199,8 +202,11 @@ public class AgentTestChatService {
 
             // 6. 构建最终响应
             totalDuration = System.currentTimeMillis() - totalStart;
+            // 收集本次对话产出的文件（技能 file 类型结果），随 done 事件下发 + 写入链路快照
+            List<Map<String, Object>> generatedFiles = fileArtifactCollector.drain(emitter);
             AgentTraceSnapshot snapshot = agentTraceHelper.buildTraceSnapshot(agent, steps, totalDuration,
                     llmResult.tokensPrompt, llmResult.tokensCompletion);
+            snapshot.setFiles(generatedFiles);
 
             AgentTestChatResponse chatResponse = new AgentTestChatResponse();
             chatResponse.setContent(llmResult.output);
@@ -210,13 +216,16 @@ public class AgentTestChatService {
             chatResponse.setTraceSnapshot(snapshot);
 
             if (emitter != null) {
-                SseEvent.send(emitter, SseEvent.TYPE_DONE, SseEvent.done(Map.of(
-                                        "content", llmResult.output,
-                                        "durationMs", totalDuration,
-                                        "tokensPrompt", llmResult.tokensPrompt,
-                                        "tokensCompletion", llmResult.tokensCompletion,
-                                        "traceSnapshot", snapshot
-                                )));
+                Map<String, Object> doneData = new HashMap<>();
+                doneData.put("content", llmResult.output);
+                doneData.put("durationMs", totalDuration);
+                doneData.put("tokensPrompt", llmResult.tokensPrompt);
+                doneData.put("tokensCompletion", llmResult.tokensCompletion);
+                doneData.put("traceSnapshot", snapshot);
+                if (generatedFiles != null) {
+                    doneData.put("files", generatedFiles);
+                }
+                SseEvent.send(emitter, SseEvent.TYPE_DONE, SseEvent.done(doneData));
                 emitter.complete();
             }
 
