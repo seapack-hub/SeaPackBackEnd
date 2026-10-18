@@ -327,11 +327,19 @@ public class AgentLlmCaller {
                             "durationMs", System.currentTimeMillis() - toolStepStartTime,
                             "toolRounds", totalToolRounds,
                             "toolsCalled", new ArrayList<>(alreadyCalledTools)), orchestrationStepIndex));
-                    // 推送：LLM 输出步骤开始
-                    SseEvent.send(emitter, "step_start", SseEvent.withOrchStep(Map.of(
-                            "stepIndex", llmStepIndex,
-                            "stepType", "llm_call",
-                            "stepName", "LLM 输出"), orchestrationStepIndex));
+                    // LLM 输出步骤开始：只推一次（第一轮工具完成后），后续轮仅推提示，避免时间线出现重复节点
+                    if (totalToolRounds == 1) {
+                        SseEvent.send(emitter, "step_start", SseEvent.withOrchStep(Map.of(
+                                "stepIndex", llmStepIndex,
+                                "stepType", "llm_call",
+                                "stepName", "LLM 输出"), orchestrationStepIndex));
+                    } else {
+                        SseEvent.send(emitter, SseEvent.TYPE_STEP_DETAIL, SseEvent.withOrchStep(Map.of(
+                                "stepIndex", llmStepIndex,
+                                "stepType", "llm_call",
+                                "detailType", "llm_continue",
+                                "message", "第 " + totalToolRounds + " 轮工具完成，LLM 继续生成..."), orchestrationStepIndex));
+                    }
                 }
 
                 continue;

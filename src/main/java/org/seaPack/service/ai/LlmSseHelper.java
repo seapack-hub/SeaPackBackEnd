@@ -20,8 +20,11 @@ import java.util.function.Consumer;
 
 /**
  * LLM 流式调用工具类
- * <p>封装了通用的 HttpURLConnection 创建、SSE 流式读取、同步调用等逻辑，
- * 消除 LLMTestChatService / AgentTestChatService / OrchestrationExecuteService 中的重复代码。</p>
+ * <p>
+ * 封装了通用的 HttpURLConnection 创建、SSE 流式读取、同步调用等逻辑，
+ * 消除 LLMTestChatService / AgentTestChatService / OrchestrationExecuteService
+ * 中的重复代码。
+ * </p>
  */
 @Slf4j
 @Component
@@ -32,12 +35,13 @@ public class LlmSseHelper {
     /**
      * 创建流式 HTTP POST 连接
      *
-     * @param url        LLM API URL
-     * @param apiKey     API 密钥
+     * @param url         LLM API URL
+     * @param apiKey      API 密钥
      * @param requestBody 请求体
      * @return 已写入请求体的 HttpURLConnection
      */
-    public HttpURLConnection createConnection(String url, String apiKey, Map<String, Object> requestBody) throws Exception {
+    public HttpURLConnection createConnection(String url, String apiKey, Map<String, Object> requestBody)
+            throws Exception {
         HttpURLConnection connection = (HttpURLConnection) URI.create(url).toURL().openConnection();
         connection.setRequestMethod("POST");
         connection.setRequestProperty("Content-Type", "application/json");
@@ -56,12 +60,15 @@ public class LlmSseHelper {
 
     /**
      * 流式读取 SSE 响应，逐 chunk 回调
-     * <p>内部封装了 BufferedReader + while 循环 + cancelFlag 检查 + data: 行解析。</p>
+     * <p>
+     * 内部封装了 BufferedReader + while 循环 + cancelFlag 检查 + data: 行解析。
+     * </p>
      *
      * @param conn       HTTP 连接
      * @param cancelFlag 取消标志（可为 null）
      * @param onChunk    chunk 回调：每收到一个非 [DONE] 的 data 行即回调，
-     *                   参数为 Chunk 对象（含 deltaContent / promptTokens / completionTokens / done 标记）
+     *                   参数为 Chunk 对象（含 deltaContent / promptTokens /
+     *                   completionTokens / done 标记）
      */
     public void readChunks(HttpURLConnection conn, AtomicBoolean cancelFlag, Consumer<Chunk> onChunk) throws Exception {
         // 先检查 HTTP 响应码，非 200 时读取错误流并抛出异常
@@ -129,8 +136,8 @@ public class LlmSseHelper {
     /**
      * 发起非流式同步调用（stream=false）
      *
-     * @param url        LLM API URL
-     * @param apiKey     API 密钥
+     * @param url         LLM API URL
+     * @param apiKey      API 密钥
      * @param requestBody 请求体
      * @return LLM API 的完整 JSON 响应
      */
@@ -165,8 +172,7 @@ public class LlmSseHelper {
         Chunk result = new Chunk();
 
         // 提取 choices
-        List<Map<String, Object>> choices =
-                (List<Map<String, Object>>) chunk.get("choices");
+        List<Map<String, Object>> choices = (List<Map<String, Object>>) chunk.get("choices");
         if (choices != null && !choices.isEmpty()) {
             Map<String, Object> choice = choices.get(0);
 
@@ -184,8 +190,7 @@ public class LlmSseHelper {
                 }
                 // 提取 tool_calls（流式增量）
                 if (delta.containsKey("tool_calls") && delta.get("tool_calls") != null) {
-                    List<Map<String, Object>> toolCallsDelta =
-                            (List<Map<String, Object>>) delta.get("tool_calls");
+                    List<Map<String, Object>> toolCallsDelta = (List<Map<String, Object>>) delta.get("tool_calls");
                     result.setToolCallsDelta(toolCallsDelta);
                 }
             }
@@ -195,9 +200,11 @@ public class LlmSseHelper {
         Map<String, Object> usage = (Map<String, Object>) chunk.get("usage");
         if (usage != null) {
             result.setPromptTokens(usage.get("prompt_tokens") != null
-                    ? ((Number) usage.get("prompt_tokens")).intValue() : null);
+                    ? ((Number) usage.get("prompt_tokens")).intValue()
+                    : null);
             result.setCompletionTokens(usage.get("completion_tokens") != null
-                    ? ((Number) usage.get("completion_tokens")).intValue() : null);
+                    ? ((Number) usage.get("completion_tokens")).intValue()
+                    : null);
         }
 
         // 如果既没有 delta content 也没有 usage 也没有 tool_calls，视为无效 chunk
@@ -270,61 +277,89 @@ public class LlmSseHelper {
 
     /**
      * 流式 tool_calls 累积器
-     * <p>OpenAI 流式响应中 tool_calls 是增量发送的（每次只返回一部分 arguments），
-     * 需要按 index 累积拼接才能得到完整的 function call。</p>
+     * <p>
+     * OpenAI 流式响应中 tool_calls 是增量发送的（每次只返回一部分 arguments），
+     * 需要按 index 累积拼接才能得到完整的 function call。
+     * </p>
      */
     public static class ToolCallAccumulator {
         private final Map<Integer, Map<String, Object>> accumulated = new HashMap<>();
         private final Map<Integer, StringBuilder> argumentsBuffers = new HashMap<>();
+        private static final ObjectMapper ACC_MAPPER = new ObjectMapper();
 
         /**
          * 累积一次增量的 tool_calls 片段
+         * <p>
+         * 兼容 mimo 等模型偶发的非标准流式行为：头部片段（id/name）可能缺失或延后到达，
+         * 因此 id/type/name 在任一片段中出现即合并，不再只认 index 首次出现的片段。
+         * </p>
          */
         public void addDelta(List<Map<String, Object>> deltas) {
-            if (deltas == null) return;
+            if (deltas == null)
+                return;
             for (Map<String, Object> delta : deltas) {
                 int index = delta.containsKey("index")
-                        ? ((Number) delta.get("index")).intValue() : 0;
+                        ? ((Number) delta.get("index")).intValue()
+                        : 0;
                 log.debug("[ToolCallAccumulator] addDelta: index={}, id={}, type={}, function={}",
                         index, delta.get("id"), delta.get("type"),
                         delta.containsKey("function") ? ((Map<?, ?>) delta.get("function")).get("name") : null);
 
-                // 首次出现该 index 时，保存 id 和 function 基础信息
+                // 首次出现该 index 时初始化骨架
                 if (!accumulated.containsKey(index)) {
-                    Map<String, Object> entry = new HashMap<>();
-                    if (delta.containsKey("id") && delta.get("id") != null) {
-                        entry.put("id", delta.get("id"));
-                    }
-                    if (delta.containsKey("type") && delta.get("type") != null) {
-                        entry.put("type", delta.get("type"));
-                    }
-                    // function 基础信息（name 等）
-                    if (delta.containsKey("function") && delta.get("function") != null) {
-                        @SuppressWarnings("unchecked")
-                        Map<String, Object> fnDelta = (Map<String, Object>) delta.get("function");
-                        Map<String, Object> fnEntry = new HashMap<>();
-                        if (fnDelta.containsKey("name") && fnDelta.get("name") != null) {
-                            fnEntry.put("name", fnDelta.get("name"));
-                        }
-                        entry.put("function", fnEntry);
-                    }
-                    accumulated.put(index, entry);
+                    accumulated.put(index, new HashMap<>());
                     argumentsBuffers.put(index, new StringBuilder());
                 }
+                Map<String, Object> entry = accumulated.get(index);
 
-                // 累积 arguments 片段
+                // id/type：任一片段出现即合并（头部片段晚到也能救回）
+                if (delta.get("id") != null) {
+                    entry.put("id", delta.get("id"));
+                }
+                if (delta.get("type") != null) {
+                    entry.put("type", delta.get("type"));
+                }
+
+                // function：name 任一片段出现即合并，arguments 片段持续累积
                 if (delta.containsKey("function") && delta.get("function") != null) {
                     @SuppressWarnings("unchecked")
                     Map<String, Object> fnDelta = (Map<String, Object>) delta.get("function");
-                    if (fnDelta.containsKey("arguments") && fnDelta.get("arguments") != null) {
-                        argumentsBuffers.get(index).append(fnDelta.get("arguments"));
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> fnEntry = (Map<String, Object>) entry.computeIfAbsent(
+                            "function", k -> new HashMap<>());
+                    if (fnDelta.get("name") != null) {
+                        fnEntry.put("name", fnDelta.get("name"));
+                    }
+                    if (fnDelta.get("arguments") != null) {
+                        argumentsBuffers.get(index).append(normalizeArguments(fnDelta.get("arguments")));
                     }
                 }
             }
         }
 
         /**
+         * 归一化 arguments 片段为字符串
+         * <p>
+         * 标准 OpenAI 格式为 JSON 字符串分片；部分模型会直接发 JSON 对象/数值，需序列化兼容。
+         * </p>
+         */
+        private String normalizeArguments(Object arguments) {
+            if (arguments instanceof String) {
+                return (String) arguments;
+            }
+            try {
+                return ACC_MAPPER.writeValueAsString(arguments);
+            } catch (Exception e) {
+                return String.valueOf(arguments);
+            }
+        }
+
+        /**
          * 获取累积完成的 tool_calls 列表（含完整的 arguments）
+         * <p>
+         * 兜底：id 缺失时合成 call_UUID，保证回传的 assistant.tool_calls 与 tool 消息的
+         * tool_call_id 一致，避免 LLM API 校验 "`id` is not set" 报 400。
+         * </p>
          */
         public List<Map<String, Object>> getToolCalls() {
             List<Map<String, Object>> result = new ArrayList<>();
@@ -335,6 +370,14 @@ public class LlmSseHelper {
             for (int idx : sortedIndexes) {
                 Map<String, Object> entry = accumulated.get(idx);
                 String arguments = argumentsBuffers.get(idx).toString();
+
+                // 兜底合成 id（模型未返回时）
+                Object id = entry.get("id");
+                if (id == null || id.toString().isBlank()) {
+                    String syntheticId = "call_" + java.util.UUID.randomUUID().toString().replace("-", "");
+                    entry.put("id", syntheticId);
+                    log.warn("[ToolCallAccumulator] 流式片段缺少 tool_call id（index={}），已合成: {}", idx, syntheticId);
+                }
 
                 @SuppressWarnings("unchecked")
                 Map<String, Object> function = (Map<String, Object>) entry.get("function");
