@@ -7,6 +7,7 @@ import org.seaPack.dto.ai.*;
 import org.seaPack.dto.ai.SkillExecuteResult;
 import org.seaPack.mapper.ai.*;
 import org.seaPack.model.ai.*;
+import org.seaPack.service.ai.tool.OrchestrationToolContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -428,6 +429,26 @@ public class AgentTestChatService {
             Long sceneId, String conversationId, String requestId,
             SseEmitter emitter, AtomicBoolean cancelFlag, String authToken,
             Integer orchestrationStepIndex) {
+        return callAgentStep(agentId, userMessage, history, sceneId, conversationId, requestId,
+                emitter, cancelFlag, authToken, orchestrationStepIndex, null);
+    }
+
+    /**
+     * 执行单个 Agent 步骤（支持编排级工具注入）
+     * <p>
+     * {@link OrchestrationToolContext} 非空时，其工具定义与 Agent 技能工具合并传给 LLM，
+     * 命中的工具调用回调编排执行器（如 Supervisor 的 select_agent / aggregate_results）。
+     * Worker 调用方必须传 null（防递归）。
+     * </p>
+     *
+     * @param orchestrationStepIndex 编排步骤序号（可空）
+     * @param toolContext            编排级工具上下文（可空）
+     */
+    public AgentStepResult callAgentStep(Long agentId, String userMessage,
+            List<Map<String, String>> history,
+            Long sceneId, String conversationId, String requestId,
+            SseEmitter emitter, AtomicBoolean cancelFlag, String authToken,
+            Integer orchestrationStepIndex, OrchestrationToolContext toolContext) {
         AgentStepResult result = new AgentStepResult();
         result.steps = new ArrayList<>();
         long stepStart = System.currentTimeMillis();
@@ -442,13 +463,16 @@ public class AgentTestChatService {
             }
             applySceneConfig(agent, sceneId);
 
-            // 2. 加载 Agent 关联的技能定义
+            // 2. 加载 Agent 关联的技能定义（编排级工具由 toolContext 注入，LLM 调用层合并）
             List<Map<String, Object>> toolDefinitions = new ArrayList<>();
             try {
                 toolDefinitions = skillExecutor.getToolDefinitions(agentId);
             } catch (Exception e) {
                 log.error("Agent[{}] 加载技能定义失败: {}", agent.getName(), e.getMessage(), e);
             }
+            boolean hasTools = !toolDefinitions.isEmpty()
+                    || (toolContext != null && toolContext.getToolDefinitions() != null
+                            && !toolContext.getToolDefinitions().isEmpty());
 
             // 3. Step 1: 提示词组装
             int stepIndex = 0;
@@ -460,7 +484,7 @@ public class AgentTestChatService {
             }
             AgentTraceStepResult promptResult = agentPromptService.assemblePrompt(agent, stepIndex,
                     userMessage, emitter, null, sceneId, agentId, requestId,
-                    !toolDefinitions.isEmpty());
+                    hasTools);
             String systemPrompt = promptResult.output;
             result.steps.add(promptResult.step);
             if (emitter != null) {
@@ -506,12 +530,13 @@ public class AgentTestChatService {
 
             int toolStepIndex = stepIndex;
             int llmStepIndex = hasKnowledge ? stepIndex + 1 : stepIndex;
-            if (!toolDefinitions.isEmpty()) {
+            if (hasTools) {
                 llmStepIndex = stepIndex + 1;
             }
             AgentTraceStepResult llmResult = agentLlmCaller.callLLMStreamWithTools(agent, systemPrompt,
                     knowledgeContext, dialogRequest, toolStepIndex, llmStepIndex, emitter,
-                    new AtomicBoolean(false), cancelFlag, toolDefinitions, authToken, orchestrationStepIndex);
+                    new AtomicBoolean(false), cancelFlag, toolDefinitions, authToken, orchestrationStepIndex,
+                    toolContext);
 
             if (llmResult.extraSteps != null && !llmResult.extraSteps.isEmpty()) {
                 result.steps.addAll(llmResult.extraSteps);

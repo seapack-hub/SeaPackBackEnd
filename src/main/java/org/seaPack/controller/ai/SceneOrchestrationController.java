@@ -88,6 +88,10 @@ public class SceneOrchestrationController {
             return ResponseEntity.badRequest().body("不支持的执行策略: " + orchestration.getStrategy()
                     + "，仅支持 " + String.join("/", VALID_STRATEGIES));
         }
+        if ("supervisor".equals(orchestration.getStrategy()) && orchestration.getSupervisorAgentId() == null) {
+            return ResponseEntity.badRequest().body("Supervisor 总控调度模式必须指定 supervisorAgentId（Supervisor Agent）");
+        }
+        clampMaxRounds(orchestration);
         if (orchestrationService.isCodeDuplicate(orchestration.getSceneId(), orchestration.getCode(), null)) {
             return ResponseEntity.badRequest().body("编排编码已存在: " + orchestration.getCode());
         }
@@ -111,6 +115,10 @@ public class SceneOrchestrationController {
             return ResponseEntity.badRequest().body("不支持的执行策略: " + orchestration.getStrategy()
                     + "，仅支持 " + String.join("/", VALID_STRATEGIES));
         }
+        if ("supervisor".equals(orchestration.getStrategy()) && orchestration.getSupervisorAgentId() == null) {
+            return ResponseEntity.badRequest().body("Supervisor 总控调度模式必须指定 supervisorAgentId（Supervisor Agent）");
+        }
+        clampMaxRounds(orchestration);
         if (orchestration.getCode() != null
                 && orchestrationService.isCodeDuplicate(orchestration.getSceneId(), orchestration.getCode(),
                         orchestration.getId())) {
@@ -227,6 +235,10 @@ public class SceneOrchestrationController {
         if (stepError != null) {
             return ResponseEntity.badRequest().body(stepError);
         }
+        stepError = validateSupervisorStep(orchestrationId, step);
+        if (stepError != null) {
+            return ResponseEntity.badRequest().body(stepError);
+        }
         try {
             step.setOrchestrationId(orchestrationId);
             orchestrationService.addStep(step);
@@ -249,6 +261,10 @@ public class SceneOrchestrationController {
             @PathVariable Long id,
             @RequestBody SceneOrchestrationStep step) {
         String stepError = validateStep(step);
+        if (stepError != null) {
+            return ResponseEntity.badRequest().body(stepError);
+        }
+        stepError = validateSupervisorStep(orchestrationId, step);
         if (stepError != null) {
             return ResponseEntity.badRequest().body(stepError);
         }
@@ -278,6 +294,41 @@ public class SceneOrchestrationController {
         }
         if ("agent".equals(nodeType) && step.getAgentId() == null) {
             return "Agent 节点必须选择执行 Agent";
+        }
+        return null;
+    }
+
+    /**
+     * maxRounds 钳制到 [1,20]（Supervisor 调度预算保护，超界取边界值）
+     *
+     * @param orchestration 编排实体
+     */
+    private void clampMaxRounds(SceneOrchestration orchestration) {
+        if (orchestration.getMaxRounds() != null) {
+            orchestration.setMaxRounds(Math.max(1, Math.min(20, orchestration.getMaxRounds())));
+        }
+    }
+
+    /**
+     * Supervisor 模式下步骤不得使用 Supervisor Agent 自身作为执行 Agent（防递归）
+     * <p>
+     * 仅在步骤 agentId 非空且编排策略为 supervisor 时校验。
+     * </p>
+     *
+     * @param orchestrationId 编排ID
+     * @param step            步骤实体
+     * @return 错误信息，null 表示校验通过
+     */
+    private String validateSupervisorStep(Long orchestrationId, SceneOrchestrationStep step) {
+        if (step.getAgentId() == null) {
+            return null;
+        }
+        SceneOrchestration orch = orchestrationService.getDetailWithSteps(orchestrationId);
+        if (orch == null || !"supervisor".equals(orch.getStrategy())) {
+            return null;
+        }
+        if (step.getAgentId().equals(orch.getSupervisorAgentId())) {
+            return "Supervisor 模式下步骤不能使用 Supervisor Agent 自身作为执行 Agent（防递归），请选择 Worker Agent";
         }
         return null;
     }

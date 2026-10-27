@@ -1,9 +1,11 @@
 package org.seaPack.service.ai;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.seaPack.config.AIProperties;
 import org.seaPack.dto.ai.*;
 import org.seaPack.model.ai.Agent;
+import org.seaPack.service.ai.tool.OrchestrationToolContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -30,6 +32,8 @@ public class AgentLlmCaller {
 
     @Autowired
     private AgentSkillExecutor skillExecutor;
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
      * 流式调用 LLM API，支持 Function Calling 多轮循环。
@@ -63,7 +67,6 @@ public class AgentLlmCaller {
      *
      * @param orchestrationStepIndex 编排步骤序号（可空；编排场景下事件携带该字段，前端据此归属到步骤卡片）
      */
-    @SuppressWarnings("unchecked")
     public AgentTraceStepResult callLLMStreamWithTools(Agent agent, String systemPrompt,
             String knowledgeContext,
             AiDialogRequest request,
@@ -72,11 +75,55 @@ public class AgentLlmCaller {
             AtomicBoolean cancelFlag,
             List<Map<String, Object>> toolDefinitions,
             String authToken, Integer orchestrationStepIndex) {
+        return callLLMStreamWithTools(agent, systemPrompt, knowledgeContext, request,
+                toolStepIndex, llmStepIndex, emitter, isCompleted, cancelFlag,
+                toolDefinitions, authToken, orchestrationStepIndex, null);
+    }
+
+    /**
+     * 流式调用 LLM API（支持编排级工具注入）
+     * <p>
+     * {@link OrchestrationToolContext} 非空时，其工具定义与 Agent 技能工具合并传给 LLM，
+     * 命中的工具调用回调编排执行器（如 Supervisor 的 select_agent），
+     * 其余工具仍走技能执行器；编排级工具不受"工具去重"限制（可重复调用）。
+     * </p>
+     *
+     * @param orchestrationStepIndex 编排步骤序号（可空）
+     * @param toolContext            编排级工具上下文（可空；含工具定义、执行回调、回路轮数上限）
+     */
+    @SuppressWarnings("unchecked")
+    public AgentTraceStepResult callLLMStreamWithTools(Agent agent, String systemPrompt,
+            String knowledgeContext,
+            AiDialogRequest request,
+            int toolStepIndex, int llmStepIndex,
+            SseEmitter emitter, AtomicBoolean isCompleted,
+            AtomicBoolean cancelFlag,
+            List<Map<String, Object>> toolDefinitions,
+            String authToken, Integer orchestrationStepIndex,
+            OrchestrationToolContext toolContext) {
         long llmStart = System.currentTimeMillis();
+
+        // 合并工具定义：Agent 技能工具 + 编排级工具（Supervisor 的 select_agent 等）
+        List<Map<String, Object>> allToolDefinitions = new ArrayList<>();
+        if (toolDefinitions != null) {
+            allToolDefinitions.addAll(toolDefinitions);
+        }
+        Set<String> orchestrationToolNames = new HashSet<>();
+        if (toolContext != null && toolContext.getToolDefinitions() != null) {
+            for (Map<String, Object> extraTool : toolContext.getToolDefinitions()) {
+                allToolDefinitions.add(extraTool);
+                @SuppressWarnings("unchecked")
+                Map<String, Object> fn = (Map<String, Object>) extraTool.get("function");
+                if (fn != null && fn.get("name") != null) {
+                    orchestrationToolNames.add((String) fn.get("name"));
+                }
+            }
+        }
+
         String modelName = agent.getModelCode() != null ? agent.getModelCode()
                 : aiProperties.getProviders().get(aiProperties.getActiveProvider()).getChatModel();
         log.info("Agent LLM 流式调用开始 (Function Calling): agentId={}, model={}, tools={}",
-                agent.getId(), modelName, toolDefinitions.size());
+                agent.getId(), modelName, allToolDefinitions.size());
 
         // 构建初始消息列表
         List<Map<String, Object>> messages = new ArrayList<>();
@@ -121,14 +168,18 @@ public class AgentLlmCaller {
         StringBuilder replyContentBuilder = new StringBuilder();
         int[] tokenUsage = { 0, 0 };
         int totalToolRounds = 0;
-        final int MAX_TOOL_ROUNDS = 2;
         List<Map<String, Object>> functionCallsHistory = new ArrayList<>();
         List<AgentTraceStep> childSteps = new ArrayList<>();
-        Set<String> alreadyCalledTools = new LinkedHashSet<>(); // 已调用的工具名，用于去重
+        Set<String> alreadyCalledTools = new LinkedHashSet<>(); // 已调用的技能工具名，用于去重（编排级工具除外）
         long toolStepStartTime = 0; // 工具步骤开始时间，用于计算耗时
 
+        // 工具回路轮数上限：编排级注入可覆盖（Supervisor 需要多轮派工），默认 2
+        final int maxToolRounds = toolContext != null && toolContext.getMaxToolRounds() != null
+                ? toolContext.getMaxToolRounds()
+                : 2;
+
         // 如果没有工具定义，直接推送 LLM 输出步骤（无工具调用场景）
-        if ((toolDefinitions == null || toolDefinitions.isEmpty()) && emitter != null) {
+        if (allToolDefinitions.isEmpty() && emitter != null) {
             SseEvent.send(emitter, "step_start", SseEvent.withOrchStep(Map.of(
                     "stepIndex", llmStepIndex,
                     "stepType", "llm_call",
@@ -136,7 +187,7 @@ public class AgentLlmCaller {
         }
 
         // ===== 多轮 tool 调用循环 =====
-        while (totalToolRounds <= MAX_TOOL_ROUNDS) {
+        while (totalToolRounds <= maxToolRounds) {
             String baseUrl = config.getBaseUrl();
             if (baseUrl.endsWith("/")) {
                 baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
@@ -152,8 +203,8 @@ public class AgentLlmCaller {
             if (agent.getMaxTokens() != null) {
                 requestBody.put("max_tokens", agent.getMaxTokens());
             }
-            if (toolDefinitions != null && !toolDefinitions.isEmpty()) {
-                requestBody.put("tools", toolDefinitions);
+            if (!allToolDefinitions.isEmpty()) {
+                requestBody.put("tools", allToolDefinitions);
             }
 
             // 工具去重：告诉 LLM 哪些工具已经调用过，避免重复调用
@@ -266,8 +317,8 @@ public class AgentLlmCaller {
                     }
                 }
 
-                List<Map<String, String>> toolMessages = skillExecutor.executeToolCalls(toolCalls, authToken, emitter,
-                        toolStepIndex, orchestrationStepIndex);
+                List<Map<String, String>> toolMessages = executeToolCallsRouted(toolCalls, toolContext,
+                        orchestrationToolNames, authToken, emitter, toolStepIndex, orchestrationStepIndex);
                 for (Map<String, String> tm : toolMessages) {
                     messages.add(new HashMap<>(tm));
                 }
@@ -291,7 +342,10 @@ public class AgentLlmCaller {
                     String funcArgs = function != null ? (String) function.get("arguments") : "{}";
                     String toolResult = i < toolMessages.size() ? toolMessages.get(i).get("content") : "{}";
 
-                    alreadyCalledTools.add(funcName); // 记录已调用工具
+                    // 记录已调用的技能工具名（编排级工具需重复调用，不参与去重）
+                    if (!orchestrationToolNames.contains(funcName)) {
+                        alreadyCalledTools.add(funcName);
+                    }
 
                     Map<String, Object> fcRecord = new LinkedHashMap<>();
                     fcRecord.put("round", totalToolRounds);
@@ -349,8 +403,8 @@ public class AgentLlmCaller {
             break;
         }
 
-        if (totalToolRounds > MAX_TOOL_ROUNDS) {
-            log.warn("Agent tool 调用轮次达到上限: max={}", MAX_TOOL_ROUNDS);
+        if (totalToolRounds > maxToolRounds) {
+            log.warn("Agent tool 调用轮次达到上限: max={}", maxToolRounds);
         }
 
         // ===== 兜底：tool 循环耗尽后 replyContent 为空时，再调一次不带 tools 的纯文本生成 =====
@@ -379,7 +433,7 @@ public class AgentLlmCaller {
         llmMeta.put("tokensCompletion", tokenUsage[1]);
         llmMeta.put("temperature", agent.getTemperature());
         llmMeta.put("toolRounds", totalToolRounds);
-        llmMeta.put("toolDefinitionsCount", toolDefinitions != null ? toolDefinitions.size() : 0);
+        llmMeta.put("toolDefinitionsCount", allToolDefinitions.size());
         if (!functionCallsHistory.isEmpty()) {
             llmMeta.put("functionCalls", functionCallsHistory);
         }
@@ -415,6 +469,84 @@ public class AgentLlmCaller {
         }
 
         return result;
+    }
+
+    /**
+     * 按工具归属路由执行 tool_calls：编排级工具走 {@link OrchestrationToolContext} 回调，
+     * 其余走技能执行器。逐个执行以保证返回的 tool 消息与 tool_calls 顺序一一对应。
+     */
+    private List<Map<String, String>> executeToolCallsRouted(List<Map<String, Object>> toolCalls,
+            OrchestrationToolContext toolContext, Set<String> orchestrationToolNames,
+            String authToken, SseEmitter emitter, int toolStepIndex, Integer orchestrationStepIndex) {
+        List<Map<String, String>> toolMessages = new ArrayList<>();
+        for (Map<String, Object> tc : toolCalls) {
+            String funcName = extractFunctionName(tc);
+            if (funcName != null && orchestrationToolNames.contains(funcName)
+                    && toolContext != null && toolContext.getToolExecutor() != null) {
+                toolMessages.add(executeExtraTool(tc, funcName, toolContext));
+            } else {
+                toolMessages.addAll(skillExecutor.executeToolCalls(Collections.singletonList(tc),
+                        authToken, emitter, toolStepIndex, orchestrationStepIndex));
+            }
+        }
+        return toolMessages;
+    }
+
+    /**
+     * 执行单个编排级工具调用（如 Supervisor 的 select_agent），返回 tool 消息。
+     * 异常时返回 {"success": false, "error": ...} 结果，保证工具回路不断裂。
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, String> executeExtraTool(Map<String, Object> toolCall, String funcName,
+            OrchestrationToolContext toolContext) {
+        String toolCallId = toolCall.get("id") != null ? String.valueOf(toolCall.get("id")) : "";
+        Map<String, Object> function = (Map<String, Object>) toolCall.get("function");
+        String argumentsJson = function != null ? (String) function.get("arguments") : null;
+
+        Map<String, Object> args;
+        try {
+            args = (argumentsJson == null || argumentsJson.isBlank())
+                    ? Collections.emptyMap()
+                    : objectMapper.readValue(argumentsJson, Map.class);
+        } catch (Exception e) {
+            log.warn("[编排工具] 参数解析失败: name={}, arguments={}", funcName, argumentsJson);
+            args = Collections.emptyMap();
+        }
+
+        String content;
+        try {
+            log.info("[编排工具] 执行 {}: {}", funcName, argumentsJson);
+            content = toolContext.getToolExecutor().execute(funcName, args);
+        } catch (Exception e) {
+            log.error("[编排工具] 执行异常: name={}, error={}", funcName, e.getMessage(), e);
+            content = "{\"success\": false, \"error\": \"" + escapeJson(e.getMessage()) + "\"}";
+        }
+
+        Map<String, String> msg = new LinkedHashMap<>();
+        msg.put("role", "tool");
+        msg.put("tool_call_id", toolCallId);
+        msg.put("content", content != null ? content : "");
+        return msg;
+    }
+
+    /**
+     * 从 tool_call 中提取 function 名称
+     */
+    @SuppressWarnings("unchecked")
+    private String extractFunctionName(Map<String, Object> toolCall) {
+        Map<String, Object> function = (Map<String, Object>) toolCall.get("function");
+        return function != null ? (String) function.get("name") : null;
+    }
+
+    /**
+     * 转义 JSON 字符串中的特殊字符（防止注入）
+     */
+    private String escapeJson(String str) {
+        if (str == null) {
+            return "";
+        }
+        return str.replace("\\", "\\\\").replace("\"", "\\\"")
+                .replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t");
     }
 
     /**
